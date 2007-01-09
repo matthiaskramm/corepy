@@ -184,12 +184,12 @@ class Variable(object):
       self.v = self.value
     return
 
-  def __del__(self):
-    if self.reg is not None and self.acquired_register:
-      # print 'Releasing register %s through Variable.__del__' % (str(self.reg))
-      self.code.release_register(self.reg)
-      self.reg = None
-    return
+#   def __del__(self):
+#     if self.reg is not None and self.acquired_register:
+#       # print 'Releasing register %s through Variable.__del__' % (str(self.reg))
+#       self.code.release_register(self.reg)
+#       self.reg = None
+#     return
   
   def __str__(self):
     # return '<%s reg = %s>' % (type(self), str(self.reg))
