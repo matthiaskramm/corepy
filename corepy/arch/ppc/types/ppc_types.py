@@ -138,6 +138,14 @@ class BitType(PPCType):
 # ------------------------------
 
 class UnsignedWordType(BitType):
+  def __add__(self, other):
+    if isinstance(other, UnsignedWordType):
+      return ppc.addx.ex(self, other, type_cls = self.var_cls)
+    elif isinstance(other, (spe.Immediate, int)):
+      return self.expr_cls(ppc.addi, *(self, other))
+    raise Exception('__add__ not implemented for %s and %s' % (type(self), type(other)))    
+  add = staticmethod(__add__)
+  
   def __div__(self, other):
     if isinstance(other, SignedWordType):
       return self.expr_cls(ppc.divwux, *(self, other))
@@ -362,6 +370,7 @@ def make_user_type(name, type_cls, g = None):
 
 _user_types = ( # name, type class
   ('Bits', BitType),
+  ('UnsignedWord', UnsignedWordType),
   ('SignedWord', SignedWordType),
   ('SingleFloat', SingleFloatType),
   ('DoubleFloat', DoubleFloatType)

@@ -207,9 +207,11 @@ _user_types = ( # name, type class
   ('SingleFloat', SingleFloatType),
   )
 
+array_vmx_lu = {} # array_typecode: type
+
 for t in _user_types:
   util.make_user_type(*(t + (globals(),)))
-
+  array_vmx_lu[globals()[t[0]].array_typecode] = globals()[t[0]]
 
 # ------------------------------------------------------------
 # Unit Tests

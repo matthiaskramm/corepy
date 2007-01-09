@@ -182,15 +182,26 @@ class Variable(object):
 
     if value is not None:
       self.v = self.value
+
+    self.assigned = False
+    self.expression = None
     return
 
-#   def __del__(self):
-#     if self.reg is not None and self.acquired_register:
-#       # print 'Releasing register %s through Variable.__del__' % (str(self.reg))
-#       self.code.release_register(self.reg)
-#       self.reg = None
-#     return
-  
+  #   def __del__(self):
+  #     if self.reg is not None and self.acquired_register:
+  #       # print 'Releasing register %s through Variable.__del__' % (str(self.reg))
+  #       self.code.release_register(self.reg)
+  #       self.reg = None
+  #     return
+
+  def release_register(self, force = False):
+    if self.reg is not None and (self.acquired_register or force):
+      self.code.release_register(self.reg)
+      self.reg = None
+    else:
+      raise Exception('Attempt to release register acquired from elsewhere.  Use force = True keyword to release from here.')
+    return
+
   def __str__(self):
     # return '<%s reg = %s>' % (type(self), str(self.reg))
     return '<%s>' % str(self.reg)
@@ -210,6 +221,10 @@ class Variable(object):
       self._set_literal_value(value)
     else:
       raise Exception('Cannot set %s to %s' % (type(self), type(value)) )
+
+    self.assigned = True
+    self.expression = value
+
     return
 
 

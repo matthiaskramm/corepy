@@ -48,7 +48,10 @@ def RunTest(test, *ops):
     traceback.print_tb(info[2])
     
   else:
-    print test.func_name, ops, 'passed'
+    if len(ops) > 0:
+      print test.func_name, ops, 'passed'
+    else:
+      print test.func_name, 'passed'      
 
 def make_user_type(name, type_cls, g = None):
   """
@@ -88,3 +91,14 @@ def make_user_type(name, type_cls, g = None):
   g[name] = var_cls
 
   return
+
+
+def return_var(var):
+  if isinstance(var.reg, type(var.code.gp_return)):
+    var.code.add(ppc.addi(var.code.gp_return, var, 0))
+  elif isinstance(var.reg, type(var.code.fp_return)):
+    var.code.add(ppc.fmrx(var.code.fp_return, var))
+  else:
+    raise Exception('Return not supported for %s registers' % (str(type(var.reg))))
+  return
+  

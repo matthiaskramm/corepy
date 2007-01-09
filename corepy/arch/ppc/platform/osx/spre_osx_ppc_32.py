@@ -272,7 +272,7 @@ class InstructionStream(spe.InstructionStream):
     self.add(ppc.ba(addr))
     return
 
-
+  
 class Processor(spe.Processor):
   exec_module = ppc_exec
   
