@@ -1,0 +1,174 @@
+class OperatorProxy(object):
+  
+  # These methods are called to implement the binary arithmetic operations
+  # (+, -, *, //, %, divmod(), pow(), **, <<, >>, &, ^, |). For instance,
+  # to evaluate the expression x+y, where x is an instance of a class that
+  # has an __add__() method, x.__add__(y) is called. The __divmod__()
+  # method should be the equivalent to using __floordiv__() and __mod__();
+  # it should not be related to __truediv__() (described below). Note that
+  # __pow__() should be defined to accept an optional third argument if
+  # the ternary version of the built-in pow() function is to be
+  # supported. 
+
+  # If one of those methods does not support the operation with the
+  # supplied arguments, it should return NotImplemented. 
+
+  def __add__(self, other): return NotImplemented
+  def __sub__(self, other): return NotImplemented
+  def __mul__(self, other): return NotImplemented
+  def __floordiv__(self, other): return NotImplemented
+  def __mod__(self, other): return NotImplemented
+  def __divmod__(self, other): return NotImplemented
+  def __pow__(self, other, modulo = None): return NotImplemented
+  def __lshift__(self, other): return NotImplemented
+  def __rshift__(self, other): return NotImplemented
+  def __and__(self, other): return NotImplemented
+  def __xor__(self, other): return NotImplemented
+  def __or__(self, other): return NotImplemented
+
+  # The division operator (/) is implemented by these methods. The
+  # __truediv__() method is used when __future__.division is in effect,
+  # otherwise __div__() is used. If only one of these two methods is
+  # defined, the object will not support division in the alternate
+  # context; TypeError will be raised instead. 
+
+  def __div__(self, other): return NotImplemented
+  def __truediv__(self, other): return NotImplemented
+
+  # These methods are called to implement the binary arithmetic operations
+  # (+, -, *, /, %, divmod(), pow(), **, <<, >>, &, ^, |) with reflected
+  # (swapped) operands. These functions are only called if the left
+  # operand does not support the corresponding operation and the operands
+  # are of different types.3.3 For instance, to evaluate the expression
+  # x-y, where y is an instance of a class that has an __rsub__() method,
+  # y.__rsub__(x) is called if x.__sub__(y) returns NotImplemented. 
+
+  # Note that ternary pow() will not try calling __rpow__() (the coercion
+  # rules would become too complicated). 
+
+  # Note: If the right operand's type is a subclass of the left operand's
+  # type and that subclass provides the reflected method for the
+  # operation, this method will be called before the left operand's
+  # non-reflected method. This behavior allows subclasses to override
+  # their ancestors' operations. 
+
+  def __radd__(self, other): return NotImplemented
+  def __rsub__(self, other): return NotImplemented
+  def __rmul__(self, other): return NotImplemented
+  def __rdiv__(self, other): return NotImplemented
+  def __rtruediv__(self, other): return NotImplemented
+  def __rfloordiv__(self, other): return NotImplemented
+  def __rmod__(self, other): return NotImplemented
+  def __rdivmod__(self, other): return NotImplemented
+  def __rpow__(self, other): return NotImplemented
+  def __rlshift__(self, other): return NotImplemented
+  def __rrshift__(self, other): return NotImplemented
+  def __rand__(self, other): return NotImplemented
+  def __rxor__(self, other): return NotImplemented
+  def __ror__(self, other): return NotImplemented
+
+
+  # These methods are called to implement the augmented arithmetic
+  # operations (+=, -=, *=, /=, %=, **=, <<=, >>=, &=, ^=, |=). These
+  # methods should attempt to do the operation in-place (modifying self)
+  # and return the result (which could be, but does not have to be,
+  # self). If a specific method is not defined, the augmented operation
+  # falls back to the normal methods. For instance, to evaluate the
+  # expression x+=y, where x is an instance of a class that has an
+  # __iadd__() method, x.__iadd__(y) is called. If x is an instance of a
+  # class that does not define a __iadd__() method, x.__add__(y) and
+  # y.__radd__(x) are considered, as with the evaluation of x+y. 
+
+  def __iadd__(self, other): return NotImplemented
+  def __isub__(self, other): return NotImplemented
+  def __imul__(self, other): return NotImplemented
+  def __idiv__(self, other): return NotImplemented
+  def __itruediv__(self, other): return NotImplemented
+  def __ifloordiv__(self, other): return NotImplemented
+  def __imod__(self, other): return NotImplemented
+  def __ipow__(self, other, modulo = None): return NotImplemented
+  def __ilshift__(self, other): return NotImplemented
+  def __irshift__(self, other): return NotImplemented
+  def __iand__(self, other): return NotImplemented
+  def __ixor__(self, other): return NotImplemented
+  def __ior__(self, other): return NotImplemented
+
+  # Called to implement the unary arithmetic operations (-, +, abs() and
+  # ~). 
+
+  def __neg__(self): return NotImplemented
+  def __pos__(self): return NotImplemented
+  def __abs__(self): return NotImplemented
+  def __invert__(self): return NotImplemented
+
+
+  # Called to implement the built-in functions complex(), int(), long(),
+  # and float(). Should return a value of the appropriate
+  # type.__complex__(self) 
+
+  def __int__(self): return NotImplemented
+  def __long__(self): return NotImplemented
+  def __float__(self): return NotImplemented
+
+
+  # Called to implement the built-in functions oct() and hex(). Should
+  # return a string value.
+
+  def __oct__(self): return NotImplemented
+  def __hex__(self): return NotImplemented
+
+  # Called to implement operator.index(). Also called whenever Python
+  # needs an integer object (such as in slicing). Must return an integer
+  # (int or long). New in version 2.5. 
+
+  def __index__(self): return NotImplemented
+
+
+  # Called to implement ``mixed-mode'' numeric arithmetic. Should either
+  # return a 2-tuple containing self and other converted to a common
+  # numeric type, or None if conversion is impossible. When the common
+  # type would be the type of other, it is sufficient to return None,
+  # since the interpreter will also ask the other object to attempt a
+  # coercion (but sometimes, if the implementation of the other type
+  # cannot be changed, it is useful to do the conversion to the other type
+  # here). A return value of NotImplemented is equivalent to returning
+  # None. 
+
+  def __coerce__(self, other): return NotImplemented  
+
+
+	# New in version 2.1. These are the so-called ``rich comparison''
+  # methods, and are called for comparison operators in preference to
+  # __cmp__() below. The correspondence between operator symbols and
+  # method names is as follows: x<y calls x.__lt__(y), x<=y calls
+  # x.__le__(y), x==y calls x.__eq__(y), x!=y and x<>y call
+  # x.__ne__(y), x>y calls x.__gt__(y), and x>=y calls
+  # x.__ge__(y). These methods can return any value, but if the
+  # comparison operator is used in a Boolean context, the return value
+  # should be interpretable as a Boolean value, else a TypeError will
+  # be raised. By convention, False is used for false and True for
+  # true. 
+
+  # There are no implied relationships among the comparison
+  # operators. The truth of x==y does not imply that x!=y is
+  # false. Accordingly, when defining __eq__, one should also define
+  # __ne__ so that the operators will behave as expected. 
+
+  # There are no reflected (swapped-argument) versions of these
+  # methods (to be used when the left argument does not support the
+  # operation but the right argument does); rather, __lt__() and
+  # __gt__() are each other's reflection, __le__() and __ge__() are
+  # each other's reflection, and __eq__() and __ne__() are their own
+  # reflection. 
+
+  # Arguments to rich comparison methods are never coerced. A rich
+  # comparison method may return NotImplemented if it does not
+  # implement the operation for a given pair of arguments.
+
+  def __lt__(self, other): return NotImplemented  
+  def __le__(self, other): return NotImplemented  
+  def __eq__(self, other): return NotImplemented  
+  def __ne__(self, other): return NotImplemented  
+  def __gt__(self, other): return NotImplemented  
+  def __ge__(self, other): return NotImplemented  
+
