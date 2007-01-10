@@ -269,7 +269,15 @@ class InstructionStream(spe.InstructionStream):
     Add the architecture dependent code to jump to a new instruction.
     Used by cache_code to chain the prologue, code, and epilogue.
     """
-    self.add(ppc.ba(addr >> 2))
+    if (addr & 0x7FFFFF) == addr:
+      self.add(ppc.ba(addr))
+    else:
+      r_addr = reg
+      load_word(self, r_addr, addr)
+      self.add(ppc.mtctr(r_addr))
+      self.add(ppc.bcctrx(0x14, 0))
+
+      # self.add(ppc.ba(addr >> 2))
     return
 
   

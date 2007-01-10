@@ -165,7 +165,6 @@ class SignedWordType(BitType):
   def __div__(self, other):
     if isinstance(other, SignedWordType):
       return self.expr_cls(ppc.divwx, *(self, other))
-    raise NotImplemented
     raise Exception('__div__ not implemented for %s and %s' % (type(self), type(other)))      
   div = staticmethod(__div__)
 
@@ -314,6 +313,7 @@ class _float_function(object):
       return self.double_func.ex(*operands, **{'type_cls': DoubleFloat})    
 
     raise Exception(self.name + ' is not implemeneted for ' + str(type(a)))
+
     
 fmadd = _float_function('fmadd', ppc.fmaddsx, ppc.fmaddx)
 fmsub = _float_function('fmsub', ppc.fmsubsx, ppc.fmsubx)
@@ -338,7 +338,7 @@ def make_user_type(name, type_cls, g = None):
 
     class [name](spe.Variable, type_cls):
       type_cls = type_cls
-    class [name]Ex(spe.Exression, type_cls):
+    class [name]Ex(spe.Expression, type_cls):
       type_cls = type_cls    
     type_class.var_cls = [name]
     type_class.expr_cls = [name]Ex

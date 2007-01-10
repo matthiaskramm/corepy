@@ -23,6 +23,7 @@ proc = env.Processor()
 ppc.set_active_code(code)
 
 ppc.addi(code.gp_return, 0, 12)
+code.print_code()
 r = proc.execute(code, debug=True)
 
 assert(r == 12)
