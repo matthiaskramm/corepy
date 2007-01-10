@@ -115,6 +115,8 @@ class Register(object):
   def __eq__(self, other):
     if isinstance(other, Register):
       return other.reg == self.reg
+    elif isinstance(other, int):
+      return self.reg == other
     else:
       raise Exception('Cannot compare Register against %s' % (type(other),))
 
@@ -638,11 +640,20 @@ class InstructionStream(object):
 
 
   def _align_instructions(self):
+    """
+    TODO: This needs to be replaced with something better.  Python's
+    memory allocator is not honest about allocated memory if debug
+    memory is turned on.  It's very easy to get off by 2 bytes and
+    overwrite the sentinals.
+
+    The solution will probably be to just bite the bullet and move
+    all binary data over to our own aligned memory library.
+    """
     a = self._code
     
     # If we're not aligned, make a new buffer that can be aligned and copy
     # the instructions into the buffer, starting at an aligned index
-    if a.buffer_info()[0] % self.align != 0:
+    if self.align != 0 and a.buffer_info()[0] % self.align != 0:
       n_extra = self.align / 4
       
       # print 'Warning: Unaligned array. Subsequent __setitem__ calls will not work. TODO: FIX THIS :)'
@@ -679,8 +690,8 @@ class InstructionStream(object):
     This should never return false for Python arrays...
     Until Linux.  Blah.
     """
-    if buffer.buffer_info()[0] % self.align != 0:
-      print 'Warning: misaligned code:', name
+    if self.align != 0 and buffer.buffer_info()[0] % self.align != 0:
+      # print 'Warning: misaligned code:', name
       self._align_instructions()
       return False
     else:
@@ -694,7 +705,7 @@ class InstructionStream(object):
     """
     return
 
-  def add_jump(self, addr):
+  def add_jump(self, addr, reg):
     """
     Add the architecture dependent code to jump to a new instruction.
     Used by cache_code to chain the prologue, code, and epilogue.
@@ -717,9 +728,14 @@ class InstructionStream(object):
       active_callback = self._active_callback
       active_callback(None)
 
+    # Acquire a register to form the jump address in.  Acquire the
+    # register before the prologue is created so the register is
+    # properly saved and restored.
+    jump_reg = self.acquire_register()
+
     # Generate the prologue
     self._synthesize_prologue()
-    
+
     # Generate the epilogue
     self._synthesize_epilogue()
 
@@ -728,15 +744,17 @@ class InstructionStream(object):
     self._epilogue.add_return()
     self._check_alignment(self._epilogue._code, 'epilogue')
 
-    self.add_jump(self._epilogue._code.buffer_info()[0])
+    # self.add_jump(self._epilogue._code.buffer_info()[0], jump_reg)
+    self.add_jump(self._epilogue.inst_addr(), jump_reg)
     self._check_alignment(self._code,     'code')
 
-    self._prologue.add_jump(self._code.buffer_info()[0])
+    # self._prologue.add_jump(self._code.buffer_info()[0], jump_reg)
+    self._prologue.add_jump(self.inst_addr(), jump_reg)
     self._check_alignment(self._prologue._code, 'prologue')
 
     # Finally, make everything executable
-    for code in [self._prologue._code, self._code, self._epilogue._code]:
-      self.exec_module.make_executable(code.buffer_info()[0], len(code))
+#    for code in [self._prologue._code, self._code, self._epilogue._code]:
+#      self.exec_module.make_executable(code.buffer_info()[0], len(code))
 
     if active_callback is not None:
       active_callback(self)
@@ -757,17 +775,25 @@ class InstructionStream(object):
     print 'code info:', self._code.buffer_info()[0], len(self._code)
     
     if pro:
-      for inst in self._prologue:
-        print inst, '\t', DecToBin(inst)
-    
+      for inst, dec in zip(self._prologue._instructions, self._prologue._code):
+        print str(inst)
+        if binary:
+          print DecToBin(dec)
+
+    print 
+
     for inst, dec in zip(self._instructions, self._code):
       print str(inst)
       if binary:
         print DecToBin(dec)
 
+    print 
+
     if epi:
-      for inst in self._epilogue:
-        print inst, '\t', DecToBin(inst)
+      for inst, dec in zip(self._epilogue._instructions, self._epilogue._code):
+        print str(inst)
+        if binary:
+          print DecToBin(dec)
       
     return
 
@@ -809,14 +835,14 @@ class Processor(object):
 
     if not code._cached:
       code.cache_code()
-    
+
     if debug:
       print 'code info: 0x%x 0x%x 0x%x %d' % (
         code._prologue._code.buffer_info()[0],        
         code._code.buffer_info()[0],
         code._epilogue._code.buffer_info()[0],        
         len(code._code))
-
+    
     # addr = code._prologue._code.buffer_info()[0]
     addr = code._prologue.inst_addr()
 

@@ -57,15 +57,16 @@ byte_mask = vars.Bits(0xFF, code)
 # c.v = a + SignedWord.cast(b & byte_mask) + 12
 c.v = a + (byte_mask & b) + 12
 
-r = proc.execute(code)
+
+r = proc.execute(code, debug = True)
 print 'result:', r
 assert(r == (42 + 12))
-  
+
 # With active code
 code.reset()
 
 ppc.set_active_code(code)
-  
+
 a = vars.SignedWord(11)
 b = vars.SignedWord(31)
 c = vars.SignedWord(reg = code.gp_return)
@@ -99,6 +100,8 @@ vmx.stvx(v_x, 0, r_addr)
 
 ppc.set_active_code(None)
 vmx.set_active_code(None)
-r = proc.execute(code)
+r = proc.execute(code) # , debug = True)
+# code.print_code(pro = True, epi = True)
+
 print result
   

@@ -264,12 +264,12 @@ class InstructionStream(spe.InstructionStream):
     self.add(ppc.blr())
     return
 
-  def add_jump(self, addr):
+  def add_jump(self, addr, reg):
     """
     Add the architecture dependent code to jump to a new instruction.
     Used by cache_code to chain the prologue, code, and epilogue.
     """
-    self.add(ppc.ba(addr))
+    self.add(ppc.ba(addr >> 2))
     return
 
   
