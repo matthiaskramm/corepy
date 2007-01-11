@@ -142,9 +142,9 @@ class MaskedField_LI(Field):
   """
   Mask out the bottom two bits
   """
-  callTemplate = "def CallFunc(value):\n  return (value & 0x3FFFFFC)\nself.__call__ = CallFunc\n"
-  codeTemplate = "long(%(name)s) & 0x3FFFFFC"
-
+  callTemplate = "def CallFunc(value):\n  return (value & 0xFFFFFF)\nself.__call__ = CallFunc\n"
+  codeTemplate = "long(%(name)s) & 0xFFFFFF"
+                                    
   
 class SplitField(Field):
   """

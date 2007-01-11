@@ -269,7 +269,10 @@ class InstructionStream(spe.InstructionStream):
     Add the architecture dependent code to jump to a new instruction.
     Used by cache_code to chain the prologue, code, and epilogue.
     """
-    if (addr & 0x7FFFFF) == addr:
+
+    # On the G4/G5, bx seems to not append the two 00 bits as specified
+    # in the PEM.  Instead, just use the whole address.
+    if (addr & 0xFFFFFF) == addr:
       self.add(ppc.ba(addr))
     else:
       r_addr = reg
@@ -277,10 +280,8 @@ class InstructionStream(spe.InstructionStream):
       self.add(ppc.mtctr(r_addr))
       self.add(ppc.bcctrx(0x14, 0))
 
-      # self.add(ppc.ba(addr >> 2))
     return
-
-  
+      
 class Processor(spe.Processor):
   exec_module = ppc_exec
   

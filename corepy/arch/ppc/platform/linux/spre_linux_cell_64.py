@@ -83,7 +83,7 @@ class InstructionStream(spe.InstructionStream):
 
   default_register_type = GPRegister
   exec_module   = cell_exec
-  align         = 0
+  align         = 4
   instruction_type  = WORD_TYPE
   
   def __init__(self):

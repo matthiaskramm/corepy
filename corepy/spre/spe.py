@@ -753,12 +753,13 @@ class InstructionStream(object):
     self._check_alignment(self._prologue._code, 'prologue')
 
     # Finally, make everything executable
-#    for code in [self._prologue._code, self._code, self._epilogue._code]:
-#      self.exec_module.make_executable(code.buffer_info()[0], len(code))
+    for code in [self._prologue._code, self._code, self._epilogue._code]:
+      self.exec_module.make_executable(code.buffer_info()[0], len(code))
 
     if active_callback is not None:
       active_callback(self)
 
+    self.release_register(jump_reg)
     self._cached = True
     return
 
@@ -838,10 +839,16 @@ class Processor(object):
 
     if debug:
       print 'code info: 0x%x 0x%x 0x%x %d' % (
-        code._prologue._code.buffer_info()[0],        
-        code._code.buffer_info()[0],
-        code._epilogue._code.buffer_info()[0],        
+        # code._prologue._code.buffer_info()[0],
+        code._prologue.inst_addr(),
+        # code._code.buffer_info()[0],
+        code.inst_addr(),
+        code._epilogue.inst_addr(),
         len(code._code))
+      # print code._prologue._code
+      # print code._code
+      # print code._epilogue._code      
+              
     
     # addr = code._prologue._code.buffer_info()[0]
     addr = code._prologue.inst_addr()
