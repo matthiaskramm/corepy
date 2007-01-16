@@ -70,7 +70,7 @@ struct ExecParams {
 
 // Object file that contains the SPU bootstrap code
 // #define SPU_BOOTSTRAP "spu_execute.o"
-#define SPU_BOOTSTRAP "spu_bootstrap.o"
+#define SPU_BOOTSTRAP "/home/osl/projects/corepy/arch/spu/platform/linux/spu_bootstrap.o"
 
 class aligned_memory {
  private:
