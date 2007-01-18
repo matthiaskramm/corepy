@@ -313,14 +313,14 @@ class Instruction(object):
   
   def __init__(self, *operands, **koperands):
 
-    self._operands = koperands
-
     user_order = None
     if koperands.has_key('order'):
       user_order = koperands['order']
+      del koperands['order']
       # if koperands['order'] == 'mio':
       #  user_order = self.machine_inst._machine_order
 
+    self._operands = koperands
     order = user_order or self.asm_order or self.machine_inst._machine_order
 
     if (order is self.asm_order) and len(operands) != len(self.asm_order):
@@ -381,7 +381,7 @@ class Instruction(object):
         rendered_operands[key] = op
       else:
         print op, isinstance(op, Variable)
-        raise Exception('Unsupported operand type: %s.  Register, Immediate, Variable, or int required.' % (type(op)))
+        raise Exception('Unsupported operand type: %s = %s.  Register, Immediate, Variable, or int required.' % (type(op), str(op)))
       
     return self.machine_inst(**rendered_operands)
 
