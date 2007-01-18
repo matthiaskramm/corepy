@@ -506,11 +506,12 @@ class InstructionStream(object):
     print 'Destroying', self
     return
   
-  def __setitem__(self, key, value):
+  def __setitem__(self, key, inst):
     """
     Allow the user to replace instructions by index.
     """
-    self._code[key + self._offset] = value
+    self._code[key + self._offset] = inst.render()
+    self._instructions[key + self._offset] = inst
 
 
   def add_storage(self, s):

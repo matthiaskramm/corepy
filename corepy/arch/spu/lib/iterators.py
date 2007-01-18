@@ -448,320 +448,321 @@ def _overlap(lsa, lsb, size):
 
 
 
-# _strides = {'b':1, 'h':2, 'i':4, 'B':1, 'H':2, 'I':4, 'f':4, 'd':8}
-# _vector_sizes = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4, 'f':4}
+_strides = {'b':1, 'h':2, 'i':4, 'B':1, 'H':2, 'I':4, 'f':4, 'd':8}
+_vector_sizes = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4, 'f':4}
 
-# class spu_vec_iter(syn_iter):
-#   """
-#   Purpose: Iterate over the values as vectors.
-#   """
-#   int_type = var.SignedWord
+class spu_vec_iter(syn_iter):
+  """
+  Purpose: Iterate over the values as vectors.
+  """
+
+  def __init__(self, code, data, step = 1, length = None, store_only = False,
+               addr_reg = None, save = True, type_cls = None):
+    self.var_type = type_cls or var.array_spu_lu[data.typecode]
+
+    if type(data) not in (_array_type, memory_desc):
+      raise Exception('Unsupported array type')
+
+    if _typecode(data) not in _vector_sizes.keys():
+      raise Exception('Unsupported array data type for vector operations: ' + data.typecode)
+
+    stop = 0
+    self.data = data
+    self.addr_reg = addr_reg
+    self.store_only = store_only
+    self.save = save
+    if length is None:
+      length = len(data)
+
+    t = _typecode(data)
+    step = (step * _vector_sizes[_typecode(data)]) * _strides[t]
+    stop = _strides[t] * length # len(data)
+    self.typecode = t
+
+    syn_iter.__init__(self, code, stop, step, mode = INC)
+
+    self.r_current = None
+    self.r_addr = None
+    self.current_var = None
   
-#   def __init__(self, code, data, step = 1, length = None, store_only = False, addr_reg = None, save = True):
-#     self.var_type = var.SignedWord
+    return
 
-#     if type(data) not in (_array_type, memory_desc):
-#       raise Exception('Unsupported array type')
+  def get_acquired_registers(self):
+    """
+    See comment in syn_iter.
+    """
+    regs = syn_iter.get_acquired_registers(self)
 
-#     if _typecode(data) not in _vector_sizes.keys():
-#       raise Exception('Unsupported array data type for vector operations: ' + data.typecode)
-
-#     stop = 0
-#     self.data = data
-#     self.addr_reg = addr_reg
-#     self.store_only = store_only
-#     self.save = save
-#     if length is None:
-#       length = len(data)
-
-#     t = _typecode(data)
-#     step = (step * _vector_sizes[_typecode(data)]) * _strides[t]
-#     stop = _strides[t] * length # len(data)
-#     self.typecode = t
-
-#     syn_iter.__init__(self, code, stop, step, mode = INC)
-
-#     self.r_current = None
-#     self.r_addr = None
-#     self.current_var = None
+    regs.append(self.r_current)
+  
+    if self.addr_reg is None:
+      regs.append(self.r_addr)
     
-#     return
+    return regs
 
-#   def get_acquired_registers(self):
-#     """
-#     See comment in syn_iter.
-#     """
-#     regs = syn_iter.get_acquired_registers(self)
+  def get_current(self): return self.current_var
 
-#     regs.append(self.r_current)
-    
-#     if self.addr_reg is None:
-#       regs.append(self.r_addr)
+  def load_current(self):
+    return self.code.add(spu.lqx(self.r_count, self.r_addr, self.r_current))
+
+  def store_current(self):
+    return self.code.add(spu.stqx(self.r_count, self.r_addr, self.r_current))    
+
+  def make_current(self):
+    return self.var_type(code = self.code, reg = self.r_current)
+
+  def init_address(self):
+    if self.addr_reg is None:
+      return util.load_word(self.code, self.r_addr, _array_address(self.data))
+  
+  def start(self, align = True, branch = True):
+    self.r_current = self.code.acquire_register()
+
+    # addr_reg is the user supplied address for the data
+    if self.addr_reg is None:
+      self.r_addr = self.code.acquire_register()
+    else:
+      self.r_addr = self.addr_reg
+
+    syn_iter.start(self, align, branch)
+    self.current_var = self.make_current()
+    self.init_address()
+
+    # print self.r_count, self.r_stop, self.r_current, self.r_addr, self.data.buffer_info()[0]
+
+    return
+
+  def setup(self):
+    if not self.store_only:
+      self.load_current()
+    syn_iter.setup(self)
+    return
+
+  def cleanup(self):
+    if self.current_var.assigned and self.save:
+      self.store_current()
+    syn_iter.cleanup(self)
+    return
+
+  def end(self, branch = True):
+    if self.r_current is not None:
+      self.code.release_register(self.r_current)
+
+    if self.r_addr is not None and self.addr_reg is None:
+      self.code.release_register(self.r_addr)
+
+    syn_iter.end(self, branch)
+    return
+
+
+class stream_buffer(syn_range):
+  """
+  Manage a buffered data stream from main memory.
+  """
+  def __init__(self, code, ea, data_size, buffer_size, ls, buffer_mode='single', save = False):
+    syn_range.__init__(self, code, ea, ea + data_size, buffer_size)
+
+    # Buffer addresses
+    if buffer_mode == 'single':
+      self.lsa = ls
+      self.lsb = ls
+    elif buffer_mode == 'double':
+      if type(ls) is list:
+        if _overlap(ls[0], ls[1], buffer_size):
+          raise Exception('Local store buffers overlap')
+        self.lsa, self.lsb = ls
+      else:
+        # Assume contiguous buffers: lsa = ls, lsb = ls + buffer_size
+        self.lsa = ls
+        self.lsb = ls + buffer_size
       
-#     return regs
+    else:
+      raise Exception('Unknown buffering mode: ' + buffer_mode)
   
-#   def get_current(self): return self.current_var
-
-#   def load_current(self):
-#     return self.code.add(spu.lqx(self.r_count, self.r_addr, self.r_current))
-
-#   def store_current(self):
-#     return self.code.add(spu.stqx(self.r_count, self.r_addr, self.r_current))    
-
-#   def make_current(self):
-#     return self.var_type(self.code, reg = self.r_current, typecode = self.data.typecode)
-
-#   def init_address(self):
-#     if self.addr_reg is None:
-#       return util.load_word(self.code, self.r_addr, _array_address(self.data))
-    
-#   def start(self, align = True, branch = True):
-#     self.r_current = self.code.acquire_register()
-
-#     # addr_reg is the user supplied address for the data
-#     if self.addr_reg is None:
-#       self.r_addr = self.code.acquire_register()
-#     else:
-#       self.r_addr = self.addr_reg
-
-#     syn_iter.start(self, align, branch)
-#     self.current_var = self.make_current()
-#     self.init_address()
-
-#     # print self.r_count, self.r_stop, self.r_current, self.r_addr, self.data.buffer_info()[0]
-
-#     return
-
-#   def setup(self):
-#     if not self.store_only:
-#       self.load_current()
-#     syn_iter.setup(self)
-#     return
-
-#   def cleanup(self):
-#     if self.current_var.assigned and self.save:
-#       self.store_current()
-#     syn_iter.cleanup(self)
-#     return
-
-#   def end(self, branch = True):
-#     if self.r_current is not None:
-#       self.code.release_register(self.r_current)
-
-#     if self.r_addr is not None and self.addr_reg is None:
-#       self.code.release_register(self.r_addr)
-
-#     syn_iter.end(self, branch)
-#     return
-
-
-# class stream_buffer(syn_range):
-#   """
-#   Manage a buffered data stream from main memory.
-#   """
-#   def __init__(self, code, ea, data_size, buffer_size, ls, buffer_mode='single', save = False):
-#     syn_range.__init__(self, code, ea, ea + data_size, buffer_size)
-
-#     # Buffer addresses
-#     if buffer_mode == 'single':
-#       self.lsa = ls
-#       self.lsb = ls
-#     elif buffer_mode == 'double':
-#       if type(ls) is list:
-#         if _overlap(ls[0], ls[1], buffer_size):
-#           raise Exception('Local store buffers overlap')
-#         self.lsa, self.lsb = ls
-#       else:
-#         # Assume contiguous buffers: lsa = ls, lsb = ls + buffer_size
-#         self.lsa = ls
-#         self.lsb = ls + buffer_size
-        
-#     else:
-#       raise Exception('Unknown buffering mode: ' + buffer_mode)
-    
-#     self.buffer_mode = buffer_mode
-#     self.save = save
-    
-#     self.ls = None
-#     self.tag = None
-#     self.buffer_size = None
-#     self.ibuffer_size = buffer_size
-#     return
-
-#   def set_ea_addr_reg(self, reg):
-#     self.set_start_reg(reg)
-#     return
+    self.buffer_mode = buffer_mode
+    self.save = save
   
-#   def set_ea_size_reg(self, reg):
-#     self.set_stop_reg(reg)
-#     return
+    self.ls = None
+    self.tag = None
+    self.buffer_size = None
+    self.ibuffer_size = buffer_size
+    return
 
-    
-#   # ------------------------------
-#   # Buffer management
-#   # ------------------------------
+  def set_ea_addr_reg(self, reg):
+    self.set_start_reg(reg)
+    return
 
-#   def _toggle(self, var):
-#     """
-#     Use rotate to toggle between two preferred slot  values in a vector.
-#     """
-#     if self.buffer_mode == 'double':
-#       self.code.add(spu.rotqbyi(4, var.reg, var.reg))
-#     return
+  def set_ea_size_reg(self, reg):
+    self.set_stop_reg(reg)
+    return
 
-#   def _swap_buffers(self):
-#     return
   
-#   def _load_buffer(self):
-#     # Don't perform the load the last time through the loop
-#     r_cmp = self.code.acquire_register()
+  # ------------------------------
+  # Buffer management
+  # ------------------------------
 
-#     # Compare count == step
-#     self.code.add(spu.ceq(self.r_count, self.r_stop, r_cmp))
+  def _toggle(self, var):
+    """
+    Use rotate to toggle between two preferred slot  values in a vector.
+    """
+    if self.buffer_mode == 'double':
+      self.code.add(spu.rotqbyi(var.reg, var.reg, 4))
+    return
 
-#     # Place holder for branch
-#     start = self.code.add(spu.stop(0x2001))
+  def _swap_buffers(self):
+    return
 
-#     # Perform the load
-#     end = dma.mfc_get(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+  def _load_buffer(self):
+    # Don't perform the load the last time through the loop
+    r_cmp = self.code.acquire_register()
 
-#     # Add the branch
-#     offset = ((end - start) + 1) * 4
-#     self.code[start - 1] = spu.brnz( offset >> 2, r_cmp)
+    # Compare count == step
+    self.code.add(spu.ceq(r_cmp, self.r_stop, self.r_count))
 
-#     self.code.release_register(r_cmp)
-#     return
+    # Place holder for branch
+    start = self.code.add(spu.stop(0x2001))
 
-#   def _save_buffer(self):
-#     dma.mfc_put(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
-#     return
+    # Perform the load
+    end = dma.mfc_get(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
 
-#   def _wait_buffer(self):
-#     mask = var.SignedWord(1, self.code)
-#     mask.v = mask << self.tag
+    # Add the branch
+    offset = ((end - start) + 1) * 4
+    self.code[start - 1] = spu.brnz(r_cmp, offset >> 2)
 
-#     self.code.add(spu.wrch(dma.MFC_WrTagMask, mask.reg))
+    self.code.release_register(r_cmp)
+    return
 
-#     # Wait for the transfer to complete
-#     dma.mfc_read_tag_status_all(self.code);
+  def _save_buffer(self):
+    dma.mfc_put(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+    return
 
-#     self.code.release_register(mask.reg)
-#     return
+  def _wait_buffer(self):
+    mask = var.SignedWord(1, self.code)
+    mask.v = mask << self.tag
 
-#   # ------------------------------
-#   # Iterator methods
-#   # ------------------------------
+    self.code.add(spu.wrch(mask, dma.MFC_WrTagMask))
 
-#   def get_current(self):
-#     """
-#     Overload current to return the local buffer address.
-#     Use syn_range.get_current(self) to get the ea/count variable.
-#     """
-#     return self.ls
+    # Wait for the transfer to complete
+    dma.mfc_read_tag_status_all(self.code);
+
+    mask.release_register()
+
+    return
+
+  # ------------------------------
+  # Iterator methods
+  # ------------------------------
+
+  def get_current(self):
+    """
+    Overload current to return the local buffer address.
+    Use syn_range.get_current(self) to get the ea/count variable.
+    """
+    return self.ls
 
 
-#   def _inc_ea(self):
-#     """
-#     Increment the ea/count register by step size.  This is used for double buffering.
-#     """
-#     if self.r_step is not None:
-#       vstep = var.SignedWord(code = self.code, reg = self.r_step)
-#       self.current_count.v = self.current_count + vstep 
-#     else:
-#       self.current_count.v = self.current_count + self.step_size()
-#     return
+  def _inc_ea(self):
+    """
+    Increment the ea/count register by step size.  This is used for double buffering.
+    """
+    if self.r_step is not None:
+      vstep = var.SignedWord(code = self.code, reg = self.r_step)
+      self.current_count.v = self.current_count + vstep 
+    else:
+      self.current_count.v = self.current_count + self.step_size()
+    return
+
+  def _dec_ea(self):
+    """
+    Decrement the ea/count register by step size.  This is used for double buffering.
+    """
   
-#   def _dec_ea(self):
-#     """
-#     Decrement the ea/count register by step size.  This is used for double buffering.
-#     """
-    
-#     if self.r_step is not None:
-#       vstep = var.SignedWord(code = self.code, reg = self.r_step)
-#       self.current_count.v = self.current_count - vstep 
-#     else:
-#       self.current_count.v = self.current_count - self.step_size()
-#     return
+    if self.r_step is not None:
+      vstep = var.SignedWord(code = self.code, reg = self.r_step)
+      self.current_count.v = self.current_count - vstep 
+    else:
+      self.current_count.v = self.current_count - self.step_size()
+    return
+
+
+  def start(self, align = True, branch = True):    
+    # Initialize the iterator
+    syn_range.start(self, align = align, branch = branch)
+    if not hasattr(self, 'skip_start_post'):
+      self._start_post()
+    return
+
+  def _start_post(self):
+    # Initialize the buffer size
+    self.buffer_size = var.SignedWord(self.ibuffer_size, self.code)
   
+    # Initialize a the ls and tag vectors with (optionally) alternating values
+    if self.buffer_mode == 'single':
+      self.ls  = var.SignedWord(self.lsa, self.code)
+      self.tag = var.SignedWord(0, self.code)
+    else:
+      self.ls  = var.SignedWord(array.array('I', [self.lsa, self.lsb, self.lsa, self.lsb], self.code))
+      self.tag = var.SignedWord(array.array('I', [0, 1, 0, 1], self.code))
 
-#   def start(self, align = True, branch = True):    
-#     # Initialize the iterator
-#     syn_range.start(self, align = align, branch = branch)
-#     if not hasattr(self, 'skip_start_post'):
-#       self._start_post()
-#     return
+    # For double buffering, load the first buffer and increment count for the next buffer
+    if self.buffer_mode == 'double':
+      self._load_buffer()
   
-#   def _start_post(self):
-#     # Initialize the buffer size
-#     self.buffer_size = var.SignedWord(self.ibuffer_size, self.code)
+    # Update the start label
+    self.start_label = self.code.size() + 1
+  
+    return
+
+  def setup(self):
+    syn_range.setup(self)
+
+    # Toggle the tag and set the ls to next
+    if self.buffer_mode == 'double':
+      self._toggle(self.tag)
+      self._toggle(self.ls)
+      self._inc_ea()
+
+    # Start the transfer of next
+    if self.save:
+      self._wait_buffer()
     
-#     # Initialize a the ls and tag vectors with (optionally) alternating values
-#     if self.buffer_mode == 'single':
-#       self.ls  = var.SignedWord(self.lsa, self.code)
-#       self.tag = var.SignedWord(0, self.code)
-#     else:
-#       self.ls  = var.SignedWord(array.array('I', [self.lsa, self.lsb, self.lsa, self.lsb], self.code))
-#       self.tag = var.SignedWord(array.array('I', [0, 1, 0, 1], self.code))
+    self._load_buffer()
 
-#     # For double buffering, load the first buffer and increment count for the next buffer
-#     if self.buffer_mode == 'double':
-#       self._load_buffer()
+    # Reset tag/ls
+    if self.buffer_mode == 'double':    
+      self._toggle(self.tag)
+      self._toggle(self.ls)
+      self._dec_ea()
+
+    # Wait for current to complete
+    self._wait_buffer()
+  
+    return
+
+
+  def cleanup(self):
+    # Save current
+    if self.save:
+      self._save_buffer()
     
-#     # Update the start label
-#     self.start_label = self.code.size() + 1
-    
-#     return
+    # Swap buffers
+    self._toggle(self.tag)
+    self._toggle(self.ls)
 
-#   def setup(self):
-#     syn_range.setup(self)
+    # Update the counter
+    syn_range.cleanup(self)
+  
+    return
 
-#     # Toggle the tag and set the ls to next
-#     if self.buffer_mode == 'double':
-#       self._toggle(self.tag)
-#       self._toggle(self.ls)
-#       self._inc_ea()
+  def end(self, branch = True):
 
-#     # Start the transfer of next
-#     if self.save:
-#       self._wait_buffer()
-      
-#     self._load_buffer()
+    syn_range.end(self, branch = branch)
+  
+    self.code.release_register(self.ls.reg)
+    self.code.release_register(self.tag.reg)
+    self.code.release_register(self.buffer_size.reg)
 
-#     # Reset tag/ls
-#     if self.buffer_mode == 'double':    
-#       self._toggle(self.tag)
-#       self._toggle(self.ls)
-#       self._dec_ea()
-
-#     # Wait for current to complete
-#     self._wait_buffer()
-    
-#     return
-
-
-#   def cleanup(self):
-#     # Save current
-#     if self.save:
-#       self._save_buffer()
-      
-#     # Swap buffers
-#     self._toggle(self.tag)
-#     self._toggle(self.ls)
-
-#     # Update the counter
-#     syn_range.cleanup(self)
-    
-#     return
-
-#   def end(self, branch = True):
-
-#     syn_range.end(self, branch = branch)
-    
-#     self.code.release_register(self.ls.reg)
-#     self.code.release_register(self.tag.reg)
-#     self.code.release_register(self.buffer_size.reg)
-
-#     return
+    return
     
   
 # class zip_iter: pass
@@ -1160,32 +1161,32 @@ def TestSPUIter():
 #   return
 
 
-# def TestStreamBufferSingle(n_spus = 1):
-#   n = 1024
-#   a = array.array('I', range(n))
-#   buffer_size = 16
+def TestStreamBufferSingle(n_spus = 1):
+  n = 1024
+  a = array.array('I', range(n))
+  buffer_size = 16
 
-#   if n_spus > 1:  code = env.ParallelInstructionStream()
-#   else:           code = env.InstructionStream()
-    
-#   current = var.SignedWord(0, code)
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
+  
+  current = var.SignedWord(0, code)
 
-#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
-#   if n_spus > 1:  stream = parallel(stream)
-    
-#   for buffer in stream:
-#     for lsa in syn_iter(code, buffer_size, 16):
-#       code.add(spu.lqx(buffer.reg, lsa.reg, current.reg))
-#       current.v = current + current
-#       code.add(spu.stqx(buffer.reg, lsa.reg, current.reg))
-#     # code.add(spu.stop(0xB))
+  stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+  if n_spus > 1:  stream = parallel(stream)
+  
+  for buffer in stream:
+    for lsa in syn_iter(code, buffer_size, 16):
+      code.add(spu.lqx(current, lsa, buffer))
+      current.v = current + current
+      code.add(spu.stqx(current, lsa, buffer))
+    # code.add(spu.stop(0xB))
 
-#   proc = env.Processor()
-#   r = proc.execute(code, n_spus = n_spus)
-#   for i in range(0, n):
-#     assert(a[i] == i + i)
-    
-#   return
+  proc = env.Processor()
+  r = proc.execute(code, n_spus = n_spus)
+  for i in range(0, n):
+    assert(a[i] == i + i)
+  
+  return
 
 
 # def TestVecIter(n_spus = 1):
@@ -1195,14 +1196,14 @@ def TestSPUIter():
 
 #   if n_spus > 1:  code = env.ParallelInstructionStream()
 #   else:           code = env.InstructionStream()
-    
+  
 #   current = var.SignedWord(0, code)
 
 #   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
 #   if n_spus > 1:  stream = parallel(stream)
 
 #   md = memory_desc('I', 0, buffer_size)
-  
+
 #   for buffer in stream:
 #     for current in spu_vec_iter(code, md):
 #       current.v = current + current
@@ -1213,7 +1214,7 @@ def TestSPUIter():
 
 #   for i in range(0, n):
 #     assert(a[i] == i + i)
-    
+  
 #   return
 
 
@@ -1355,17 +1356,12 @@ def TestSPUIter():
 
 if __name__=='__main__':
   # TestMemoryMap(1)
-  # TestStreamBufferSingle(1)
+  TestStreamBufferSingle(1)
   # TestStreamBufferDouble(8)
   # TestSPUParallelIter()
   # ParallelTests()
 
   TestSPUIter()
-  # TestIter()
-  # TestNestedIter()
-  # TestRange()
-  # TestVarIter()
-  # TestVecIter()
+  TestVecIter()
   # TestZipIter()
-  # TestParallelIter()
   # TestContinueLabel()

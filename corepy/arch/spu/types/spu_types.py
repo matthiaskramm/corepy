@@ -3,9 +3,15 @@ import array
 
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.spu_extended as spuex
+import corepy.arch.spu.lib.util as util
 import corepy.spre.spe as spe
 
 from corepy.spre.syn_util import most_specific, make_user_type
+
+_array_type   = type(array.array('I', [1]))
+INT_ARRAY_TYPES = ('b', 'h', 'i', 'B', 'H', 'I')
+INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
+INT_SIZES       = {'b':1,  'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
 class SPUType(spe.Type):
   def __init__(self, *args, **kargs):
@@ -29,7 +35,7 @@ class BitType(SPUType):
   register_type_id = 'gp'
   array_typecodes = ('c', 'b', 'B', 'h', 'H', 'i', 'I', 'f') # all valid typecodes
   array_typecode  = None # typecode for this class
-  literal_types = (int,long, list, tuple, array)
+  literal_types = (int,long, list, tuple, type(array.array))
 
   def __or__(self, other):
     if isinstance(other, BitType):
@@ -47,7 +53,37 @@ class BitType(SPUType):
   xor = staticmethod(__xor__)
 
   def _set_literal_value(self, value):
-    print 'TODO: BitType: set_literal_value'
+    if type(value) is _array_type:
+
+      if self.array_typecode != value.typecode:
+        print "Warning: array typecode does not match variable type - I hope you know what you're doing!"
+        
+      util.vector_from_array(self.code, self, value)
+
+      self.code.add_storage(value)
+      self.storage = self.value
+      
+      # elif type(self.value) is _numeric_type:
+      #   raise Exception('Numeric types not yet supported')
+
+    elif type(self.value) is int:
+
+      if self.array_typecode not in INT_ARRAY_TYPES:
+        print "Warning: int does not match variable type - I hope you know what you're doing!"
+
+      util.load_word(self.code, self, value)
+    else:
+      # print "Warning: unknown type for %s -> %s, defaulting to 'I'" % (str(self.value), str(type(self.value)))
+      # self.typecode = 'I'
+      raise Exception("Warning: unknown type for %s -> %s, defaulting to 'I'" % (str(self.value), str(type(self.value))))
+    
+      
+    if INT_ARRAY_SIZES[self.array_typecode] != 4:
+      print "Warning: Only 4-byte integers are supported for spu variables from arrays"
+
+    self.code.add_storage(self.storage)
+    return
+
 
 class HalfwordType(BitType):
   array_typecode  = 'H'
@@ -68,7 +104,7 @@ class WordType(BitType):
   array_typecode  = 'I' 
 
   def __lshift__(self, amount):
-    if isinstance(amount, (Halfword, Word)):
+    if issubclass(type(amount), (HalfwordType, WordType)):
       return spu.shl.ex(self, amount, type_cls = self.var_cls)
     elif isinstance(amount, self.literal_types):
       return spu.shli.ex(self, amount, type_cls = self.var_cls)
@@ -77,8 +113,8 @@ class WordType(BitType):
   def __rshift__(self, amount):
     if isinstance(amount, (Halfword, Word)):
       return spuex.shr.ex(self, amount, type_cls = self.var_cls)
-    # elif isinstance(amount, self.literal_types):
-    #    return spu.shli.ex(self, amount, type_cls = self.var_cls)
+    # elif isinstance(amount, int):
+    #  return spu.shli.ex(self, amount, type_cls = self.var_cls)
   lshift = staticmethod(__lshift__)
 
 
