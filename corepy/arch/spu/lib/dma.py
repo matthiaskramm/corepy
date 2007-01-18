@@ -230,8 +230,9 @@ def spu_stat_out_intr_mbox(code):
 
 def TestMFC():
   size = 32
-  data = array.array('I', range(size))
-  
+  data_array = array.array('I', range(size))
+  data = synspu.aligned_memory(size, typecode = 'I')
+  data.copy_to(data_array.buffer_info()[0], len(data_array))
   code = synspu.InstructionStream()
 
   r_zero    = code.acquire_register()
@@ -248,13 +249,14 @@ def TestMFC():
     str(r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
   
   # Load the effective address
+  print 'test ea: %X' % data.buffer_info()[0]
   util.load_word(code, r_ea_data, data.buffer_info()[0])
 
   # Load the size
   code.add(spu.ai(r_size, r_zero, size * 4))
 
   # Load the tag
-  code.add(spu.ai(r_tag, r_zero, 12))
+  code.add(spu.ai(r_tag, r_zero, 2))
 
   # Load the lsa
   code.add(spu.ai(r_ls_data, r_zero, 0))
@@ -262,8 +264,8 @@ def TestMFC():
   # Load the data into address 0
   mfc_get(code, r_ls_data, r_ea_data, r_size, r_tag)
 
-  # Set the tag bit to 12
-  mfc_write_tag_mask(code, 1<<12);
+  # Set the tag bit to 2
+  mfc_write_tag_mask(code, 1<<2);
 
   # Wait for the transfer to complete
   mfc_read_tag_status_all(code);
@@ -283,8 +285,8 @@ def TestMFC():
   # Load the data into address 0
   mfc_put(code, r_ls_data, r_ea_data, r_size, r_tag)
 
-  # Set the tag bit to 12
-  mfc_write_tag_mask(code, 1<<12);
+  # Set the tag bit to 2
+  mfc_write_tag_mask(code, 1<<2);
 
   # Wait for the transfer to complete
   mfc_read_tag_status_all(code);
@@ -301,10 +303,12 @@ def TestMFC():
 
   # Execute the code
   proc = synspu.Processor()
-
-  print data
+  # code.print_code()
+  print data_array
   proc.execute(code)
-  print data
+
+  data.copy_from(data_array.buffer_info()[0], len(data_array))
+  print data_array
   
   return
 
