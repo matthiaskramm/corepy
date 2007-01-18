@@ -1,0 +1,1371 @@
+# SPU Iterator Hierarchy
+
+import array
+import time
+
+import corepy.arch.spu.platform as env
+import corepy.arch.spu.isa as spu
+import corepy.arch.spu.types.spu_types as var
+import corepy.arch.spu.lib.dma as dma
+import corepy.arch.spu.lib.util as util
+synbuffer = env.synbuffer
+
+def _mi(cls):
+  """
+  Return the machine order for an instruction.
+  """
+  return cls.machine_inst._machine_order
+  
+# TODO: Clean up metaiter to be less dependent on synppc
+# from metaiter import memory_desc
+
+CTR = 0
+DEC = 1
+INC = 2
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
+_array_type   = type(array.array('I', [1]))
+
+def _typecode(a):
+  if type(a) is _array_type:
+    return a.typecode
+  elif type(a) is memory_desc:
+    return a.typecode
+  else:
+    raise Exception('Unknown array type ' + type(a))
+
+def _array_address(a):
+  if type(a) is _array_type:
+    return a.buffer_info()[0]
+  elif type(a) is memory_desc:
+    return a.addr
+  else:
+    raise Exception('Unknown array type ' + type(a))
+
+# ------------------------------
+# PPU Memory
+# ------------------------------
+
+# TODO: Merge this back with metaiter.memory_desc
+
+class memory_desc(object):
+  def __init__(self, typecode, addr = None, size = None):
+    self.typecode = typecode
+    self.addr = addr
+    self.size = size
+
+    self.r_addr = None
+    self.r_size = None
+    return
+
+  def __str__(self): return '<memory_desc typcode = %s addr = 0x%X size = %d r_addr = %s r_size = %s>' % (
+    self.typecode, self.addr, self.size, str(self.r_addr), str(self.r_size))
+
+  def set_addr_reg(self, reg): self.r_addr = reg
+  def set_size_reg(self, reg): self.r_size = reg
+  
+  def __len__(self): return self.size
+
+  def nbytes(self): return self.size * var.INT_SIZES[self.typecode]
+  
+  def from_buffer(self, b):
+    """
+    Extract the address and size from a buffer object.
+
+    Note: this doesn't very well with buffer objects.
+    """
+    l = repr(b).split(' ')
+    self.size = int(l[l.index('size') + 1])
+    self.addr = int(l[l.index('ptr') + 1][:-1], 0)
+    # print l, self.size, self.addr
+    return
+
+  def from_ibuffer(self, m):
+    """
+    Extract the address and size from an object that supports
+    the buffer interface.
+
+    This should be more flexible than the buffer object.
+    """
+    self.addr, self.size = synbuffer.buffer_info(m)
+    self.size = self.size / var.INT_SIZES[self.typecode]    
+    return
+
+  def from_array(self, a):
+    self.addr, self.size = a.buffer_info()
+    self.size = self.size / var.INT_SIZES[self.typecode]
+    return
+
+  def get(self, code, lsa, tag = 12, ls_var = None):
+    return self._transfer_data(code, dma.mfc_get, lsa, tag, ls_var)
+
+  def put(self, code, lsa, tag = 12, ls_var = None):
+    return self._transfer_data(code, dma.mfc_put, lsa, tag, ls_var)
+  
+  def _transfer_data(self, code, kernel, lsa, tag, ls_var):
+    """
+    Load the data into the SPU memory
+    """
+
+    if self.r_addr is None: r_ea_data = code.acquire_register()
+    else:                   r_ea_data = self.r_addr
+      
+    if self.r_size is None: r_size = code.acquire_register()
+    else:                   r_size = self.r_size
+
+    ea_addr = var.SignedWord(code = code, reg = r_ea_data)
+    aligned_size = var.SignedWord(0, code = code)
+    mod_16 = var.SignedWord(0xF, code = code)
+    
+    ls_addr = var.SignedWord(lsa, code = code)
+
+    # Get the local store address from a variable
+    if ls_var is not None:
+      ls_addr.v = ls_var
+      
+    tag_var = var.SignedWord(tag, code = code)
+    cmp = var.SignedWord(0, code = code)
+
+    # Load the effective address
+    if self.r_addr is None:
+      if self.addr % 16 != 0:
+        # raise Exception('[get_memory] Misaligned data')
+        print '[get_memory] Misaligned data'
+
+      # print 'loading: 0x%X' % (self.addr) 
+      util.load_word(code, ea_addr.reg, self.addr)
+
+    # Load the size, rounding up as required to be 16-byte aligned
+    if self.r_size is None:
+      rnd_size = self.size * var.INT_SIZES[self.typecode]
+      if (rnd_size % 16) != 0:
+        rnd_size += (16 - (rnd_size % 16))
+      # print 'get: rnd_size %d, self.size %d, addr: 0x%X' % (rnd_size, self.size, self.addr)
+      util.load_word(code, aligned_size.reg, rnd_size)
+    else:
+      # Same as above, but using SPU arithemtic to round
+      size  = var.SignedWord(code = code, reg = r_size)
+      cmp.v = ((size & mod_16) == size)
+      aligned_size.v = size + (16 - (size & mod_16))
+      code.add(spu.selb(cmp.reg, size.reg, aligned_size.reg, aligned_size.reg, order = _mi(spu.selb)))
+
+      
+    # Use an auxillary register for the moving ea value if the caller supplied the register
+    if self.r_addr is not None:
+      ea_load = spuvar.spu_int_var(code, 0)
+      ea_load.v = ea_addr      
+    else:
+      ea_load = ea_addr # note this is reference, not .v assignment
+
+    # Transfer parameters
+    buffer_size = var.SignedWord(16384, code = code)
+    remaining   = var.SignedWord(0, code)
+    transfer_size = var.SignedWord(0, code)
+
+    remaining.v = aligned_size
+
+    # Transfer at most 16k at a time
+    xfer_iter = syn_iter(code, 0, 16384)
+    # print 'aligned_size', aligned_size.reg
+    xfer_iter.set_stop_reg(aligned_size.reg)
+
+    for offset in xfer_iter:
+      cmp.v = remaining < buffer_size
+      code.add(spu.selb(cmp.reg, remaining.reg, buffer_size.reg, transfer_size.reg, order = _mi(spu.selb)))
+
+      # code.add(spu.stop(0xD, order = _mi(spu.stop)))
+      
+      # Transfer the data
+      kernel(code, ls_addr.reg, ea_load.reg, transfer_size.reg, tag_var.reg)
+      ls_addr.v = ls_addr + buffer_size
+      ea_load.v = ea_load + buffer_size
+
+      remaining.v = remaining - buffer_size
+
+      
+    # Set the tag bit to tag
+    dma.mfc_write_tag_mask(code, 1<<tag);
+
+    # Wait for the transfer to complete
+    dma.mfc_read_tag_status_all(code);
+    
+    # Release the registers
+    code.release_register(buffer_size.reg)
+    code.release_register(remaining.reg)
+    code.release_register(aligned_size.reg)    
+    code.release_register(transfer_size.reg)
+    code.release_register(cmp.reg)
+    code.release_register(ls_addr.reg)
+    code.release_register(tag_var.reg)
+    code.release_register(ea_load.reg)
+    
+    return 
+
+
+# ------------------------------------------------------------
+# Iterators
+# ------------------------------------------------------------  
+
+class syn_iter(object):
+  
+  def __init__(self, code, count, step = 1, mode = INC, hint = True):
+    object.__init__(self)
+    
+    self.code = code
+    self.mode = mode
+    self.hint = hint
+    self.state = 0
+    
+    self.n = count
+    self.step = step
+    
+    self.r_count = None
+    self.r_stop  = None
+    self.r_step  = None
+    
+    self.current_count = None
+
+    self.start_label = None
+    self.continue_label = None
+
+    self.r_start = None
+    self._external_start = False
+    self._external_stop = False    
+    
+    return
+
+
+  def get_acquired_registers(self):
+    """
+    This is a minor hack that returns a list of the acquired registers.
+    It is intended to allow the caller to re-acquire the registers
+    after the loop completes in cases where 'subroutines' that are called
+    from the loop have not yet been synthesized.  By re-requiring the
+    registers, the caller can ensure that the subroutines do not corrupt
+    data in them.
+
+    TODO: This is a temporary fix until a better resource management
+          scheme is implemented.
+    """
+
+    regs = [self.r_count]
+
+    if self.r_step is not None:
+      regs.append(self.r_step)
+
+    if not self._external_stop:
+      regs.append(self.r_stop)
+        
+    return regs
+    
+  def set_start_reg(self, reg):
+    self._external_start = True
+    self.r_start = reg
+    return
+    
+  def set_stop_reg(self, reg):
+    self._external_stop = True
+    self.r_stop = reg
+    return
+  
+    
+  def get_start(self):
+    """
+    Used in INC mode to start the count from somewhere other than
+    zero.  Has no effect on CTR or DEC modes.
+    """
+    return 0
+
+  def get_count(self):
+    return self.n
+  
+  def n_steps(self):
+    return self.n / self.step
+
+  def step_size(self):
+    return self.step
+  
+  def start(self, align = True, branch = True):
+
+    if self.r_count is None:
+      self.r_count = self.code.acquire_register()
+      
+    if self.mode == DEC:
+      if self._external_start:
+        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))        
+      else:
+        util.load_word(self.code, self.r_count, self.get_count())
+
+    elif self.mode == INC:
+      if self.r_stop is None and branch:
+        self.r_stop = self.code.acquire_register()
+
+      if self._external_start:
+        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))        
+      else:
+        util.load_word(self.code, self.r_count, self.get_start())
+
+      if branch and not self._external_stop:
+        util.load_word(self.code, self.r_stop, self.get_count())
+
+    # /end mode if
+    
+    if self.r_count is not None:
+      # self.current_count = var.SignedWord(code = self.code, reg = self.r_count)
+      self.current_count = var.SignedWord(code = self.code, reg = self.r_count)
+
+    # If the step size doesn't fit in an immediate value, store it in a register
+    # (-512 < word < 511):
+    if not (-512 < self.step_size() < 511):
+      self.r_step = self.code.acquire_register()
+      util.load_word(self.code, self.r_step, self.step_size())
+
+    # Label
+    self.start_label = self.code.size() + 1
+
+    return
+
+  def setup(self):
+    return
+
+  def get_current(self):
+    return self.current_count
+
+  def cleanup(self):
+    # Update the current count
+    if self.mode == DEC:
+      # Note: using addic here may cause problems with zip/nested loops...tread with caution!
+      if self.r_step is not None:
+        self.code.add(spu.sf(self.r_count, self.r_step, self.r_count, order = _mi(spu.sf)))
+      else:
+        self.code.add(spu.ai( -self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+    elif self.mode == INC:
+      if self.r_step is not None:
+        self.code.add(spu.a(self.r_step, self.r_count, self.r_count, order = _mi(spu.a)))
+      else:
+        self.code.add(spu.ai(self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+      
+    return
+
+  def end(self, branch = True):
+    if self.hint == True:
+      next = self.code.size() + 1
+      self.code.add(spu.hbrr(0, -(next-self.start_label) * env.WORD_SIZE, (self.code.size() + 2) * env.WORD_SIZE, order = _mi(spu.hbrr)))
+
+    if self.mode == DEC:
+      # branch if r_count is not zero (CR)
+      #   Note that this relies on someone (e.g. cleanup()) setting the
+      #   condition register properly.
+      if branch:
+        next = self.code.size() + 1
+        self.code.add(spu.brnz(-(next - self.start_label) * env.WORD_SIZE, self.r_count, order = _mi(spu.brnz)))
+
+      # Reset the counter in case this is a nested loop
+      util.load_word(self.code, self.r_count, self.get_count())
+
+    elif self.mode == INC:
+      # branch if r_current < r_stop
+      if branch:
+        r_cmp = self.code.acquire_register()
+        self.code.add(spu.clgt(self.r_count, self.r_stop, r_cmp, order = _mi(spu.clgt)))
+        next = self.code.size() + 1
+        self.code.add(spu.brnz(-(((next - self.start_label) * env.WORD_SIZE) >> 2), r_cmp, order = _mi(spu.brnz)))
+        self.code.release_register(r_cmp)
+
+      # Reset the the current value in case this is a nested loop
+      if self._external_start:
+        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
+      else:
+        util.load_word(self.code, self.r_count, self.get_start())
+
+    if self.r_count is not None:
+      self.code.release_register(self.r_count)
+    if self.r_stop is not None and not self._external_stop:
+      self.code.release_register(self.r_stop)      
+
+    return
+
+
+  def add_continue(self, code, idx, branch_inst = spu.br):
+    """
+    Insert a branch instruction to branch to the end of the loop.
+    This must be called _after_ the loop is synthesized.
+    """
+    if self.continue_label is None:
+      raise Exception('Continue point not set.  Has the loop been synthesized yet?')
+
+    next = (self.continue_label - idx)
+    # print 'Continue:', next, idx, self.continue_label
+    code[idx] = branch_inst(next)
+    return
+  
+  def __iter__(self):
+    self.start()
+    return self
+
+  def next(self):
+
+    if self.state == 0:
+      self.state = 1
+      self.setup()
+      return self.get_current()
+    else:
+      self.continue_label = self.code.size()
+      self.cleanup()
+      self.end()
+      raise StopIteration
+
+    return
+
+
+class syn_range(syn_iter):
+  """
+  Purpose: Iterate a set number of times and make the current
+           iteration count available as a variable.
+  """
+
+  def __init__(self, code, start, stop = None, step = 1):
+    if stop is None:
+      stop = start
+      start = 0
+
+    syn_iter.__init__(self, code, stop, step = step, mode = INC)
+
+    self.istart = start
+    
+    return
+
+  def get_start(self):
+    return self.istart
+
+def _overlap(lsa, lsb, size):
+  lsa_in_lsb = (lsa < lsb) and (lsa + size) > lsb
+  lsb_in_lsa = (lsb < lsa) and (lsb + size) > lsa  
+  return lsa_in_lsb or lsb_in_lsa
+
+
+
+# _strides = {'b':1, 'h':2, 'i':4, 'B':1, 'H':2, 'I':4, 'f':4, 'd':8}
+# _vector_sizes = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4, 'f':4}
+
+# class spu_vec_iter(syn_iter):
+#   """
+#   Purpose: Iterate over the values as vectors.
+#   """
+#   int_type = var.SignedWord
+  
+#   def __init__(self, code, data, step = 1, length = None, store_only = False, addr_reg = None, save = True):
+#     self.var_type = var.SignedWord
+
+#     if type(data) not in (_array_type, memory_desc):
+#       raise Exception('Unsupported array type')
+
+#     if _typecode(data) not in _vector_sizes.keys():
+#       raise Exception('Unsupported array data type for vector operations: ' + data.typecode)
+
+#     stop = 0
+#     self.data = data
+#     self.addr_reg = addr_reg
+#     self.store_only = store_only
+#     self.save = save
+#     if length is None:
+#       length = len(data)
+
+#     t = _typecode(data)
+#     step = (step * _vector_sizes[_typecode(data)]) * _strides[t]
+#     stop = _strides[t] * length # len(data)
+#     self.typecode = t
+
+#     syn_iter.__init__(self, code, stop, step, mode = INC)
+
+#     self.r_current = None
+#     self.r_addr = None
+#     self.current_var = None
+    
+#     return
+
+#   def get_acquired_registers(self):
+#     """
+#     See comment in syn_iter.
+#     """
+#     regs = syn_iter.get_acquired_registers(self)
+
+#     regs.append(self.r_current)
+    
+#     if self.addr_reg is None:
+#       regs.append(self.r_addr)
+      
+#     return regs
+  
+#   def get_current(self): return self.current_var
+
+#   def load_current(self):
+#     return self.code.add(spu.lqx(self.r_count, self.r_addr, self.r_current))
+
+#   def store_current(self):
+#     return self.code.add(spu.stqx(self.r_count, self.r_addr, self.r_current))    
+
+#   def make_current(self):
+#     return self.var_type(self.code, reg = self.r_current, typecode = self.data.typecode)
+
+#   def init_address(self):
+#     if self.addr_reg is None:
+#       return util.load_word(self.code, self.r_addr, _array_address(self.data))
+    
+#   def start(self, align = True, branch = True):
+#     self.r_current = self.code.acquire_register()
+
+#     # addr_reg is the user supplied address for the data
+#     if self.addr_reg is None:
+#       self.r_addr = self.code.acquire_register()
+#     else:
+#       self.r_addr = self.addr_reg
+
+#     syn_iter.start(self, align, branch)
+#     self.current_var = self.make_current()
+#     self.init_address()
+
+#     # print self.r_count, self.r_stop, self.r_current, self.r_addr, self.data.buffer_info()[0]
+
+#     return
+
+#   def setup(self):
+#     if not self.store_only:
+#       self.load_current()
+#     syn_iter.setup(self)
+#     return
+
+#   def cleanup(self):
+#     if self.current_var.assigned and self.save:
+#       self.store_current()
+#     syn_iter.cleanup(self)
+#     return
+
+#   def end(self, branch = True):
+#     if self.r_current is not None:
+#       self.code.release_register(self.r_current)
+
+#     if self.r_addr is not None and self.addr_reg is None:
+#       self.code.release_register(self.r_addr)
+
+#     syn_iter.end(self, branch)
+#     return
+
+
+# class stream_buffer(syn_range):
+#   """
+#   Manage a buffered data stream from main memory.
+#   """
+#   def __init__(self, code, ea, data_size, buffer_size, ls, buffer_mode='single', save = False):
+#     syn_range.__init__(self, code, ea, ea + data_size, buffer_size)
+
+#     # Buffer addresses
+#     if buffer_mode == 'single':
+#       self.lsa = ls
+#       self.lsb = ls
+#     elif buffer_mode == 'double':
+#       if type(ls) is list:
+#         if _overlap(ls[0], ls[1], buffer_size):
+#           raise Exception('Local store buffers overlap')
+#         self.lsa, self.lsb = ls
+#       else:
+#         # Assume contiguous buffers: lsa = ls, lsb = ls + buffer_size
+#         self.lsa = ls
+#         self.lsb = ls + buffer_size
+        
+#     else:
+#       raise Exception('Unknown buffering mode: ' + buffer_mode)
+    
+#     self.buffer_mode = buffer_mode
+#     self.save = save
+    
+#     self.ls = None
+#     self.tag = None
+#     self.buffer_size = None
+#     self.ibuffer_size = buffer_size
+#     return
+
+#   def set_ea_addr_reg(self, reg):
+#     self.set_start_reg(reg)
+#     return
+  
+#   def set_ea_size_reg(self, reg):
+#     self.set_stop_reg(reg)
+#     return
+
+    
+#   # ------------------------------
+#   # Buffer management
+#   # ------------------------------
+
+#   def _toggle(self, var):
+#     """
+#     Use rotate to toggle between two preferred slot  values in a vector.
+#     """
+#     if self.buffer_mode == 'double':
+#       self.code.add(spu.rotqbyi(4, var.reg, var.reg))
+#     return
+
+#   def _swap_buffers(self):
+#     return
+  
+#   def _load_buffer(self):
+#     # Don't perform the load the last time through the loop
+#     r_cmp = self.code.acquire_register()
+
+#     # Compare count == step
+#     self.code.add(spu.ceq(self.r_count, self.r_stop, r_cmp))
+
+#     # Place holder for branch
+#     start = self.code.add(spu.stop(0x2001))
+
+#     # Perform the load
+#     end = dma.mfc_get(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+
+#     # Add the branch
+#     offset = ((end - start) + 1) * 4
+#     self.code[start - 1] = spu.brnz( offset >> 2, r_cmp)
+
+#     self.code.release_register(r_cmp)
+#     return
+
+#   def _save_buffer(self):
+#     dma.mfc_put(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+#     return
+
+#   def _wait_buffer(self):
+#     mask = var.SignedWord(1, self.code)
+#     mask.v = mask << self.tag
+
+#     self.code.add(spu.wrch(dma.MFC_WrTagMask, mask.reg))
+
+#     # Wait for the transfer to complete
+#     dma.mfc_read_tag_status_all(self.code);
+
+#     self.code.release_register(mask.reg)
+#     return
+
+#   # ------------------------------
+#   # Iterator methods
+#   # ------------------------------
+
+#   def get_current(self):
+#     """
+#     Overload current to return the local buffer address.
+#     Use syn_range.get_current(self) to get the ea/count variable.
+#     """
+#     return self.ls
+
+
+#   def _inc_ea(self):
+#     """
+#     Increment the ea/count register by step size.  This is used for double buffering.
+#     """
+#     if self.r_step is not None:
+#       vstep = var.SignedWord(code = self.code, reg = self.r_step)
+#       self.current_count.v = self.current_count + vstep 
+#     else:
+#       self.current_count.v = self.current_count + self.step_size()
+#     return
+  
+#   def _dec_ea(self):
+#     """
+#     Decrement the ea/count register by step size.  This is used for double buffering.
+#     """
+    
+#     if self.r_step is not None:
+#       vstep = var.SignedWord(code = self.code, reg = self.r_step)
+#       self.current_count.v = self.current_count - vstep 
+#     else:
+#       self.current_count.v = self.current_count - self.step_size()
+#     return
+  
+
+#   def start(self, align = True, branch = True):    
+#     # Initialize the iterator
+#     syn_range.start(self, align = align, branch = branch)
+#     if not hasattr(self, 'skip_start_post'):
+#       self._start_post()
+#     return
+  
+#   def _start_post(self):
+#     # Initialize the buffer size
+#     self.buffer_size = var.SignedWord(self.ibuffer_size, self.code)
+    
+#     # Initialize a the ls and tag vectors with (optionally) alternating values
+#     if self.buffer_mode == 'single':
+#       self.ls  = var.SignedWord(self.lsa, self.code)
+#       self.tag = var.SignedWord(0, self.code)
+#     else:
+#       self.ls  = var.SignedWord(array.array('I', [self.lsa, self.lsb, self.lsa, self.lsb], self.code))
+#       self.tag = var.SignedWord(array.array('I', [0, 1, 0, 1], self.code))
+
+#     # For double buffering, load the first buffer and increment count for the next buffer
+#     if self.buffer_mode == 'double':
+#       self._load_buffer()
+    
+#     # Update the start label
+#     self.start_label = self.code.size() + 1
+    
+#     return
+
+#   def setup(self):
+#     syn_range.setup(self)
+
+#     # Toggle the tag and set the ls to next
+#     if self.buffer_mode == 'double':
+#       self._toggle(self.tag)
+#       self._toggle(self.ls)
+#       self._inc_ea()
+
+#     # Start the transfer of next
+#     if self.save:
+#       self._wait_buffer()
+      
+#     self._load_buffer()
+
+#     # Reset tag/ls
+#     if self.buffer_mode == 'double':    
+#       self._toggle(self.tag)
+#       self._toggle(self.ls)
+#       self._dec_ea()
+
+#     # Wait for current to complete
+#     self._wait_buffer()
+    
+#     return
+
+
+#   def cleanup(self):
+#     # Save current
+#     if self.save:
+#       self._save_buffer()
+      
+#     # Swap buffers
+#     self._toggle(self.tag)
+#     self._toggle(self.ls)
+
+#     # Update the counter
+#     syn_range.cleanup(self)
+    
+#     return
+
+#   def end(self, branch = True):
+
+#     syn_range.end(self, branch = branch)
+    
+#     self.code.release_register(self.ls.reg)
+#     self.code.release_register(self.tag.reg)
+#     self.code.release_register(self.buffer_size.reg)
+
+#     return
+    
+  
+# class zip_iter: pass
+
+# class parallel(object):
+#   def __init__(self, obj):
+#     object.__init__(self)
+#     self.obj = obj
+
+#     if type(obj.code) is not env.ParallelInstructionStream:
+#       raise Exception("ParallelInstructionStream required")
+
+#     if obj.code.raw_data_size is not None:
+#       print 'Warning (parallel): raw_data_size is already set'
+    
+#     if type(self.obj) is zip_iter:
+#       self.obj.iters = [parallel(i) for i in self.obj.iters]
+    
+#     self.state = 0
+#     return
+  
+#   def get_start(self): return self.obj.get_start()
+#   def get_count(self): return self.obj.get_count()
+#   def n_steps(self):   return self.obj.n_steps()
+#   def step_size(self): return self.obj.step_size()
+#   def setup(self): return self.obj.setup()
+#   def get_current(self): return self.obj.get_current()
+#   def cleanup(self): return self.obj.cleanup()
+#   def end(self, branch = True): return self.obj.end(branch)
+
+
+#   def _update_inc_count(self):
+#     code = self.obj.code
+
+#     code.acquire_block_registers()
+    
+#     r_block_size = code.r_block_size
+#     r_offset = code.r_offset
+    
+#     # Determine the block size for each loop
+#     code.raw_data_size = self.get_count() - self.get_start()
+#     # synppc.load_word(code, r_block_size, self.get_count() - self.get_start())
+#     # code.add(synppc.ppc.divw(r_block_size, r_block_size, code.r_size))
+    
+#     # Determine the offset for the current block and update the r_count
+#     # (this is primarily for range, which uses different values in r_count
+#     #  to initialize ranges that don't start at 0)
+#     # code.add(synppc.ppc.mullw(r_offset, code.r_rank, r_block_size))
+#     code.add(spu.a(self.obj.r_count, r_offset, self.obj.r_count))
+
+#     # Offset is rank * block_size
+#     # Count is count + offset
+#     # Stop is count + block_size
+#     if self.obj.r_stop is not None:
+#       code.add(spu.a(self.obj.r_count, r_block_size, self.obj.r_stop))
+
+#     # code.release_register(r_offset)
+#     # code.release_register(r_block_size)
+#     return
+      
+#   def start(self, align = True, branch = True):
+#     # HACK to get double buffering and parallel working together
+#     if hasattr(self.obj, '_start_post'):
+#       self.obj.skip_start_post = True
+    
+#     self.obj.start(align = False, branch = branch)
+
+#     code = self.obj.code
+#     # replace count with rank
+#     if self.obj.mode == CTR:
+#       raise Expcetion('Parallel CTR loops not supported')
+#     elif self.obj.mode == DEC:
+#       raise Expcetion('Parallel DEC loops not supported')
+#     elif self.obj.mode == INC:
+#       self._update_inc_count()
+      
+#     if align and branch:
+#       self.obj.code.align_code(16)
+#       # Align the start of the loop on a 16 byte boundary
+# #      while (code.size()) % 4 != 0:
+# #        if code.size() % 2 == 0:
+# #          code.add(spu.nop(0))
+# #        else:
+# #          code.add(spu.lnop(0))
+          
+#     # Update the real iterator's label
+#     self.obj.start_label = code.size() + 1
+
+#     # HACK end
+#     if hasattr(self.obj, '_start_post'):
+#       self.obj._start_post()
+
+#     return 
+
+#   def end(self, branch = True):
+#     self.obj.end(branch)
+    
+#     if self.obj.mode == CTR and branch:
+#       raise Expcetion('Parallel CTR loops not supported')
+#     elif self.obj.mode == DEC:
+#       raise Expcetion('Parallel DEC loops not supported')
+#     elif self.obj.mode == INC:
+#       self._update_inc_count()
+
+#     return
+
+#   def init_address(self):
+#     # Call syn_iters init self.code
+#     self.obj.init_address(self)
+
+#     # Update the address with the offset
+#     # For variable iterators, this is the value already computed for r_count
+#     self.obj.code.add(spu.a(self.r_addr, self.obj.r_count, self.r_addr))
+
+#     return
+
+#   def __iter__(self):
+#     self.start()
+#     return self
+
+#   def next(self):
+
+#     if self.state == 0:
+#       self.state = 1
+#       self.setup()
+#       return self.get_current()
+#     else:
+#       self.cleanup()
+#       self.end()
+#       raise StopIteration
+
+#     return
+
+
+
+# ------------------------------------------------------------
+# Tests
+# ------------------------------------------------------------
+
+
+def TestSPUIter():
+  size = 32
+  data = array.array('I', range(size + 2))
+
+  print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
+  
+  code = env.InstructionStream()
+
+  r_zero    = code.acquire_register()
+  r_ea_data = code.acquire_register()
+  r_ls_data = code.acquire_register()
+  r_size    = code.acquire_register()
+  r_tag     = code.acquire_register()  
+
+  # Load zero
+  util.load_word(code, r_zero, 0)
+
+  print 'array ea: %X' % (data.buffer_info()[0])
+  print 'r_zero = %s, ea_data = %s, ls_data = %s, r_size = %s, r_tag = %s' % (
+    str(r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
+  
+  # Load the effective address
+  if data.buffer_info()[0] % 16 == 0:
+    util.load_word(code, r_ea_data, data.buffer_info()[0])
+  else: 
+    util.load_word(code, r_ea_data, data.buffer_info()[0] + 8)
+    
+  # Load the size
+  util.load_word(code, r_size, size * 4)
+
+  # Load the tag
+  code.add(spu.ai(r_tag, r_zero, 12))
+
+  # Load the lsa
+  code.add(spu.ai(r_ls_data, r_zero, 0))
+
+  # Load the data into address 0
+  dma.mfc_get(code, r_ls_data, r_ea_data, r_size, r_tag)
+
+  # Set the tag bit to 12
+  dma.mfc_write_tag_mask(code, 1<<12);
+
+  # Wait for the transfer to complete
+  dma.mfc_read_tag_status_all(code);
+
+  # Increment the data values by 1 using an unrolled loop (no branches)
+  # r_current = code.acquire_register()
+  current = var.SignedWord(0, code)
+  
+  # Use an SPU iter
+  for lsa in syn_iter(code, size * 4, 16):
+    code.add(spu.lqx(current, r_zero, lsa))
+    # code.add(spu.ai(1, r_current, r_current))
+    current.v = current + current
+    code.add(spu.stqx(current, r_zero, lsa))    
+
+  # code.release_register(r_current)
+  current.release_register(code)
+  
+  # Store the values back to main memory
+
+  # Load the tag
+  code.add(spu.ai(r_tag, r_zero, 13))
+
+  # Load the data into address 0
+  dma.mfc_put(code, r_ls_data, r_ea_data, r_size, r_tag)
+
+  # Set the tag bit to 12
+  dma.mfc_write_tag_mask(code, 1<<13);
+
+  # Wait for the transfer to complete
+  dma.mfc_read_tag_status_all(code);
+
+  # Cleanup
+  code.release_register(r_zero)
+  code.release_register(r_ea_data)
+  code.release_register(r_ls_data)  
+  code.release_register(r_size)
+  code.release_register(r_tag)  
+
+  # Stop for debugging
+  # code.add(spu.stop(0xA))
+
+  # Execute the code
+  proc = env.Processor()
+
+  print data
+  r = proc.execute(code)
+  print data
+
+  return
+
+
+
+# def TestSPUParallelIter(data, size, n_spus = 8, buffer_size = 16, run_code = True):
+#   # n_spus = 8
+#   # buffer_size = 16 # 16 ints/buffer
+#   # n_buffers   = 4  # 4 buffers/spu
+#   # n_buffers = size / buffer_size
+#   # size = buffer_size * n_buffers * n_spus
+#   # data = array.array('I', range(size + 2))
+
+#   # print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
+  
+#   code = env.ParallelInstructionStream()
+#   # code = env.InstructionStream()
+
+#   r_zero    = code.acquire_register()
+#   r_ea_data = code.acquire_register()
+#   r_ls_data = code.acquire_register()
+#   r_size    = code.acquire_register()
+#   r_tag     = code.acquire_register()  
+
+#   # Load zero
+#   util.load_word(code, r_zero, 0)
+
+#   # print 'array ea: 0x%X 0x%X' % (data.buffer_info()[0], long(data.buffer_info()[0]))
+#   # print 'r_zero = %d, ea_data = %d, ls_data = %d, r_size = %d, r_tag = %d' % (
+#   #   r_zero, r_ea_data, r_ls_data, r_size, r_tag)
+  
+#   # Load the effective address
+#   if data.buffer_info()[0] % 16 == 0:
+#     util.load_word(code, r_ea_data, data.buffer_info()[0])
+#   else: 
+#     util.load_word(code, r_ea_data, data.buffer_info()[0] + 8)
+  
+#   ea_start = data.buffer_info()[0]
+#   # Iterate over each buffer
+#   for ea in parallel(syn_range(code, ea_start, ea_start + size * 4 , buffer_size * 4)):
+#     # ea = var.SignedWord(code = code, reg = r_ea_data)
+    
+#     # print 'n_iters:', size / buffer_size
+#     # for i in syn_range(code, size / buffer_size):
+
+#     # code.add(spu.stop(0xB))
+    
+#     # Load the size
+#     util.load_word(code, r_size, buffer_size * 4)
+
+#     # Load the tag
+#     code.add(spu.ai(12, r_zero, r_tag))
+
+#     # Load the lsa
+#     code.add(spu.ai(0, r_zero, r_ls_data))
+
+#     # Load the data into address 0
+#     dma.mfc_get(code, r_ls_data, ea.reg, r_size, r_tag)
+
+#     # Set the tag bit to 12
+#     dma.mfc_write_tag_mask(code, 1<<12);
+
+#     # Wait for the transfer to complete
+#     dma.mfc_read_tag_status_all(code);
+
+#     # Increment the data values by 1 using an unrolled loop (no branches)
+#     # r_current = code.acquire_register()
+#     current = var.SignedWord(0, code)
+
+#     count = var.SignedWord(0, code)
+#     # Use an SPU iter
+#     for lsa in syn_iter(code, buffer_size * 4, 16):
+#       code.add(spu.lqx(lsa.reg, r_zero, current.reg))
+#       # code.add(spu.ai(1, r_current, r_current))
+#       current.v = current + current
+#       code.add(spu.stqx(lsa.reg, r_zero, current.reg))    
+#       count.v = count + 1
+
+#     code.add(spu.stqx(0, r_zero, count.reg))
+    
+#     # code.release_register(r_current)
+#     current.release_registers(code)
+  
+#     # Store the values back to main memory
+
+#     # Load the tag
+#     code.add(spu.ai(13, r_zero, r_tag))
+
+#     # Load the data into address 0
+#     dma.mfc_put(code, r_ls_data, ea.reg, r_size, r_tag)
+
+#     # Set the tag bit to 13
+#     dma.mfc_write_tag_mask(code, 1<<13);
+
+#     # Wait for the transfer to complete
+#     dma.mfc_read_tag_status_all(code);
+
+
+#     # code.add(spu.stop(0xB))
+
+#     # Update ea
+#     # ea.v = ea + (buffer_size * 4)
+#   # /for ea address 
+
+
+#   # Cleanup
+#   code.release_register(r_zero)
+#   code.release_register(r_ea_data)
+#   code.release_register(r_ls_data)  
+#   code.release_register(r_size)
+#   code.release_register(r_tag)  
+
+#   if not run_code:
+#     return code
+  
+#   # Stop for debugging
+#   # code.add(spu.stop(0xA))
+
+#   # Execute the code
+#   proc = env.Processor()
+
+#   def print_blocks():
+#     for i in range(0, size, buffer_size):
+#       # print data[i:(i + buffer_size)]
+#       print data[i + buffer_size],
+#     print '' 
+    
+#   # print_blocks()
+#   s = time.time()
+#   r = proc.execute(code, n_spus = n_spus)
+#   # r = proc.execute(code)
+#   t = time.time() - s
+#   # print_blocks()
+
+#   return t
+
+# LOG = {1:0, 2:1, 4:2, 8:3}
+
+# def ParallelTests():
+#   max_exp = 16
+#   max_size = pow(2, max_exp)
+#   print 'Creating data...'
+#   data = array.array('I', range(max_size))
+
+#   print 'Executing Tests...'
+#   # t = TestSPUParallelIter(data, 8192, n_spus = 1, buffer_size = 128)
+#   # return 
+
+#   i = 0
+#   for exponent in range(13, max_exp + 1):
+#     size = pow(2, exponent)
+#     for n_spus in [1, 2, 4, 8]:
+
+#       # Increase the buffer size until to the largest possible factor for the
+#       # number of SPUs or 4096 (*4=16k), whichever is smaller
+#       for buffer_exp in range(2, min(exponent - LOG[n_spus] - 2, 12)):
+#         buffer_size = pow(2, buffer_exp)
+#         # for buffer_size in [4]:
+#         t = 0.0
+#         print 'try\t%d\t%d\t%d\t-.-' % (size, n_spus, buffer_size)
+#         # for i in range(10):
+#         t += TestSPUParallelIter(data, size, n_spus = n_spus, buffer_size = buffer_size)
+          
+#         print 'test\t%d\t%d\t%d\t%.8f' % (size, n_spus, buffer_size, t / 10.0)
+#         # print 'count:', i
+#         i += 1
+#   return
+
+
+# def TestStreamBufferSingle(n_spus = 1):
+#   n = 1024
+#   a = array.array('I', range(n))
+#   buffer_size = 16
+
+#   if n_spus > 1:  code = env.ParallelInstructionStream()
+#   else:           code = env.InstructionStream()
+    
+#   current = var.SignedWord(0, code)
+
+#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+#   if n_spus > 1:  stream = parallel(stream)
+    
+#   for buffer in stream:
+#     for lsa in syn_iter(code, buffer_size, 16):
+#       code.add(spu.lqx(buffer.reg, lsa.reg, current.reg))
+#       current.v = current + current
+#       code.add(spu.stqx(buffer.reg, lsa.reg, current.reg))
+#     # code.add(spu.stop(0xB))
+
+#   proc = env.Processor()
+#   r = proc.execute(code, n_spus = n_spus)
+#   for i in range(0, n):
+#     assert(a[i] == i + i)
+    
+#   return
+
+
+# def TestVecIter(n_spus = 1):
+#   n = 1024
+#   a = array.array('I', range(n))
+#   buffer_size = 16
+
+#   if n_spus > 1:  code = env.ParallelInstructionStream()
+#   else:           code = env.InstructionStream()
+    
+#   current = var.SignedWord(0, code)
+
+#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+#   if n_spus > 1:  stream = parallel(stream)
+
+#   md = memory_desc('I', 0, buffer_size)
+  
+#   for buffer in stream:
+#     for current in spu_vec_iter(code, md):
+#       current.v = current + current
+#     # code.add(spu.stop(0xB))
+
+#   proc = env.Processor()
+#   r = proc.execute(code, n_spus = n_spus)
+
+#   for i in range(0, n):
+#     assert(a[i] == i + i)
+    
+#   return
+
+
+# def TestContinueLabel(n_spus = 1):
+#   n = 1024
+#   a = array.array('I', range(n))
+#   buffer_size = 16
+
+#   if n_spus > 1:  code = env.ParallelInstructionStream()
+#   else:           code = env.InstructionStream()
+    
+#   current = var.SignedWord(0, code)
+#   test    = var.SignedWord(0, code)
+#   four    = var.SignedWord(4, code)    
+
+#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+#   if n_spus > 1:  stream = parallel(stream)
+
+#   md = memory_desc('I', 0, buffer_size)
+#   lsa_iter = spu_vec_iter(code, md)
+
+#   for buffer in stream:
+#     for current in lsa_iter:
+#       current.v = current + current
+
+#       test.v = (current == four)
+#       code.add(spu.gbb(test.reg, test.reg))
+#       lbl_continue = code.add(spu.stop(0xC)) - 1 # Place holder for the continue
+#       current.v = current + current
+
+#     lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(next, reg))
+    
+#   proc = env.Processor()
+#   r = proc.execute(code, n_spus = n_spus)
+
+#   for i in range(0, n):
+#     if i >= 4:
+#       assert(a[i] == i + i)
+#     else:
+#       print a[i]
+#       assert(a[i] == i * 4)
+#   return
+
+# def TestStreamBufferDouble(n_spus = 1):
+#   n = 1024
+#   a = array.array('I', range(n))
+#   buffer_size = 16
+
+#   if n_spus > 1:  code = env.ParallelInstructionStream()
+#   else:           code = env.InstructionStream()
+
+#   current = var.SignedWord(0, code)
+
+#   addr = a.buffer_info()[0]
+#   n_bytes = n * 4
+#   print 'addr 0x%(addr)x %(addr)d' % {'addr':a.buffer_info()[0]}, n_bytes, buffer_size
+#   # code.add(spu.stop(0xB))
+#   stream = stream_buffer(code, addr, n_bytes, buffer_size, 0, buffer_mode='double', save = True)
+#   if n_spus > 1:  stream = parallel(stream)
+  
+#   for buffer in stream:
+#     for lsa in syn_iter(code, buffer_size, 16):
+#       code.add(spu.lqx(buffer.reg, lsa.reg, current.reg))
+#       current.v = current + current
+#       code.add(spu.stqx(buffer.reg, lsa.reg, current.reg))
+
+    
+#   proc = env.Processor()
+#   r = proc.execute(code, n_spus = n_spus)
+#   for i in range(0, n): # , buffer_size / 4):
+#     # print a[i:(i+buffer_size/4)]
+#     assert(a[i] == i + i)
+    
+#   return
+
+
+# def TestMemoryMap(n_spus = 1):
+#   import mmap
+#   import os
+#   filename = 'spuiter.TestMemoryMap.dat'
+#   n = 8192
+#   print 'hello'
+#   # Create a file
+#   fw = open(filename, 'w')
+#   fw.write('-' * (8192 + 32))
+#   fw.close()
+
+#   # Open the file again for memory mapping
+#   f = open(filename, 'r+')
+#   size = os.path.getsize(filename)
+#   m = mmap.mmap(f.fileno(), n)
+#   print 'size:', size, n
+#   # Create a memory descriptor
+#   md = memory_desc('I', size = size)
+#   md.from_ibuffer(m)
+
+#   if n_spus > 1:  code = env.ParallelInstructionStream()
+#   else:           code = env.InstructionStream()
+
+#   current = var.SignedWord(0, code)
+#   X = var.SignedWord(0x58585858, code)
+#   buffer_size = 16
+  
+#   # code.add(spu.stop(0xB))
+#   stream = stream_buffer(code, md.addr, md.size, buffer_size, 0, buffer_mode='double', save = True)
+#   if n_spus > 1:  stream = parallel(stream)
+  
+#   for buff in stream:
+#     for lsa in syn_iter(code, buffer_size, 16):
+#       code.add(spu.lqx(buff.reg, lsa.reg, current.reg))
+#       current.v = X
+#       code.add(spu.stqx(buff.reg, lsa.reg, current.reg))
+    
+#   proc = env.Processor()
+#   r = proc.execute(code, n_spus = n_spus)
+
+#   for i in range(0, n): # , buffer_size / 4):
+#     # print a[i:(i+buffer_size/4)]
+#     # assert(a[i] == i + i)
+#     pass
+#   return
+
+
+# def TestBranchHinting():
+#   import time
+#   code = env.InstructionStream()
+#   a = var.SignedWord(0, code)
+#   s = time.time()
+#   for i in syn_iter(code, pow(2, 16), hint=False):
+#     a.v = a + a
+#   e = time.time() - s
+#   print "Without hint: ", e
+#   s = time.time()
+#   for i in syn_iter(code, pow(2, 16), hint=True):
+#     a.v = a + a
+#   e = time.time() - s
+#   print "With hint: ", e
+#   return
+
+if __name__=='__main__':
+  # TestMemoryMap(1)
+  # TestStreamBufferSingle(1)
+  # TestStreamBufferDouble(8)
+  # TestSPUParallelIter()
+  # ParallelTests()
+
+  TestSPUIter()
+  # TestIter()
+  # TestNestedIter()
+  # TestRange()
+  # TestVarIter()
+  # TestVecIter()
+  # TestZipIter()
+  # TestParallelIter()
+  # TestContinueLabel()
