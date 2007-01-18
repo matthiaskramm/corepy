@@ -312,17 +312,27 @@ class Instruction(object):
   """
   
   def __init__(self, *operands, **koperands):
-    
+
     self._operands = koperands
 
-    if self.asm_order is not None and len(operands) != len(self.asm_order):
+    user_order = None
+    if koperands.has_key('order'):
+      user_order = koperands['order']
+      # if koperands['order'] == 'mio':
+      #  user_order = self.machine_inst._machine_order
+
+    order = user_order or self.asm_order or self.machine_inst._machine_order
+
+    if (order is self.asm_order) and len(operands) != len(self.asm_order):
       raise Exception("Not enough arguments supplied to %s.  %d required, %d supplied" % (
         self.machine_inst.name, len(self.asm_order), len(operands)))
 
-    if self.asm_order is None:
-      order = self.machine_inst._machine_order
-    else:
-      order = self.asm_order
+    if order is self.machine_inst._machine_order:
+      print 'using machine order'
+#     if self.asm_order is None:
+#       order = self.machine_inst._machine_order
+#     else:
+#       order = self.asm_order
     
     for op, field in zip(operands, order):
       self._operands[field.name] = op
@@ -416,13 +426,16 @@ class ExtendedInstruction(object):
   """
 
   def __init__(self, *operands, **koperands):
-
     self.active_code_used = None
     active_code = self.get_active_code()
+
+    self._operands = operands
+    self._koperands = koperands
 
     if active_code is not None:
       active_code.add(self)
       self.active_code_used = active_code
+
     return
 
   def get_active_code(self):
@@ -434,10 +447,10 @@ class ExtendedInstruction(object):
   ex = classmethod(_expression_method)
 
   def render(self):
-    self.block()
+    self.block(*self._operands, **self._koperands)
     return
 
-  def block(self): pass
+  def block(self, *operands, **koperands): pass
 
 # ------------------------------------------------------------
 # InstructionStream

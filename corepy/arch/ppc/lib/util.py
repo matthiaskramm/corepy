@@ -53,45 +53,6 @@ def RunTest(test, *ops):
     else:
       print test.func_name, 'passed'      
 
-def make_user_type(name, type_cls, g = None):
-  """
-  Create a Variable class and an Expression class for a type class.
-
-  This is equivalent to creating two classes and updating the type
-  class (except that the Expression class is not added to the global 
-  namespace):
-
-    class [name](spe.Variable, type_cls):
-      type_cls = type_cls
-    class [name]Ex(spe.Exression, type_cls):
-      type_cls = type_cls    
-    type_class.var_cls = [name]
-    type_class.expr_cls = [name]Ex
-
-  type_cls is added to help determine type precedence among Variables
-  and Expressions.
-
-  (note: there's probably a better way to model these hierarchies that
-   avoids the type_cls, var_cls, expr_cls references.  But, this works
-   and keeping explicit references avoids tricky introspection
-   operations) 
-  """
-
-  # Create the sublasses of Varaible and Expression
-  var_cls = type(name, (spe.Variable, type_cls), {'type_cls': type_cls})
-  expr_cls = type(name + 'Ex', (spe.Expression, type_cls), {'type_cls': type_cls})
-
-  # Update the type class with references to the variable and
-  # expression classes 
-  type_cls.var_cls = var_cls
-  type_cls.expr_cls = expr_cls
-
-  # Add the Variable class to the global namespace
-  if g is None: g = globals()
-  g[name] = var_cls
-
-  return
-
 
 def return_var(var):
   if isinstance(var.reg, type(var.code.gp_return)):

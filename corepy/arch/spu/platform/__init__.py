@@ -19,3 +19,6 @@ platform_module = __import__(platform_string, globals(), locals(), platform_impo
 for cls in platform_imports:
   locals()[cls] = getattr(platform_module, cls)
   
+class _Empty: pass
+
+synbuffer = _Empty()

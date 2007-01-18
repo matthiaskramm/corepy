@@ -5,28 +5,10 @@ import corepy.arch.vmx.isa as vmx
 import corepy.spre.spe as spe
 import corepy.arch.ppc.lib.util as util
 
+from corepy.spre.syn_util import most_specific
+
 _array_type   = type(array.array('I', [1]))
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
-
-def _most_specific(a, b, default = None):
-  """
-  If a and b are from the same hierarcy, return the more specific of
-  [type(a), type(b)], or the default type if they are from different
-  hierarchies. If default is None, return type(a), or type(b) if a
-  does not have a type_cls
-  """
-  if (hasattr(a, 'type_cls') and hasattr(a, 'type_cls')):
-    if issubclass(b.type_cls, a.type_cls):
-      return type(b)
-    elif issubclass(a.type_cls, b.type_cls):
-      return type(a)
-  elif default is None:
-    if hasattr(a, 'type_cls'):
-      return type(a)
-    elif hasattr(b, 'type_cls'):
-      return type(b)
-    
-  return default
 
 
 class VMXType(spe.Type):
@@ -50,7 +32,7 @@ class BitType(VMXType):
   literal_types = (int,long, list, tuple, array)
 
   def _upcast(self, other, inst):
-    return inst.ex(self, other, type_cls = _most_specific(self, other))
+    return inst.ex(self, other, type_cls = most_specific(self, other))
 
 #   def __and__(self, other):
 #     if isinstance(other, BitType):

@@ -17,4 +17,7 @@ elif sys_info[0] == 'Linux' and sys_info[-1] == 'ppc64':
   if len(cpus) > 0 and cpus[0][:5] == ' Cell':
     ARCH = 'cell'
 else:
-  raise Exception('Unsupported architecture')
+  print "Unsupported architecture: Using 'dummy' settings"
+  OS = 'dummy'
+  ARCH = 'dummy'
+  BITS = 0
