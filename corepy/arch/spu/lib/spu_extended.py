@@ -8,7 +8,7 @@ SPU Extended Instructions
 
 class SPUExt(spe.ExtendedInstruction):
   isa_module = spu
-  
+
 class shr(SPUExt):
   """
   Shift-right word.

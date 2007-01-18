@@ -86,14 +86,15 @@ N_SPUS = 6
 class aligned_memory(object):
   def __init__(self, size, alignment = 128, typecode = 'B'):
     print 'Using dummy aligned memory'
-    self.data = array.array(tyeceode, size)
+    self.data = array.array(typecode, range(size))
+    self.typecode = typecode
     return
 
   def __str__(self): return '<aligned_memory typecode = %s addr = 0x%X size = %d ' % (
     self.data.typecode, self.get_addr(), self.get_size())
 
   def get_addr(self): return self.data.buffer_info()[0]
-  def get_size(self): return len(self) * INT_SIZES[self.typecode]
+  def get_size(self): return len(self.data) * INT_SIZES[self.typecode]
   
   def __len__(self):
     return self.get_size() / INT_SIZES[self.typecode]

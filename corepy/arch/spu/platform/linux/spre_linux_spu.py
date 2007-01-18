@@ -424,8 +424,8 @@ class Processor(spe.Processor):
     if type(code) is ParallelInstructionStream:
       # Parallel SPU execution
       speids = []
-      if n_spus > 8:
-        raise Exception("Too many SPUs requests (%d > 8)" % n_spus)
+      if n_spus > 6:
+        raise Exception("Too many SPUs requests (%d > 6)" % n_spus)
 
       # print 'Regs:', code.r_rank, code.r_size, code.r_block_size, code.r_offset
 

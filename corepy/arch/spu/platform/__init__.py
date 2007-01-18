@@ -2,7 +2,7 @@
 import corepy.corepy_conf as conf
 
 platform_imports = [
-  'Processor', 'InstructionStream', 'aligned_memory',
+  'Processor', 'InstructionStream', 'ParallelInstructionStream', 'aligned_memory',
   'WORD_SIZE', 'WORD_TYPE',
   'SPURegister', 
   'spu_exec']

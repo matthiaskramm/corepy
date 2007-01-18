@@ -28,19 +28,19 @@ def vector_from_array(code, r_target, a):
   r2 = code.acquire_register()
   r3 = code.acquire_register()
   
-  synspu.load_word(code, r0, a[0], True)
-  synspu.load_word(code, r1, a[1], True)
-  code.add(synspu.spu.rotqbyi(12, r1, r1)) # rotate qw by bytes
+  load_word(code, r0, a[0], True)
+  load_word(code, r1, a[1], True)
+  code.add(spu.rotqbyi(r1, r1, 12)) # rotate qw by bytes
 
-  synspu.load_word(code, r2, a[2], True)
-  code.add(synspu.spu.rotqbyi(8, r2, r2))
+  load_word(code, r2, a[2], True)
+  code.add(spu.rotqbyi(r2, r2, 8))
 
-  synspu.load_word(code, r3, a[3], True)
-  code.add(synspu.spu.rotqbyi(4, r3, r3))
+  load_word(code, r3, a[3], True)
+  code.add(spu.rotqbyi(r3, r3, 4))
 
-  code.add(synspu.spu.a(r1, r0, r0))
-  code.add(synspu.spu.a(r2, r0, r0))
-  code.add(synspu.spu.a(r3, r0, r0)) 
+  code.add(spu.a(r0, r0, r1))
+  code.add(spu.a(r0, r0, r2))
+  code.add(spu.a(r0, r0, r3)) 
 
   code.release_register(r1)
   code.release_register(r2)

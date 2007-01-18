@@ -503,10 +503,10 @@ class spu_vec_iter(syn_iter):
   def get_current(self): return self.current_var
 
   def load_current(self):
-    return self.code.add(spu.lqx(self.r_count, self.r_addr, self.r_current))
+    return self.code.add(spu.lqx(self.r_current, self.r_addr, self.r_count))
 
   def store_current(self):
-    return self.code.add(spu.stqx(self.r_count, self.r_addr, self.r_current))    
+    return self.code.add(spu.stqx(self.r_current, self.r_addr, self.r_count))    
 
   def make_current(self):
     return self.var_type(code = self.code, reg = self.r_current)
@@ -623,7 +623,8 @@ class stream_buffer(syn_range):
     start = self.code.add(spu.stop(0x2001))
 
     # Perform the load
-    end = dma.mfc_get(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+    end = dma.mfc_get(self.code, self.ls, self.current_count, self.buffer_size, self.tag)
+    # end = self.code.add(spu.nop(0))
 
     # Add the branch
     offset = ((end - start) + 1) * 4
@@ -633,7 +634,7 @@ class stream_buffer(syn_range):
     return
 
   def _save_buffer(self):
-    dma.mfc_put(self.code, self.ls.reg, self.current_count.reg, self.buffer_size.reg, self.tag.reg)
+    dma.mfc_put(self.code, self.ls, self.current_count, self.buffer_size, self.tag)
     return
 
   def _wait_buffer(self):
@@ -701,8 +702,8 @@ class stream_buffer(syn_range):
       self.ls  = var.SignedWord(self.lsa, self.code)
       self.tag = var.SignedWord(0, self.code)
     else:
-      self.ls  = var.SignedWord(array.array('I', [self.lsa, self.lsb, self.lsa, self.lsb], self.code))
-      self.tag = var.SignedWord(array.array('I', [0, 1, 0, 1], self.code))
+      self.ls  = var.SignedWord(array.array('i', [self.lsa, self.lsb, self.lsa, self.lsb]),  self.code)
+      self.tag = var.SignedWord(array.array('i', [0, 1, 0, 1]), self.code)
 
     # For double buffering, load the first buffer and increment count for the next buffer
     if self.buffer_mode == 'double':
@@ -765,136 +766,136 @@ class stream_buffer(syn_range):
     return
     
   
-# class zip_iter: pass
+class zip_iter: pass
 
-# class parallel(object):
-#   def __init__(self, obj):
-#     object.__init__(self)
-#     self.obj = obj
+class parallel(object):
+  def __init__(self, obj):
+    object.__init__(self)
+    self.obj = obj
 
-#     if type(obj.code) is not env.ParallelInstructionStream:
-#       raise Exception("ParallelInstructionStream required")
+    if type(obj.code) is not env.ParallelInstructionStream:
+      raise Exception("ParallelInstructionStream required")
 
-#     if obj.code.raw_data_size is not None:
-#       print 'Warning (parallel): raw_data_size is already set'
-    
-#     if type(self.obj) is zip_iter:
-#       self.obj.iters = [parallel(i) for i in self.obj.iters]
-    
-#     self.state = 0
-#     return
+    if obj.code.raw_data_size is not None:
+      print 'Warning (parallel): raw_data_size is already set'
   
-#   def get_start(self): return self.obj.get_start()
-#   def get_count(self): return self.obj.get_count()
-#   def n_steps(self):   return self.obj.n_steps()
-#   def step_size(self): return self.obj.step_size()
-#   def setup(self): return self.obj.setup()
-#   def get_current(self): return self.obj.get_current()
-#   def cleanup(self): return self.obj.cleanup()
-#   def end(self, branch = True): return self.obj.end(branch)
+    if type(self.obj) is zip_iter:
+      self.obj.iters = [parallel(i) for i in self.obj.iters]
+  
+    self.state = 0
+    return
+
+  def get_start(self): return self.obj.get_start()
+  def get_count(self): return self.obj.get_count()
+  def n_steps(self):   return self.obj.n_steps()
+  def step_size(self): return self.obj.step_size()
+  def setup(self): return self.obj.setup()
+  def get_current(self): return self.obj.get_current()
+  def cleanup(self): return self.obj.cleanup()
+  def end(self, branch = True): return self.obj.end(branch)
 
 
-#   def _update_inc_count(self):
-#     code = self.obj.code
+  def _update_inc_count(self):
+    code = self.obj.code
 
-#     code.acquire_block_registers()
+    code.acquire_block_registers()
+  
+    r_block_size = code.r_block_size
+    r_offset = code.r_offset
+  
+    # Determine the block size for each loop
+    code.raw_data_size = self.get_count() - self.get_start()
+    # synppc.load_word(code, r_block_size, self.get_count() - self.get_start())
+    # code.add(synppc.ppc.divw(r_block_size, r_block_size, code.r_size))
+  
+    # Determine the offset for the current block and update the r_count
+    # (this is primarily for range, which uses different values in r_count
+    #  to initialize ranges that don't start at 0)
+    # code.add(synppc.ppc.mullw(r_offset, code.r_rank, r_block_size))
+    code.add(spu.a(self.obj.r_count, r_offset, self.obj.r_count))
+
+    # Offset is rank * block_size
+    # Count is count + offset
+    # Stop is count + block_size
+    if self.obj.r_stop is not None:
+      code.add(spu.a(self.obj.r_stop, r_block_size, self.obj.r_count))
+
+    # code.release_register(r_offset)
+    # code.release_register(r_block_size)
+    return
     
-#     r_block_size = code.r_block_size
-#     r_offset = code.r_offset
+  def start(self, align = True, branch = True):
+    # HACK to get double buffering and parallel working together
+    if hasattr(self.obj, '_start_post'):
+      self.obj.skip_start_post = True
+  
+    self.obj.start(align = False, branch = branch)
+
+    code = self.obj.code
+    # replace count with rank
+    if self.obj.mode == CTR:
+      raise Expcetion('Parallel CTR loops not supported')
+    elif self.obj.mode == DEC:
+      raise Expcetion('Parallel DEC loops not supported')
+    elif self.obj.mode == INC:
+      self._update_inc_count()
     
-#     # Determine the block size for each loop
-#     code.raw_data_size = self.get_count() - self.get_start()
-#     # synppc.load_word(code, r_block_size, self.get_count() - self.get_start())
-#     # code.add(synppc.ppc.divw(r_block_size, r_block_size, code.r_size))
-    
-#     # Determine the offset for the current block and update the r_count
-#     # (this is primarily for range, which uses different values in r_count
-#     #  to initialize ranges that don't start at 0)
-#     # code.add(synppc.ppc.mullw(r_offset, code.r_rank, r_block_size))
-#     code.add(spu.a(self.obj.r_count, r_offset, self.obj.r_count))
+    if align and branch:
+      self.obj.code.align_code(16)
+      # Align the start of the loop on a 16 byte boundary
+#      while (code.size()) % 4 != 0:
+#        if code.size() % 2 == 0:
+#          code.add(spu.nop(0))
+#        else:
+#          code.add(spu.lnop(0))
+        
+    # Update the real iterator's label
+    self.obj.start_label = code.size() + 1
 
-#     # Offset is rank * block_size
-#     # Count is count + offset
-#     # Stop is count + block_size
-#     if self.obj.r_stop is not None:
-#       code.add(spu.a(self.obj.r_count, r_block_size, self.obj.r_stop))
+    # HACK end
+    if hasattr(self.obj, '_start_post'):
+      self.obj._start_post()
 
-#     # code.release_register(r_offset)
-#     # code.release_register(r_block_size)
-#     return
-      
-#   def start(self, align = True, branch = True):
-#     # HACK to get double buffering and parallel working together
-#     if hasattr(self.obj, '_start_post'):
-#       self.obj.skip_start_post = True
-    
-#     self.obj.start(align = False, branch = branch)
+    return 
 
-#     code = self.obj.code
-#     # replace count with rank
-#     if self.obj.mode == CTR:
-#       raise Expcetion('Parallel CTR loops not supported')
-#     elif self.obj.mode == DEC:
-#       raise Expcetion('Parallel DEC loops not supported')
-#     elif self.obj.mode == INC:
-#       self._update_inc_count()
-      
-#     if align and branch:
-#       self.obj.code.align_code(16)
-#       # Align the start of the loop on a 16 byte boundary
-# #      while (code.size()) % 4 != 0:
-# #        if code.size() % 2 == 0:
-# #          code.add(spu.nop(0))
-# #        else:
-# #          code.add(spu.lnop(0))
-          
-#     # Update the real iterator's label
-#     self.obj.start_label = code.size() + 1
+  def end(self, branch = True):
+    self.obj.end(branch)
+  
+    if self.obj.mode == CTR and branch:
+      raise Expcetion('Parallel CTR loops not supported')
+    elif self.obj.mode == DEC:
+      raise Expcetion('Parallel DEC loops not supported')
+    elif self.obj.mode == INC:
+      self._update_inc_count()
 
-#     # HACK end
-#     if hasattr(self.obj, '_start_post'):
-#       self.obj._start_post()
+    return
 
-#     return 
+  def init_address(self):
+    # Call syn_iters init self.code
+    self.obj.init_address(self)
 
-#   def end(self, branch = True):
-#     self.obj.end(branch)
-    
-#     if self.obj.mode == CTR and branch:
-#       raise Expcetion('Parallel CTR loops not supported')
-#     elif self.obj.mode == DEC:
-#       raise Expcetion('Parallel DEC loops not supported')
-#     elif self.obj.mode == INC:
-#       self._update_inc_count()
+    # Update the address with the offset
+    # For variable iterators, this is the value already computed for r_count
+    self.obj.code.add(spu.a(self.r_addr, self.obj.r_count, self.r_addr))
 
-#     return
+    return
 
-#   def init_address(self):
-#     # Call syn_iters init self.code
-#     self.obj.init_address(self)
+  def __iter__(self):
+    self.start()
+    return self
 
-#     # Update the address with the offset
-#     # For variable iterators, this is the value already computed for r_count
-#     self.obj.code.add(spu.a(self.r_addr, self.obj.r_count, self.r_addr))
+  def next(self):
 
-#     return
+    if self.state == 0:
+      self.state = 1
+      self.setup()
+      return self.get_current()
+    else:
+      self.cleanup()
+      self.end()
+      raise StopIteration
 
-#   def __iter__(self):
-#     self.start()
-#     return self
-
-#   def next(self):
-
-#     if self.state == 0:
-#       self.state = 1
-#       self.setup()
-#       return self.get_current()
-#     else:
-#       self.cleanup()
-#       self.end()
-#       raise StopIteration
-
-#     return
+    return
 
 
 
@@ -997,173 +998,178 @@ def TestSPUIter():
 
 
 
-# def TestSPUParallelIter(data, size, n_spus = 8, buffer_size = 16, run_code = True):
-#   # n_spus = 8
-#   # buffer_size = 16 # 16 ints/buffer
-#   # n_buffers   = 4  # 4 buffers/spu
-#   # n_buffers = size / buffer_size
-#   # size = buffer_size * n_buffers * n_spus
-#   # data = array.array('I', range(size + 2))
+def TestSPUParallelIter(data_array, size, n_spus = 6, buffer_size = 16, run_code = True):
+  # n_spus = 8
+  # buffer_size = 16 # 16 ints/buffer
+  # n_buffers   = 4  # 4 buffers/spu
+  # n_buffers = size / buffer_size
+  # size = buffer_size * n_buffers * n_spus
+  # data = array.array('I', range(size + 2))
 
-#   # print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
+  data = env.aligned_memory(n, typecode = 'I')
+  data.copy_to(data_array.buffer_info()[0], len(data_array))
+
+  # print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
+
+  code = env.ParallelInstructionStream()
+  # code = env.InstructionStream()
+
+  r_zero    = code.acquire_register()
+  r_ea_data = code.acquire_register()
+  r_ls_data = code.acquire_register()
+  r_size    = code.acquire_register()
+  r_tag     = code.acquire_register()  
+
+  # Load zero
+  util.load_word(code, r_zero, 0)
+
+  # print 'array ea: 0x%X 0x%X' % (data.buffer_info()[0], long(data.buffer_info()[0]))
+  # print 'r_zero = %d, ea_data = %d, ls_data = %d, r_size = %d, r_tag = %d' % (
+  #   r_zero, r_ea_data, r_ls_data, r_size, r_tag)
+
+  # Load the effective address
+  if data.buffer_info()[0] % 16 == 0:
+    util.load_word(code, r_ea_data, data.buffer_info()[0])
+  else: 
+    util.load_word(code, r_ea_data, data.buffer_info()[0] + 8)
+
+  ea_start = data.buffer_info()[0]
+  # Iterate over each buffer
+  for ea in parallel(syn_range(code, ea_start, ea_start + size * 4 , buffer_size * 4)):
+    # ea = var.SignedWord(code = code, reg = r_ea_data)
   
-#   code = env.ParallelInstructionStream()
-#   # code = env.InstructionStream()
+    # print 'n_iters:', size / buffer_size
+    # for i in syn_range(code, size / buffer_size):
 
-#   r_zero    = code.acquire_register()
-#   r_ea_data = code.acquire_register()
-#   r_ls_data = code.acquire_register()
-#   r_size    = code.acquire_register()
-#   r_tag     = code.acquire_register()  
-
-#   # Load zero
-#   util.load_word(code, r_zero, 0)
-
-#   # print 'array ea: 0x%X 0x%X' % (data.buffer_info()[0], long(data.buffer_info()[0]))
-#   # print 'r_zero = %d, ea_data = %d, ls_data = %d, r_size = %d, r_tag = %d' % (
-#   #   r_zero, r_ea_data, r_ls_data, r_size, r_tag)
+    # code.add(spu.stop(0xB))
   
-#   # Load the effective address
-#   if data.buffer_info()[0] % 16 == 0:
-#     util.load_word(code, r_ea_data, data.buffer_info()[0])
-#   else: 
-#     util.load_word(code, r_ea_data, data.buffer_info()[0] + 8)
+    # Load the size
+    util.load_word(code, r_size, buffer_size * 4)
+
+    # Load the tag
+    code.add(spu.ai(r_tag, r_zero, 12))
+
+    # Load the lsa
+    code.add(spu.ai(r_ls_data, r_zero, 0))
+
+    # Load the data into address 0
+    dma.mfc_get(code, r_ls_data, ea, r_size, r_tag)
+
+    # Set the tag bit to 12
+    dma.mfc_write_tag_mask(code, 1<<12);
+
+    # Wait for the transfer to complete
+    dma.mfc_read_tag_status_all(code);
+
+    # Increment the data values by 1 using an unrolled loop (no branches)
+    # r_current = code.acquire_register()
+    current = var.SignedWord(0, code)
+
+    count = var.SignedWord(0, code)
+    # Use an SPU iter
+    for lsa in syn_iter(code, buffer_size * 4, 16):
+      code.add(spu.lqx(current, r_zero, lsa))
+      # code.add(spu.ai(1, r_current, r_current))
+      current.v = current + current
+      code.add(spu.stqx(current, r_zero, lsa))    
+      count.v = count + 1
+
+    code.add(spu.stqx(count, r_zero, 0))
   
-#   ea_start = data.buffer_info()[0]
-#   # Iterate over each buffer
-#   for ea in parallel(syn_range(code, ea_start, ea_start + size * 4 , buffer_size * 4)):
-#     # ea = var.SignedWord(code = code, reg = r_ea_data)
-    
-#     # print 'n_iters:', size / buffer_size
-#     # for i in syn_range(code, size / buffer_size):
+    # code.release_register(r_current)
+    current.release_registers(code)
 
-#     # code.add(spu.stop(0xB))
-    
-#     # Load the size
-#     util.load_word(code, r_size, buffer_size * 4)
+    # Store the values back to main memory
 
-#     # Load the tag
-#     code.add(spu.ai(12, r_zero, r_tag))
+    # Load the tag
+    code.add(spu.ai(r_tag, r_zero, 13))
 
-#     # Load the lsa
-#     code.add(spu.ai(0, r_zero, r_ls_data))
+    # Load the data into address 0
+    dma.mfc_put(code, r_ls_data, ea.reg, r_size, r_tag)
 
-#     # Load the data into address 0
-#     dma.mfc_get(code, r_ls_data, ea.reg, r_size, r_tag)
+    # Set the tag bit to 13
+    dma.mfc_write_tag_mask(code, 1<<13);
 
-#     # Set the tag bit to 12
-#     dma.mfc_write_tag_mask(code, 1<<12);
+    # Wait for the transfer to complete
+    dma.mfc_read_tag_status_all(code);
 
-#     # Wait for the transfer to complete
-#     dma.mfc_read_tag_status_all(code);
 
-#     # Increment the data values by 1 using an unrolled loop (no branches)
-#     # r_current = code.acquire_register()
-#     current = var.SignedWord(0, code)
+    # code.add(spu.stop(0xB))
 
-#     count = var.SignedWord(0, code)
-#     # Use an SPU iter
-#     for lsa in syn_iter(code, buffer_size * 4, 16):
-#       code.add(spu.lqx(lsa.reg, r_zero, current.reg))
-#       # code.add(spu.ai(1, r_current, r_current))
-#       current.v = current + current
-#       code.add(spu.stqx(lsa.reg, r_zero, current.reg))    
-#       count.v = count + 1
+    # Update ea
+    # ea.v = ea + (buffer_size * 4)
+  # /for ea address 
 
-#     code.add(spu.stqx(0, r_zero, count.reg))
-    
-#     # code.release_register(r_current)
-#     current.release_registers(code)
+
+  # Cleanup
+  code.release_register(r_zero)
+  code.release_register(r_ea_data)
+  code.release_register(r_ls_data)  
+  code.release_register(r_size)
+  code.release_register(r_tag)  
+
+  if not run_code:
+    return code
+
+  # Stop for debugging
+  # code.add(spu.stop(0xA))
+
+  # Execute the code
+  proc = env.Processor()
+  data.copy_from(data_array.buffer_info()[0], len(data_array))  
+  def print_blocks():
+    for i in range(0, size, buffer_size):
+      # print data[i:(i + buffer_size)]
+      print data[i + buffer_size],
+    print '' 
   
-#     # Store the values back to main memory
+  # print_blocks()
+  s = time.time()
+  r = proc.execute(code, n_spus = n_spus)
+  # r = proc.execute(code)
+  t = time.time() - s
+  # print_blocks()
 
-#     # Load the tag
-#     code.add(spu.ai(13, r_zero, r_tag))
-
-#     # Load the data into address 0
-#     dma.mfc_put(code, r_ls_data, ea.reg, r_size, r_tag)
-
-#     # Set the tag bit to 13
-#     dma.mfc_write_tag_mask(code, 1<<13);
-
-#     # Wait for the transfer to complete
-#     dma.mfc_read_tag_status_all(code);
-
-
-#     # code.add(spu.stop(0xB))
-
-#     # Update ea
-#     # ea.v = ea + (buffer_size * 4)
-#   # /for ea address 
-
-
-#   # Cleanup
-#   code.release_register(r_zero)
-#   code.release_register(r_ea_data)
-#   code.release_register(r_ls_data)  
-#   code.release_register(r_size)
-#   code.release_register(r_tag)  
-
-#   if not run_code:
-#     return code
-  
-#   # Stop for debugging
-#   # code.add(spu.stop(0xA))
-
-#   # Execute the code
-#   proc = env.Processor()
-
-#   def print_blocks():
-#     for i in range(0, size, buffer_size):
-#       # print data[i:(i + buffer_size)]
-#       print data[i + buffer_size],
-#     print '' 
-    
-#   # print_blocks()
-#   s = time.time()
-#   r = proc.execute(code, n_spus = n_spus)
-#   # r = proc.execute(code)
-#   t = time.time() - s
-#   # print_blocks()
-
-#   return t
+  return t
 
 # LOG = {1:0, 2:1, 4:2, 8:3}
 
-# def ParallelTests():
-#   max_exp = 16
-#   max_size = pow(2, max_exp)
-#   print 'Creating data...'
-#   data = array.array('I', range(max_size))
+def ParallelTests():
+  max_exp = 16
+  max_size = pow(2, max_exp)
+  print 'Creating data...'
+  data = array.array('I', range(max_size))
+  
+  print 'Executing Tests...'
+  # t = TestSPUParallelIter(data, 8192, n_spus = 1, buffer_size = 128)
+  # return 
 
-#   print 'Executing Tests...'
-#   # t = TestSPUParallelIter(data, 8192, n_spus = 1, buffer_size = 128)
-#   # return 
+  i = 0
+  for exponent in range(13, max_exp + 1):
+    size = pow(2, exponent)
+    for n_spus in [1, 2, 4]:
 
-#   i = 0
-#   for exponent in range(13, max_exp + 1):
-#     size = pow(2, exponent)
-#     for n_spus in [1, 2, 4, 8]:
-
-#       # Increase the buffer size until to the largest possible factor for the
-#       # number of SPUs or 4096 (*4=16k), whichever is smaller
-#       for buffer_exp in range(2, min(exponent - LOG[n_spus] - 2, 12)):
-#         buffer_size = pow(2, buffer_exp)
-#         # for buffer_size in [4]:
-#         t = 0.0
-#         print 'try\t%d\t%d\t%d\t-.-' % (size, n_spus, buffer_size)
-#         # for i in range(10):
-#         t += TestSPUParallelIter(data, size, n_spus = n_spus, buffer_size = buffer_size)
-          
-#         print 'test\t%d\t%d\t%d\t%.8f' % (size, n_spus, buffer_size, t / 10.0)
-#         # print 'count:', i
-#         i += 1
-#   return
+      # Increase the buffer size until to the largest possible factor for the
+      # number of SPUs or 4096 (*4=16k), whichever is smaller
+      for buffer_exp in range(2, min(exponent - LOG[n_spus] - 2, 12)):
+        buffer_size = pow(2, buffer_exp)
+        # for buffer_size in [4]:
+        t = 0.0
+        print 'try\t%d\t%d\t%d\t-.-' % (size, n_spus, buffer_size)
+        # for i in range(10):
+        t += TestSPUParallelIter(data, size, n_spus = n_spus, buffer_size = buffer_size)
+        
+        print 'test\t%d\t%d\t%d\t%.8f' % (size, n_spus, buffer_size, t / 10.0)
+        # print 'count:', i
+        i += 1
+  return
 
 
 def TestStreamBufferSingle(n_spus = 1):
   n = 1024
-  a = array.array('I', range(n))
+  a_array = array.array('I', range(n))
+  a = env.aligned_memory(n, typecode = 'I')
+  a.copy_to(a_array.buffer_info()[0], len(a_array))  
   buffer_size = 16
 
   if n_spus > 1:  code = env.ParallelInstructionStream()
@@ -1183,112 +1189,126 @@ def TestStreamBufferSingle(n_spus = 1):
 
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
+  a.copy_from(a_array.buffer_info()[0], len(a_array))  
   for i in range(0, n):
-    assert(a[i] == i + i)
+    assert(a_array[i] == i + i)
   
   return
 
 
-# def TestVecIter(n_spus = 1):
-#   n = 1024
-#   a = array.array('I', range(n))
-#   buffer_size = 16
-
-#   if n_spus > 1:  code = env.ParallelInstructionStream()
-#   else:           code = env.InstructionStream()
+def TestVecIter(n_spus = 1):
+  n = 1024
+  a_array = array.array('I', range(n))
+  a = env.aligned_memory(n, typecode = 'I')
+  a.copy_to(a_array.buffer_info()[0], len(a_array))
   
-#   current = var.SignedWord(0, code)
+  buffer_size = 16
 
-#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
-#   if n_spus > 1:  stream = parallel(stream)
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
 
-#   md = memory_desc('I', 0, buffer_size)
+  current = var.SignedWord(0, code)
 
-#   for buffer in stream:
-#     for current in spu_vec_iter(code, md):
-#       current.v = current + current
-#     # code.add(spu.stop(0xB))
+  stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+  if n_spus > 1:  stream = parallel(stream)
 
-#   proc = env.Processor()
-#   r = proc.execute(code, n_spus = n_spus)
+  md = memory_desc('i', 0, buffer_size)
 
-#   for i in range(0, n):
-#     assert(a[i] == i + i)
+  for buffer in stream:
+    for current in spu_vec_iter(code, md):
+      current.v = current + current
+    # code.add(spu.stop(0xB))
+
+  proc = env.Processor()
+  r = proc.execute(code, n_spus = n_spus)
+
+  a.copy_from(a_array.buffer_info()[0], len(a_array))  
+  for i in range(0, n):
+    assert(a_array[i] == i + i)
+
+  return
+
+
+def TestContinueLabel(n_spus = 1):
+  n = 1024
+  a_array = array.array('I', range(n))
+
+  a = env.aligned_memory(n, typecode = 'I')
+  a.copy_to(a_array.buffer_info()[0], len(a_array))
   
-#   return
+  buffer_size = 16
 
-
-# def TestContinueLabel(n_spus = 1):
-#   n = 1024
-#   a = array.array('I', range(n))
-#   buffer_size = 16
-
-#   if n_spus > 1:  code = env.ParallelInstructionStream()
-#   else:           code = env.InstructionStream()
-    
-#   current = var.SignedWord(0, code)
-#   test    = var.SignedWord(0, code)
-#   four    = var.SignedWord(4, code)    
-
-#   stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
-#   if n_spus > 1:  stream = parallel(stream)
-
-#   md = memory_desc('I', 0, buffer_size)
-#   lsa_iter = spu_vec_iter(code, md)
-
-#   for buffer in stream:
-#     for current in lsa_iter:
-#       current.v = current + current
-
-#       test.v = (current == four)
-#       code.add(spu.gbb(test.reg, test.reg))
-#       lbl_continue = code.add(spu.stop(0xC)) - 1 # Place holder for the continue
-#       current.v = current + current
-
-#     lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(next, reg))
-    
-#   proc = env.Processor()
-#   r = proc.execute(code, n_spus = n_spus)
-
-#   for i in range(0, n):
-#     if i >= 4:
-#       assert(a[i] == i + i)
-#     else:
-#       print a[i]
-#       assert(a[i] == i * 4)
-#   return
-
-# def TestStreamBufferDouble(n_spus = 1):
-#   n = 1024
-#   a = array.array('I', range(n))
-#   buffer_size = 16
-
-#   if n_spus > 1:  code = env.ParallelInstructionStream()
-#   else:           code = env.InstructionStream()
-
-#   current = var.SignedWord(0, code)
-
-#   addr = a.buffer_info()[0]
-#   n_bytes = n * 4
-#   print 'addr 0x%(addr)x %(addr)d' % {'addr':a.buffer_info()[0]}, n_bytes, buffer_size
-#   # code.add(spu.stop(0xB))
-#   stream = stream_buffer(code, addr, n_bytes, buffer_size, 0, buffer_mode='double', save = True)
-#   if n_spus > 1:  stream = parallel(stream)
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
   
-#   for buffer in stream:
-#     for lsa in syn_iter(code, buffer_size, 16):
-#       code.add(spu.lqx(buffer.reg, lsa.reg, current.reg))
-#       current.v = current + current
-#       code.add(spu.stqx(buffer.reg, lsa.reg, current.reg))
+  current = var.SignedWord(0, code)
+  test    = var.SignedWord(0, code)
+  four    = var.SignedWord(4, code)    
 
-    
-#   proc = env.Processor()
-#   r = proc.execute(code, n_spus = n_spus)
-#   for i in range(0, n): # , buffer_size / 4):
-#     # print a[i:(i+buffer_size/4)]
-#     assert(a[i] == i + i)
-    
-#   return
+  stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+  if n_spus > 1:  stream = parallel(stream)
+
+  md = memory_desc('i', 0, buffer_size)
+  lsa_iter = spu_vec_iter(code, md)
+
+  for buffer in stream:
+    for current in lsa_iter:
+      current.v = current + current
+
+      test.v = (current == four)
+      code.add(spu.gbb(test, test))
+      lbl_continue = code.add(spu.stop(0xC)) - 1 # Place holder for the continue
+      current.v = current + current
+
+    lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(reg, next))
+  
+  proc = env.Processor()
+  r = proc.execute(code, n_spus = n_spus)
+  a.copy_from(a_array.buffer_info()[0], len(a_array))    
+
+  for i in range(0, n):
+    if i >= 4:
+      assert(a_array[i] == i + i)
+    else:
+      print a_array[i]
+      assert(a_array[i] == i * 4)
+  return
+
+def TestStreamBufferDouble(n_spus = 1):
+  n = 1024
+  a_array = array.array('I', range(n))
+
+  a = env.aligned_memory(n, typecode = 'I')
+  a.copy_to(a_array.buffer_info()[0], len(a_array))
+  
+  buffer_size = 16
+
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
+
+  current = var.SignedWord(0, code)
+
+  addr = a.buffer_info()[0]
+  n_bytes = n * 4
+  print 'addr 0x%(addr)x %(addr)d' % {'addr':a.buffer_info()[0]}, n_bytes, buffer_size
+  # code.add(spu.stop(0xB))
+  stream = stream_buffer(code, addr, n_bytes, buffer_size, 0, buffer_mode='double', save = True)
+  if n_spus > 1:  stream = parallel(stream)
+
+  for buffer in stream:
+    for lsa in syn_iter(code, buffer_size, 16):
+      code.add(spu.lqx(current, lsa, buffer))
+      current.v = current + current
+      code.add(spu.stqx(current, lsa, buffer))
+  
+  proc = env.Processor()
+  r = proc.execute(code, n_spus = n_spus)
+  a.copy_from(a_array.buffer_info()[0], len(a_array))    
+  for i in range(0, len(a_array)):
+    # print a_array[i]
+    assert(a_array[i] == i + i)
+  
+  return
 
 
 # def TestMemoryMap(n_spus = 1):
@@ -1356,12 +1376,14 @@ def TestStreamBufferSingle(n_spus = 1):
 
 if __name__=='__main__':
   # TestMemoryMap(1)
+  # TestContinueLabel()  
   TestStreamBufferSingle(1)
-  # TestStreamBufferDouble(8)
+  TestStreamBufferDouble(4)
+    
   # TestSPUParallelIter()
   # ParallelTests()
 
   TestSPUIter()
   TestVecIter()
   # TestZipIter()
-  # TestContinueLabel()
+

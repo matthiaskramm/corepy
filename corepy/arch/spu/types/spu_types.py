@@ -35,7 +35,7 @@ class BitType(SPUType):
   register_type_id = 'gp'
   array_typecodes = ('c', 'b', 'B', 'h', 'H', 'i', 'I', 'f') # all valid typecodes
   array_typecode  = None # typecode for this class
-  literal_types = (int,long, list, tuple, type(array.array))
+  literal_types = (int,long, list, tuple, _array_type)
 
   def __or__(self, other):
     if isinstance(other, BitType):
@@ -124,7 +124,18 @@ class SignedWordType(WordType):
   def __add__(self, other):
     if isinstance(other, SignedWord):
       return spu.a.ex(self, other, type_cls = self.var_cls)
+    elif isinstance(other, int) and (-512 < other < 512):
+      return spu.ai.ex(self, other, type_cls = self.var_cls)
   add = staticmethod(__add__)
+
+  def __sub__(self, other): 
+    # RD = RB - RA
+    if isinstance(other, SignedWord):
+      return spu.sf.ex(self, other, type_cls = self.var_cls)
+    elif isinstance(other, int):
+      return spu.ai.ex(self, -other, type_cls = self.var_cls)
+  sub = staticmethod(__sub__)
+
 
 class SingleFloatType(SPUType):
   register_type_id = 'gp'
