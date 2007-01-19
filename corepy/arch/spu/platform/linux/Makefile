@@ -24,8 +24,8 @@ INC=-I$(PYTHON) -I$(PYTHON)/Include
 
 # CPP_LINK_POST=-libmc++ -lstdc++ -lm 
 
-all: _spu_syscallsmodule.so _spu_execmodule.so spu_bootstrap.o synbuffermodule.so
-cell: _spu_syscallsmodule.so _spu_execmodule.so synbuffermodule.so
+all:  _spu_execmodule.so spu_bootstrap.o synbuffermodule.so
+cell: _spu_execmodule.so synbuffermodule.so
 numeric: synnumeric.so
 
 # ------------------------------------------------------------
@@ -33,14 +33,14 @@ numeric: synnumeric.so
 # ------------------------------------------------------------
 
 # new system for getting spu programs to the spus
-spu_syscalls_wrap.cxx: spu_syscalls.i spu_syscalls.h
-	swig -c++ -python $(INC) spu_syscalls.i
+# spu_syscalls_wrap.cxx: spu_syscalls.i spu_syscalls.h
+# 	swig -c++ -python $(INC) spu_syscalls.i
 
-spu_syscalls_wrap.o: spu_syscalls_wrap.cxx
-	g++ -fpic $(INC) -c spu_syscalls_wrap.cxx
+# spu_syscalls_wrap.o: spu_syscalls_wrap.cxx
+# 	g++ -fpic $(INC) -c spu_syscalls_wrap.cxx
 
-_spu_syscallsmodule.so: spu_syscalls_wrap.o
-	g++ -shared spu_syscalls_wrap.o -o _spu_syscallsmodule.so
+# _spu_syscallsmodule.so: spu_syscalls_wrap.o
+# 	g++ -shared spu_syscalls_wrap.o -o _spu_syscallsmodule.so
 
 # old system
 spu_exec_wrap.cxx: spu_exec.i spu_exec.h

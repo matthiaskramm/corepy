@@ -4,8 +4,8 @@ import corepy.corepy_conf as conf
 platform_imports = [
   'Processor', 'InstructionStream', 'ParallelInstructionStream', 'aligned_memory',
   'WORD_SIZE', 'WORD_TYPE',
-  'SPURegister', 
-  'spu_exec']
+  'SPURegister']
+
 
 if conf.OS == 'linux':
   platform_string = 'linux.spre_linux_spu'

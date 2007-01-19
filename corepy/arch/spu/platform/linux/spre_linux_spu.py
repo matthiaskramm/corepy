@@ -16,11 +16,8 @@ import math
 import corepy.spre.spe as spe
 # import corepy.arch.spu.platform.linux.spu_exec as spu_exec
 import spu_exec
-# import spu_exec2 as spu_exec
-# spu_exec = None
 ExecParams = spu_exec.ExecParams
 
-# from isa_syn import Instruction
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.util as util
 
