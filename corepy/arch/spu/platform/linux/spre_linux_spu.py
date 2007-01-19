@@ -12,7 +12,6 @@ SPE for the Cell SPU
 
 import array
 import math
-import platform
 
 import corepy.spre.spe as spe
 # import corepy.arch.spu.platform.linux.spu_exec as spu_exec
