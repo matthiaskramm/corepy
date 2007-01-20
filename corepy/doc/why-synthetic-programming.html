@@ -1,0 +1,51 @@
+<html>
+<head>
+  <title>Why Synthetic Programming?</title>
+</head>
+
+
+<h2>Why Synthetic Programming?</h2>
+<i>Chris Mueller</i>
+
+<p>
+CorePy was originally developed to provide a convenient method for
+developing AlitVec/VMX programms from Python.  As CorePy evolved, a
+new programming paradigm, <i>synthetic programming</i>, was developed
+to help manage the task of generating hardware instructions at
+run time.  
+
+<p>
+Synthetic programming is built around three observations.
+First, only small portions of most applications require truly
+high-performance implementations.  User interfaces and small-scale
+data processing tasks execute at acceptable speeds in interpreted
+languages.  Occasionally a task will become noticabily slow when
+executed by a scripting language, at which point the task may be 
+ported to a compiled language.  This requires the developer to switch 
+languages and add an additional level of compmlexity to the
+toolchain. 
+
+<p>
+The next observation is that the common compiled languages, C, C++,
+and FORTRAN were designed for machine models that are no longer
+realistic.  Attempts to accomodate vector processors and multi-core
+systems at the language-level have been largely unsucessful, often
+requiring the users to use intrinsics that are merely thin wrappers
+around assembly instructions.  These languages simply do not have the
+semantic breadth to handle the demands of modern hardware. 
+
+<p>
+The final observation is that developers are very productive with 
+highly interactive languages.  Langauges that allow developers to
+iterate quickly through a range of solutions keep developers engaged
+in the develop process.  Even short the delays imparted by a 20 second
+compilation can be enough to lead the developer to a 2 minute Slashdot break.
+
+
+
+
+
+
+
+
+</html>

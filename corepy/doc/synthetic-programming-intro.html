@@ -1,0 +1,602 @@
+<html>
+<head>
+  <title>Synthetic Programming with CorePy</title>
+</head>
+
+
+<h2>Synthetic Programming with CorePy</h2>
+<i>Chris Mueller and Ben Martin</i>
+
+<p>
+CorePy is a library for generating high-performace computational
+kernels from scripting languages.  It exposes the underlying 
+processor instruction sets, memory system, and execution environment
+as Python functions, objects, and modules, allowing the developer to
+work directly with the local hardware resources to produce
+highly-optmized code.  
+CorePy currently supports the full PowerPC, AltiVec/VMX, and
+Cell BE SPE instruction sets under both Linux and OS X.
+
+<p>
+<font size="+2">Requirements and Installation</font>
+
+<p>
+CorePy should work on any Linux or OS X system with a PowerPC
+processor.  CorePy has been sucessfully used on the following
+configurations: 
+
+<ul>
+  <li> G4 and G5 Apple Macs running OS X 10.4 with Python 2.3.5
+  <li> G4 and G5 Apple Macs running Fedora Core 5 with Python 2.4.x
+  <li> IBM Cell Blades running Fedora Core 5, Python 2.4.x, and libspe v1.1
+  <li> Sony PS3s running Yellow Dog Linux, YDL's Python 2.4.x, and libspe v1.2
+</ul>
+
+libspe2 introduced a number of changes that are incompatible with
+CorePy.  At this point, CorePy SPU programs do not run on Cell systems
+using libspe2.  PowerPC and VMX programs are unaffected.  A new
+version of CorePy that removes the dependency on all versions of
+libspe will be available shortly.
+
+
+<p>
+This is an alpha release of CorePy, provided to get early
+feedback from adventurous developers.  If the anything does not
+work, please make a note of what steps you took and the errors that
+were generated and report it to the CorePy team.  We will do our best
+to help you get a working version of CorePy!
+
+<p>
+<b>Basic Installation:</b>
+<ol>
+<li> Download the CorePy tarball from ??? or check out the latest version
+	from ???.
+<li> Add the path to the corepy package to your PYTHONPATH, <br>
+     <pre>% export PYTHONPATH=$PYTHONPATH:/path/to/corepy_parent</pre>
+<li>Build and test the native packages for your environment.  <br>
+	<pre>
+  # Build and test the PowerPC support package
+  # (for OSX, run make in .../platform/osx)
+  % cd corepy/arch/ppc/platform/linux
+  % make
+  % python spre_ppc_linux.py
+
+  # Build and test the SPU support package
+  % cd corepy/arch/spu/platform/linux
+  % make
+  % python spre_spu_linux.py
+	</pre>
+  The tests output some debugging information.  They are successful if 
+  there are no segmentation faults or bus errors. 
+<li> Run the basic examples <br>
+  <pre>
+  % cd corepy/examples
+  % python basics.py
+  % python spu_basics.py
+  </pre>
+  If these complete with no errors, CorePy is correctly installed.
+</ol>
+
+<p>
+<font size="+2">CorePy Overview</font>
+<p>
+CorePy is designed to give developers direct access to the underlying
+processor from Python.  CorePy provides four main components for
+interacting with the processor:
+
+<ul>
+  <li><b>ISA</b>s are libraries of instructions for a given
+  instruction set architecture.  A physical processor may support
+  multiple ISAs.
+  <li><b>InstructionStream</b>s are containers for sequences of
+  instructions, called synthetic programs, and are responsible for
+  managing operating specific tasks for executing the instructions
+  (e.g., ABI compliance).
+  <li><b>Processor</b>s execute synthetic programms, synchronously or 
+  asynchronously, and can pass parameters to and from synthetic
+  programs.
+  <li><b>Memory Classes</b> provide support for describing memory and
+  moving data across memory boundaries (e.g., RAM to registers, main
+	memory to SPU local store). 
+</ul>
+
+These components are used to develop <i>synthetic programs</i>.
+Synthetic programs are small computational kernels <i>synthesized</i>
+at runtime and  optimized for the data they will
+process. A single Python program can use many synthetic programs 
+during its lifetime, much in the same way it can use many external
+libraries.  Synthetic programs may be created using <i>synthetic
+omponets</i>.  Synthetic components are reusable synthetic functions
+and classes.
+
+<p>
+CorePy provides a collection of synthetic components for common
+tasks. These include:
+<ul>  
+  <li><b>Variables</b> abstract basic register management and constant
+  formation tasks.
+  <li><b>Expressions</b> use Python objects and operator overloading
+  to generate instruction sequences using a more natural expression
+  syntax. 
+  <li><b>Iterators</b> use Python iterators to generate instructions
+  for managing loops.  The iterator classes support many different
+  iteration semantics and allow for user defined loop semantics (e.g.,
+  auto-simdization) 
+</ul>
+
+In addition, many examples demonstrate how to develop components for
+different domains, such as physics simulations and chemical
+informatics. 
+
+<!-- p>
+Developing with CorePy is similar to using inline assembly from C,
+but CorePy is much more powerful and flexible.  While inline assembly can
+only utilize compile-time information, programs developed using CorePy
+can take advantage of run-time parameters to perform optimizations not
+possible at compile time.  By using first-class Python functions for
+the instruction sets, developers can treat the processor just another
+Python library.
+-->
+
+<p>
+<font size="+2">Hello, Processor!</font>
+
+<p>
+To get a feel for CorePy, let's start with a simple interactive session.
+First, make sure corepy is in your Python path and start the Python
+interpreter.  Import the ppc instructions and runtime environment:
+<pre>
+  % python
+  >>> import corepy.arch.ppc.isa as ppc
+  >>> import corepy.arch.ppc.platform as env
+  Platform: linux.spre_linux_cell_64
+</pre>
+
+(By convention, the isa is aliased to the name of the architecture, in
+this case ppc, and the runtime library is aliased to env.)
+
+<p>
+Now, create a new InstructionStream and add an instruction to it:
+<pre>
+  >>> code = env.InstructionStream()
+  >>> code.add(ppc.addi(code.gp_return, 0, 42))
+</pre>
+
+<p>
+Finally, create a Processor and execute the instruction stream:
+<pre>
+  >>> proc = env.Processor()
+  >>> result = proc.execute(code)
+  >>> print result
+  42
+</pre>
+
+Congratulations!  You have just created and executed your first
+synthetic program.
+
+<p>
+Let's do the same thing on the SPU: 
+<pre>
+  # Load the SPU instructions and environment
+  >>> import corepy.arch.spu.isa as spu
+  >>> import corepy.arch.spu.platform as spu_env
+  Platform: linux.spre_linux_spu
+
+  # Create a simple empty synthetic program
+  >>> code = spu_env.InstructionStream()
+  >>> code.add(spu.stop(0x200C))
+
+  # Execute the synthetic program on an SPU
+  >>> proc = spu_env.Processor()
+  >>> result = proc.execute(code)
+  >>> print result
+  12
+</pre>
+
+Believe it or not, you just wrote and executed an SPU program
+interactively from Python!
+
+<p>
+<font size="+2">CorePy Packages</font>
+<p>
+
+CorePy is organized as a collection of packages, some shared and some
+platform specific.  The platform sub-hierarchies all live in the 
+<tt>arch</tt> package and follow the same basic structure:
+<pre>
+corepy/
+  arch/
+    [ppc,vmx,spu]/
+      isa/
+      lib/
+      platform/
+      types/
+  examples/
+  doc/
+</pre>
+
+We've already seen the <tt>isa</tt> and <tt>platform</tt> packages is
+in action.  The <tt>isa</tt> package contains all the instructions for
+a particular ISA. The <tt>platform</tt> package contains the native
+code and Python code necessary to execute instruction streams on a
+given operating system. When imported, the <tt>platform</tt> package
+automatically selects the appropriate platform support code.
+
+<p>
+The <tt>types</tt> package contains support for variables and
+expressions.  We'll introduce these in detail in a few sections. 
+
+<p>
+the <tt>lib</tt> package contains additional libraries of synthetic
+components.  Platforms with branch instructions will have
+an <tt>iterators</tt> module here.  Most platforms also include
+a <tt>util</tt> module with other common operations.
+
+<p>
+<b>Examples and Unit Tests</b>
+<p>
+In addition to the files in the examples directory, almost every
+module in CorePy contains an extensive set of unit tests and examples
+at the end of each file.  Feel free to explore the modules to learn
+more about how to use their features.
+
+<p>
+<b>Documentation</b>
+<p>
+Documentation is currenty limited.  But, portions of the code are well
+commented and most files contain unit tests that are good usage
+examples.  
+
+<p>
+<font size="+2">CorePy Basics</font>
+<p>
+
+CorePy is designed to make programming at the processor level as easy
+as using a library.  As with any library, there are a few basic data
+types that form the main programming model for CorePy.  If you have
+programmed in assembly (or even machine) languages before, these will
+be familiar.  If not, don't worry!  The concepts all fairly simple and
+easy to understand.
+
+<p>
+<b>Registers</b>
+<p>
+Registers are the simplest data type in CorePy and form the foundation
+for all other data types.  When a physical processor operates on data,
+it can generally only access data stored in its local registers.
+Load and store instructions move data between memory and registers.
+CorePy registers correspond directly to processor registers.  
+Processors have a limited number of registers and some care must be
+taken when designing synthetic programs to ensure the registers
+are not used up. Compilers use complex register allocation algorithms
+to assign registers to instructions.  CorePy leaves overall register
+management up to the developer,  but does provide some features to
+simplify the task.
+
+<p>
+In CorePy, registers are 'owned' by instances of InstructionStream.
+Thus, each synthetic program has its own set of registers, much like
+each thread in a C program has a set of registers. Registers can be
+acquired and released through the InstructionStream.  An exception is
+thrown if a register is requested when there are none remaining.  Some
+platforms include multiple types of registers.  These are requested
+using a type argument.  The following examples show how to acquire
+different register types for a PPC InstructionStream:
+
+<pre>
+  import corepy.arch.ppc.platform as env
+  code = env.InstructionStream()
+ 
+  # Acquire a general purpose (integer) register
+  ra = code.acquire_register()
+
+  # Acquire a floating point register
+  fa = code.acquire_register('fp')
+
+  # Acquire a VMX register
+  va = code.acquire_register('vector')
+
+  # Release the registers
+  code.release_register(ra)
+  code.release_register(fa)
+  code.release_register(va)
+</pre>
+
+Some InstructionStream classes contain special registers.  The most
+common are return registers. These are the registers that values are
+placed in to return them from a function call. The <tt>gp_return</tt>
+and <tt>fp_return</tt> return registers on the PowerPC
+InstructionStream can be used for this purpose.
+
+<p>
+G4/G5 and Cell PowerPC processors have 32 general purpose, 32 floating
+point, and 32 AltiVec/VMX registers.  Each SPU has 128 general purpose
+registers that can hold either integer or floating point vectors.
+
+<p>
+<b>Instructions</b>
+<p>
+Instructions are the main interface to the processor.
+Instructions operate on two different types of data, data stored in
+registers and data encoded directly into the instruction, called
+immediate operands.  In CorePy, register operands must be acquired
+registers and while immediate operands can be any type convertible
+to <tt>int</tt>.
+
+<p>
+The operand order for the instructions matches the
+assembly order.  As a general rule, the first operand is the
+destination, followed by the register operands and finally the
+immediate operands.
+For instance, the SPU <tt>ai</tt>, or add immediate, instruction, adds
+the value in register A to a constant and stores the value in register
+D.  The assembly and CorePy versions of the instruction are:
+<pre>
+  ai D, A, 12       # Assemby
+  spu.ai(D, A, 12)  # CorePy
+</pre>
+
+<p>
+For each of the three supported architectures, all instructions in the
+32-bit Instruction Set Architectures are included in CorePy.  One
+naming convention worth nothing:  some instructions are listed in the
+ISA manuals with an italic <i>x</i> at the end.  These instructions
+appear in CorePy with the <i>x</i>.  For example, the PowerPC add
+instruction is listed as <tt>add<i>x</i></tt>.  The corresponding
+CorePy instruction is <tt>ppc.addx(...)</tt>.  If enough people
+complain about this, I'll drop the x's.
+
+<p>
+Many instructions have bit flags that are commonly set to the same
+value every time the instruction is used.  In assembly language, these
+bit flags are changed by using mneumonic forms of the instructions.
+Instead of using mneumonics, CorePy makes these flags optional keyword
+arguments. In all cases, the flags default to 0.  For example, the
+full form of the <tt>addx</tt> instruction is 
+<pre>
+  ppc.addx(D, A, B, oe = 0, rc = 0)
+</pre>
+To call <tt>addx</tt> with the rc bit set to one, use 
+<pre>
+  ppc.addx(D, A, B, rc = 1)
+</pre>
+
+<p>
+<i>(missing: overview of extended instructions)</i>
+
+<p>
+<b>Building InstructionStreams</b>
+<p>
+Instructions are collected into synthetic programs using
+InstructionStream instances.  We have already seen how to use
+InstructionStreams to acquire registers.  Instructions can be added to
+InstructionStreams using two methods, a explicit add and an implicit
+add mode.
+<p>
+The initial examples used the explicit add method:
+<pre>
+ code.add(ppc.addi(code.gp_return, 0, 42))
+</pre>
+
+Of course, this method adds some visual noise to the code and becomes
+cumbersome to type for longer synthetic programs.  The implicit add
+mode associates an InstructionStream with an ISA and automatically
+adds Instructions the the stream as they are created:
+
+<pre>
+  code = env.InstructionStream()
+
+  # Set the current instruction stream
+  ppc.set_active_code(code)
+ 
+  # The addi instruction is automatically added to the instruction stream
+  ppc.addi(code.gp_return, 0, 42)
+</pre>
+
+Once complete, or at any time during construction, you can view the
+current contents of an InstructionStream using
+the <tt>print_code()</tt> method.
+
+<p>
+<b>Execution</b>
+<p>
+
+Once a synthetic program is built, it can be executed on a Processor
+instance. All versions of the PowerPC and SPU Processor objects
+support synchronous and asynchronous execution.  Additionally, the
+PowerPC Processor object can return integer and floating point values
+stored in the gp/fp_return registers.  Note that asynchronous
+execution is true multithreaded execution.  If there are two
+processors available and two synthetic programs are executed, the will
+most likely execute on separate processors (the operating system makes
+the final decision).
+
+<pre>
+  # Execution examples
+  ... create a synthetic program ...
+  proc = env.Processor()
+  
+  # Synchronous (blocking) execution, return int
+  result = proc.execute(code)
+
+  # Synchronous (blocking) execution, return float
+  result = proc.execute(code, mode = 'fp')
+
+  # Asynchronous (blocking) execution
+  prog_id = proc.execute(code, mode = 'async')
+	
+  # Stop/restart
+  proc.suspend(proc_id)
+  proc.resume(proc_id)
+
+  # Wait for the prog to finish
+  proc.join(proc_id)
+</pre>
+
+<p>
+<i>(missing: intro to parameter passing)</i>
+
+<p>
+<b>Sharing Data with Synthetic Programs</b>
+<p>
+
+Key points:
+<ul>
+  <li> Data is explicitly loaded into registers by synthetic programs
+  using the load instructions.
+  <li> Data can be created in Python using any form of memory buffer,
+  e.g. array, Numeric array
+  <li> Memory addresses can hardcoded into the instruction sequence or
+  passed as parameters.
+  <li> <tt>InstructionStream.add_storage(data)</tt> keeps a reference
+  to arbitrary data objects to avoid having them garbage collected.
+</ul>
+
+<p>
+<b>Variables and Expressions</b>
+<p>
+Easy access to low-level machine instructions is a double-edged
+sword.  On one side, you have direct access to the full power of the
+processor.  But, expressing common things can be tedious and make one
+long for high-level languages.  CorePy's variable and expression
+libraries add support for building stronger type checking and building
+expresions for common operations. 
+
+<p>
+Machine instructions, while technically only operating on the Register
+and Immediate types, imply a number of semantic types.  For instance,
+add instructions may perform signed or unsigned addition.  Selecting
+the wrong instruction can lead to obscure bugs.  Of course, this is
+one of the value propositions for typed languages.  Variables provide
+a solution to this for common types.  Variables encapsulate a register
+and a collection of type-specific operations via overloaded operators.
+Typed variables can only be used with compatible variables.  The type
+semantics are still evolving in CorePy, but they are similar to those
+found in C.
+
+<p>
+Types are found
+in <tt>arch/[ppc,vmx,spu]/types/[ppc,vmx,spu]_types.py</tt>.  Each
+file has series of test cases demonstrating the available operators.
+(note: missing operators will be added over time, contributions are
+welcome!).   For example, the SPU Bits type supports common logical
+operations and is the base type for the Halfword and Word types:
+
+<pre>
+  ... setup active code ...
+  import corepy.arch.spu.types.spu_types as var
+
+  x = var.Bits(0)
+  y = var.Bits(0)
+  z = var.Bits(0)
+
+  z.v = (x | y) & (x ^ y)
+
+  proc.execute(code)
+</pre>
+
+The example generates the instruction sequence suggested by the
+expression.  Note the <b>.v</b> when the expression is assigned to
+z.  Python's = operator cannot be overloaded directly and instead the
+special <b>.v</b> property triggers evaluation of the expression.
+
+<p>
+<i>(missing: how to use _any_ instruction in an expression.  hint:
+<pre>
+	d.v = x + ppc.addx.ex(A, B, type_cls = var.Word)
+</pre>
+)</i>
+
+<p>
+<b>Iterators</b>
+<p>
+
+One of the most common tasks in implementing high-performance kernels
+is writing loops.  Managing loops at the instruction level is a
+tedious and error prone process and one of the best reasons to use
+compiled languages for high-performance code generation.  CorePy
+Iterators are powerful Python iterators allow you to use Python loop
+syntax to generate high-performance loops.  For example, a 
+nested sum can be implemented using a CorePy Iterator:
+<pre>
+  ... set active code ...
+  import arch.ppc.lib.iterators as iter
+  import arch.ppc.types.ppc_types as var
+
+  a = var.UnsignedWord(0)
+
+  for i in iter.syn_iter(code, 5):
+    for j in iter.syn_iter(code, 5):
+      for k in iter.syn_iter(code, 5):
+        a.v = a + i + j + k
+      
+  util.return_var(a)
+  a.release_register()
+
+  proc = synppc.Processor()
+  r = proc.execute(code)
+  # r == 750
+</pre>
+
+This example creates three nested loops.  The induction variables on
+the loops are returned as CorePy variables and can be used in
+expressions. 
+<p>
+Iterator libraries exist for PowerPC (ppc/lib/iterators.py) and SPU 
+(spu/lib/iterators.py).  Iterators types include iterators for scalar
+arrays, vector arrays (e.g., simple auto-simdization), Pythonic
+iteration (zip/range),  thread/processor-parallel block decompostion
+(auto-natural parallism), and stream buffer management for moving data
+to and from SPU local stores.  Explore the iterator files for
+examples.   
+
+
+
+<p>
+<b>Other Features</b>
+<p>
+
+This document provides an introduction to CorePy.  CorePy has been
+used to develop many applications and many other features exist to aid
+in development.  If there's something you think it should do, it may
+already do it.  If it doesn't, let us know what you'd like and we'll
+see if we can roll it into CorePy.
+
+<p>
+CorePy replaces the original Synthetic Programming
+Environment for Python (SPE).  The SPE contains a number of examples
+that have yet not been ported to the CorePy, including the particle
+system demo and the chemical fingerprint application.  In special
+cases, we can make the SPE codebase available.
+
+<p>
+<font size="+2">Reference</font>
+<p>
+
+Instruction Set Guides: <br>
+<a
+	 href="http://www-306.ibm.com/chips/techlib/techlib.nsf/techdocs/852569B20050FF778525699600719DF2">
+	 PowerPC PEM/ISA Manual</a>
+<br>
+<a
+	 href="http://www.freescale.com/files/32bit/doc/ref_manual/ALTIVECPEM.pdf">AltiVec/VMX PEM/ISA Manual</a>
+<br>
+<a
+	 href="http://www.ibm.com/chips/techlib/techlib.nsf/techdocs/76CA6C7304210F3987257060006F2C44">
+SPU ISA</a>
+
+<p>
+More information on synthetic programming is available at <a 
+href="http://www.synthetic-programming.org">www.synthetic-programming.org</a>
+
+<p>
+Questions or comments?  Contact Chris: chemuell at cs.indiana.edu
+
+
+
+
+
+
+
+<hr>
+</html>
