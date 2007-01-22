@@ -52,6 +52,9 @@ class BitType(SPUType):
       return _upcast(self, other, spu.xor)
   xor = staticmethod(__xor__)
 
+  def copy_register(self, other):
+    return spu.ai.ex(self, other, type_cls = self.var_cls)
+
   def _set_literal_value(self, value):
     if type(value) is _array_type:
 
@@ -77,8 +80,7 @@ class BitType(SPUType):
       # self.typecode = 'I'
       raise Exception("Warning: unknown type for %s -> %s, defaulting to 'I'" % (str(self.value), str(type(self.value))))
     
-      
-    if INT_ARRAY_SIZES[self.array_typecode] != 4:
+    if self.array_typecode is not None and INT_ARRAY_SIZES[self.array_typecode] != 4:
       print "Warning: Only 4-byte integers are supported for spu variables from arrays"
 
     self.code.add_storage(self.storage)
@@ -207,7 +209,8 @@ def TestWord():
   z.v = x << y
   z.v = x << 3
   z.v = x >> y    
-  
+
+  z.v = x
   return
 
 def RunTest(test):
