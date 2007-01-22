@@ -207,18 +207,19 @@ class Variable(object):
   def __str__(self):
     # return '<%s reg = %s>' % (type(self), str(self.reg))
     return '<%s>' % str(self.reg)
-  
+
   def get_value(self): return self.value
   def _set_value(self, v): self.set_value(v)
   # def _set_literal_value(self, v): raise Exception('No method to set literal values for %s' % (type(self)))
   v = property(get_value, _set_value)
 
   def set_value(self, value):
-    if isinstance(value, (Variable, Expression)):
+    if isinstance(value, Variable):
+      self.copy_register(value)
+    elif isinstance(value, Expression):
       value.eval(self.code, reg = self.reg)
       if isinstance(value, Expression):
         value.release_registers(self.code)
-        
     elif isinstance(value, self.literal_types):
       self._set_literal_value(value)
     else:
