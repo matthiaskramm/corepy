@@ -53,7 +53,7 @@ class BitType(SPUType):
   xor = staticmethod(__xor__)
 
   def copy_register(self, other):
-    return spu.ai.ex(self, other, type_cls = self.var_cls)
+    return self.code.add(spu.ai(self, other, 0))
 
   def _set_literal_value(self, value):
     if type(value) is _array_type:
