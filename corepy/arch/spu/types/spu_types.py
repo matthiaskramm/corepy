@@ -11,7 +11,7 @@ from corepy.spre.syn_util import most_specific, make_user_type
 _array_type   = type(array.array('I', [1]))
 INT_ARRAY_TYPES = ('b', 'h', 'i', 'B', 'H', 'I')
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
-INT_SIZES       = {'b':1,  'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
+INT_SIZES       = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
 class SPUType(spe.Type):
   def __init__(self, *args, **kargs):

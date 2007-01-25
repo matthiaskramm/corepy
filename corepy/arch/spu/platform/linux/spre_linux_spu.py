@@ -34,7 +34,7 @@ WORD_TYPE = 'I'           # array type that corresponds to 1 word
 WORD_SIZE = 4             # size in bytes of one word
 WORD_BITS = WORD_SIZE * 8 # number of bits in a word
 
-INT_SIZES = {'b':1,  'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
+INT_SIZES = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
 # ------------------------------
 # Constants
