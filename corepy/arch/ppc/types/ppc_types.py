@@ -377,7 +377,7 @@ _user_types = ( # name, type class
   )
 
 for t in _user_types:
-  util.make_user_type(*(t + (globals(),)))
+  make_user_type(*(t + (globals(),)))
 
 
 # ------------------------------------------------------------
