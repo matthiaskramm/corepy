@@ -18,7 +18,7 @@ synbuffer_buffer_info(PyObject *self, PyObject *args) {
   if (!PyArg_ParseTuple(args, "w#", &addr, &size))
     return NULL;
 
-  return Py_BuildValue("(ii)", (unsigned int)addr, size);
+  return Py_BuildValue("(ki)", (unsigned long)addr, size);
 }
 
 static PyMethodDef synbufferMethods[] = {
