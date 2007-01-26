@@ -108,6 +108,7 @@ ASM_I7 = (RT, RA, I7)
 ASM_I8 = (RT, RA, I8)
 ASM_I10 = (RT, RA, I10)
 ASM_I16 = (RT, I16)
+ASM_XI16 = (I16,) # Null RT
 ASM_I18 = (RT, I18)
 
 # SPU Instruction Metadata
@@ -306,8 +307,8 @@ SPU_ISA = (
   ('il', {'binary': (OPI16(BinToDec('010000001')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
   ('iohl', {'binary': (OPI16(BinToDec('011000001')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
   ('fsmbi', {'binary': (OPI16(BinToDec('001100101')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('br', {'binary': (OPI16(BinToDec('001100100')), I16, R_RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('bra', {'binary': (OPI16(BinToDec('001100000')), I16, R_RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
+  ('br', {'binary': (OPI16(BinToDec('001100100')), I16, R_RT), 'asm': ASM_XI16, 'cycles': (1, 4, 0) }),
+  ('bra', {'binary': (OPI16(BinToDec('001100000')), I16, R_RT), 'asm': ASM_XI16, 'cycles': (1, 4, 0) }),
   ('brsl', {'binary': (OPI16(BinToDec('001100110')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
   ('brasl', {'binary': (OPI16(BinToDec('001100010')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
   ('brnz', {'binary': (OPI16(BinToDec('001000010')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
