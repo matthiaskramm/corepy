@@ -330,10 +330,10 @@ def TestMbox():
 
   spe_id = proc.execute(code, mode='async')
   synspu.spu_exec.write_in_mbox(spe_id, 0x88CAFE)
-  
-  while synspu.spu_exec.stat_out_mbox(spe_id) != 0:
-    print 'spe said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
 
+  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+
+  print 'spe said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
   proc.join(spe_id)
   
   return
@@ -354,8 +354,9 @@ def TestSignal():
   spe_id = proc.execute(code, mode='async')
   synspu.spu_exec.write_signal(spe_id, 1, 0xCAFEBABEl)
   
-  while synspu.spu_exec.stat_out_mbox(spe_id) != 0:
-    print 'sig said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
+  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+
+  print 'sig said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
 
   proc.join(spe_id)
   
