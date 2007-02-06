@@ -4,6 +4,7 @@ import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
 import corepy.spre.spe as spe
 import corepy.arch.ppc.lib.util as util
+from corepy.arch.ppc.types.ppc_types import make_user_type
 
 from corepy.spre.syn_util import most_specific
 
@@ -192,7 +193,7 @@ _user_types = ( # name, type class
 array_vmx_lu = {} # array_typecode: type
 
 for t in _user_types:
-  util.make_user_type(*(t + (globals(),)))
+  make_user_type(*(t + (globals(),)))
   array_vmx_lu[globals()[t[0]].array_typecode] = globals()[t[0]]
 
 # ------------------------------------------------------------

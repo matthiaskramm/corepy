@@ -79,7 +79,7 @@ SynthesizeFields(Fields, globals())
 # Note: Use {..., 'asm': None, ... }  for instructions that use machine order for asm order
 
 ASM_ABStrm = (A, B, STRM)
-ASM_vDBUimm = (vB, vB, UIMM)
+ASM_vDBUimm = (vD, vB, UIMM)
 ASM_vDACB = (vD, vA, vC, vB)
 
 # In the first few instructions, ( ..., XOPCODE, 0) has been replaced with (XOPCODE << 1)
