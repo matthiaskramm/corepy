@@ -5,7 +5,7 @@
 
 
 <h2>Synthetic Programming with CorePy</h2>
-<i>Chris Mueller and Ben Martin</i>
+<i>Chris Mueller</i>
 
 <p>
 CorePy is a library for generating high-performace computational
@@ -31,13 +31,6 @@ configurations:
   <li> IBM Cell Blades running Fedora Core 5, Python 2.4.x, and libspe v1.1
   <li> Sony PS3s running Yellow Dog Linux, YDL's Python 2.4.x, and libspe v1.2
 </ul>
-
-libspe2 introduced a number of changes that are incompatible with
-CorePy.  At this point, CorePy SPU programs do not run on Cell systems
-using libspe2.  PowerPC and VMX programs are unaffected.  A new
-version of CorePy that removes the dependency on all versions of
-libspe will be available shortly.
-
 
 <p>
 This is an alpha release of CorePy, provided to get early
@@ -227,7 +220,7 @@ The <tt>types</tt> package contains support for variables and
 expressions.  We'll introduce these in detail in a few sections. 
 
 <p>
-the <tt>lib</tt> package contains additional libraries of synthetic
+The <tt>lib</tt> package contains additional libraries of synthetic
 components.  Platforms with branch instructions will have
 an <tt>iterators</tt> module here.  Most platforms also include
 a <tt>util</tt> module with other common operations.
@@ -362,7 +355,7 @@ To call <tt>addx</tt> with the rc bit set to one, use
 </pre>
 
 <p>
-<i>(missing: overview of extended instructions)</i>
+<i>(TODO: overview of extended instructions)</i>
 
 <p>
 <b>Building InstructionStreams</b>
@@ -434,7 +427,7 @@ the final decision).
 </pre>
 
 <p>
-<i>(missing: intro to parameter passing)</i>
+<i>(TODO: intro to parameter passing)</i>
 
 <p>
 <b>Sharing Data with Synthetic Programs</b>
@@ -501,7 +494,7 @@ z.  Python's = operator cannot be overloaded directly and instead the
 special <b>.v</b> property triggers evaluation of the expression.
 
 <p>
-<i>(missing: how to use _any_ instruction in an expression.  hint:
+<i>(TODO: how to use _any_ instruction in an expression.  hint:
 <pre>
 	d.v = x + ppc.addx.ex(A, B, type_cls = var.Word)
 </pre>
