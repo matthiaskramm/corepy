@@ -15,6 +15,11 @@ import math
 
 import corepy.spre.spe as spe
 import spu_exec
+
+# Set the path to the spu bootstrap object file
+import os.path
+spu_exec.set_bootstrap_path(os.path.join(os.path.split(__file__)[0], 'spu_bootstrap.o'))
+
 ExecParams = spu_exec.ExecParams
 
 import corepy.arch.spu.isa as spu
@@ -483,8 +488,22 @@ def TestParams():
   code = InstructionStream()
   proc = Processor()
 
-  # code.add(spu.stop(0xA))
-  code.add(spu.stop(0x200D))
+  r_sum = code.acquire_register()
+  r_current = code.acquire_register()
+
+  # Zero the sum
+  code.add(spu.xor(r_sum, r_sum, r_sum))
+  
+  for param in [spu_param_1, spu_param_2, spu_param_3, spu_param_4, spu_param_5,
+                spu_param_6, spu_param_7, spu_param_8, spu_param_9, spu_param_10]:
+    copy_param(code, r_current, param)
+    code.add(spu.a(r_sum, r_sum, r_current))
+    
+  code.add(spu.ceqi(r_current, r_sum, 55))
+
+  code.add(spu.brz(r_current, 2))
+  code.add(spu.stop(0x200A))
+  code.add(spu.stop(0x200B))
   
   params = spu_exec.ExecParams()
 
@@ -503,7 +522,8 @@ def TestParams():
 
 
   r = proc.execute(code, params = params)
-  assert(r == 13)
+  print r
+  assert(r == 0xA)
   # print 'int result:', r
   # while True:
   #   pass

@@ -14,6 +14,7 @@
 #define SPU_EXEC_H
 
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <sys/mman.h>
 #include <signal.h>
@@ -69,8 +70,16 @@ struct ExecParams {
 };
 
 // Object file that contains the SPU bootstrap code
-// #define SPU_BOOTSTRAP "spu_execute.o"
-#define SPU_BOOTSTRAP "/home/osl/projects/corepy/arch/spu/platform/linux/spu_bootstrap.o"
+static char* spu_bootstrap_path = NULL;
+
+void set_bootstrap_path(char* path) {
+  if(spu_bootstrap_path != NULL)
+    free(spu_bootstrap_path);
+  spu_bootstrap_path = strdup(path);
+  
+  return;
+}
+
 
 class aligned_memory {
  private:
@@ -285,7 +294,7 @@ speid_t execute_param_async(unsigned int addr, ExecParams params) {
     perror("spu_create_group");
   }
 
-  spe_program_handle_t *bootstrap = spe_open_image(SPU_BOOTSTRAP);
+  spe_program_handle_t *bootstrap = spe_open_image(spu_bootstrap_path);
   
   if(bootstrap == NULL) {
     perror("spu_open_image");
@@ -314,11 +323,11 @@ speid_t execute_param_async(unsigned int addr, ExecParams params) {
   unsigned int lsa = (0x3FFFF - params.size) & 0xFFF80;
   unsigned int size = params.size + (16 - params.size % 16);
   unsigned int tag = 4;
-  printf("Transferring %d bytes to %X\n", size, lsa);
+
+  // printf("Transferring %d bytes to %X\n", size, lsa);
   spe_mfc_getb(spe_id, lsa, (void *)params.addr, size, tag, 0, 0);  
-  printf("Waiting...\n");
   spe_mfc_read_tag_status_all(spe_id, 1 << tag);
-  printf("Starting SPE...\n");
+
   // Restart the spu
   spe_kill(spe_id, SIGCONT);
   
