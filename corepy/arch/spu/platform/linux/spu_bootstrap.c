@@ -52,9 +52,12 @@ int main(unsigned long long id) {
   // Put a branch instruction at address 0 that branches to the new
   // code.  This didn't work using the function call trick after the
   // stop - blowing away the stack messed things up too much.
-  unsigned int ba = 805306368 | (lsa & 0x3FFFC) << 5;
-  *((unsigned int*)0x0) = ba;
+  // unsigned int ba = 805306368 | (lsa & 0x3FFFC) << 5;
+  // *((unsigned int*)0x0) = ba;
 
+  unsigned int stop = SPU_READY;
+  *((unsigned int*)(lsa - 4)) = stop;
+  
   // Keep this around...for some odd reason things end up here
   // sometimes... 
   //  *((unsigned int*)0x1BEF0) = ba;
@@ -65,23 +68,24 @@ int main(unsigned long long id) {
   // printf("lsa: 0x%X addr: 0x%X, size: %d main: 0x%X ba: 0x%X\n", lsa, addr, size, main, ba);
 
   // Copy the synthetic program and transfer execution
-  mfc_barrier(0);
-  spu_mfcdma32((void*)lsa, addr, size, 12, MFC_GET_CMD);
-  mfc_barrier(0);
+  // mfc_barrier(0);
+  // spu_mfcdma32((void*)lsa, addr, size, 12, MFC_GET_CMD);
+  // mfc_barrier(0);
   
   // mfc_get(lsa, (void*)((unsigned long)addr), size, 12, 0, 0);
 
   // Set the tag bit to 12
-  mfc_write_tag_mask(1<<12);
+  // mfc_write_tag_mask(1<<12);
 
   // Wait for the transfer to complete
-  mfc_read_tag_status_all();
+  // mfc_read_tag_status_all();
 
   // Tell the PPU we're ready
-  spu_stop(SPU_READY); 
+  // spu_stop(SPU_READY); 
 
   // Call the branch instruction we created above.
-  ((Stream_func_void)0)(vaddr, vsize, vuser);
+  // ((Stream_func_void)0)(vaddr, vsize, vuser);
+  ((Stream_func_void)(lsa - 4))(vaddr, vsize, vuser);
 
   // This should never be executed
   return SPU_EXIT_FAILURE;

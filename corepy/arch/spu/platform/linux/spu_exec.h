@@ -310,6 +310,15 @@ speid_t execute_param_async(unsigned int addr, ExecParams params) {
   // printf("Ready event: %d %ld\n", ready_event.revents, ready_event.data);
   // }
 
+  // Copy the synthetic program over
+  unsigned int lsa = (0x3FFFF - params.size) & 0xFFF80;
+  unsigned int size = params.size + (16 - params.size % 16);
+  unsigned int tag = 4;
+  printf("Transferring %d bytes to %X\n", size, lsa);
+  spe_mfc_getb(spe_id, lsa, (void *)params.addr, size, tag, 0, 0);  
+  printf("Waiting...\n");
+  spe_mfc_read_tag_status_all(spe_id, 1 << tag);
+  printf("Starting SPE...\n");
   // Restart the spu
   spe_kill(spe_id, SIGCONT);
   
