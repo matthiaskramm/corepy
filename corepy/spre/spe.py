@@ -798,8 +798,8 @@ class InstructionStream(object):
 
     print 
 
-    for inst, dec in zip(self._instructions, self._code):
-      print str(inst)
+    for inst, dec, i in zip(self._instructions, self._code, range(0, self._code.buffer_info()[1])):
+      print '%4d %s' % (i, str(inst))
       if binary:
         print DecToBin(dec)
 
