@@ -63,4 +63,4 @@ synbuffermodule.so: synbuffer.o
 	g++ -shared synbuffer.o -o synbuffermodule.so 
 
 clean:
-	rm *.pyc *_wrap.cxx *_wrap.o _*module.so
+	rm -f *.pyc *_wrap.cxx *_wrap.o _*module.so
