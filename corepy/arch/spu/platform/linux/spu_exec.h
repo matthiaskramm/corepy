@@ -8,7 +8,6 @@
 //   Christopher Mueller
 
 // Native code for executing instruction streams on OS X.
-// Compile with -DDEBUG_PRINT to enable additional debugging code
 
 #ifndef SPU_EXEC_H
 #define SPU_EXEC_H
@@ -30,8 +29,6 @@
 extern "C" {
 #include <sched.h>
 #include <libspe.h>
-
-
 };
 
 #include "spu_constants.h"
