@@ -105,6 +105,13 @@ class SignedHalfwordType(HalfwordType):
 class WordType(BitType):
   array_typecode  = 'I' 
 
+  def __add__(self, other):
+    if isinstance(other, SignedWord):
+      return spu.a.ex(self, other, type_cls = self.var_cls)
+    elif isinstance(other, int) and (-512 < other < 512):
+      return spu.ai.ex(self, other, type_cls = self.var_cls)
+  add = staticmethod(__add__)
+
   def __lshift__(self, amount):
     if issubclass(type(amount), (HalfwordType, WordType)):
       return spu.shl.ex(self, amount, type_cls = self.var_cls)
