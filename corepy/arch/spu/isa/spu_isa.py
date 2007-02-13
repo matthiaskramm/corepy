@@ -43,8 +43,11 @@ Fields = (
   ("OPI18", (Opcode, (0,6))),
   ("RA",  (Field, (18,24))),
   ("RB",  (Field, (11,17))),
-  ("RC",  (Field, (4,10))),
+  ("RC",  (Field, (25,31))),
   ("RT",  (Field, (25,31))),
+
+  # RT for RRR instructions
+  ("RRR_RT",  (Field, (4,10))),  
 
   ("CA",  (Field, (18,24))),
   ("SA",  (Field, (18,24))),    
@@ -81,7 +84,7 @@ def RR(op):
   return (OPRR(BinToDec(op)),RB, RA, RT)
 
 def RRR(op):
-  return (OPRRR(BinToDec(op)), RT, RB, RA, RC)
+  return (OPRRR(BinToDec(op)), RRR_RT, RB, RA, RC)
 
 def RI7(op):
   return (OPI7(BinToDec(op)), I7, RA, RT)
@@ -102,7 +105,7 @@ ASM_XR = (RT, RA) # Null RB
 ASM_XX = (RT, )   # Null RB, RA
 ASM_RR_Branch = (RT, RA)
 ASM_RR_Channel = (RT, CA)
-ASM_RRR = (RT, RA, RB, RC)
+ASM_RRR = (RRR_RT, RA, RB, RC)
 
 ASM_I7 = (RT, RA, I7)
 ASM_I8 = (RT, RA, I8)
@@ -233,12 +236,12 @@ SPU_ISA = (
   ('wrch', {'binary': (OPRR(BinToDec('00100001101')), R_RB, CA, RT), 'asm': ASM_RR_Channel, 'cycles': (1, 6, 0) }),
   
   # OPRRR
-  ('mpya', {'binary': (OPRRR(BinToDec('1100')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 7, 0) }),
-  ('selb', {'binary': (OPRRR(BinToDec('1000')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 2, 0) }),
-  ('shufb', {'binary': (OPRRR(BinToDec('1011')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (1, 4, 0) }),
-  ('fma', {'binary': (OPRRR(BinToDec('1110')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
-  ('fnms', {'binary': (OPRRR(BinToDec('1101')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
-  ('fms', {'binary': (OPRRR(BinToDec('1111')), RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
+  ('mpya', {'binary': (OPRRR(BinToDec('1100')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 7, 0) }),
+  ('selb', {'binary': (OPRRR(BinToDec('1000')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 2, 0) }),
+  ('shufb', {'binary': (OPRRR(BinToDec('1011')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (1, 4, 0) }),
+  ('fma', {'binary': (OPRRR(BinToDec('1110')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
+  ('fnms', {'binary': (OPRRR(BinToDec('1101')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
+  ('fms', {'binary': (OPRRR(BinToDec('1111')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
 
   # OPI7
   ('cbd', {'binary': (OPI7(BinToDec('00111110100')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
