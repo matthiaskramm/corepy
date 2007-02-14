@@ -4,8 +4,9 @@ import corepy.arch.spu.isa as spu
 from corepy.arch.spu.types.spu_types import SignedWord
 from corepy.arch.spu.lib.iterators import memory_desc, spu_vec_iter, \
      stream_buffer, syn_iter, parallel
+import corepy.arch.spu.lib.dma as dma
 from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     Processor, aligned_memory
+     Processor, aligned_memory, spu_exec
   
 def SimpleSPU():
   """
@@ -38,7 +39,7 @@ def SimpleSPU():
   return
 
 
-def MemoryDescExample():
+def MemoryDescExample(data_size = 20000):
   """
   This example uses a memory descriptor to move 20k integers back and 
   forth between main memory and the SPU local store. Each value is
@@ -74,14 +75,12 @@ def MemoryDescExample():
   code.debug = True
   spu.set_active_code(code)
 
-  data_size = 20000
-
   # Create a python array
   data = array.array('I', range(data_size))
 
   # Align the data in the array
-  a_data = aligned_memory(len(data), typecode = 'I')
-  a_data.copy_to(data.buffer_info()[0], len(data))
+  a_data = aligned_memory(data_size, typecode = 'I')
+  a_data.copy_to(data.buffer_info()[0], data_size)
   
   # Create memory descriptor for the data in main memory
   data_desc = memory_desc('I')
@@ -98,28 +97,22 @@ def MemoryDescExample():
   for x in spu_vec_iter(code, lsa_data):
     x.v = x + 1
 
-  test = code.acquire_register()
-  spu.lqa(test, 0)
-  spu.ceqi(test, test, 1) # test = (x == 1)
-
-  spu.brnz(test, 2) # if test == 0:
-  spu.stop(0xA)     #   stop
-  
   # Transfer the data back to main memory
   data_desc.put(code, 0)
 
+  dma.spu_write_out_mbox(code, 0xCAFE)
+  
   # Execute the synthetic program
-  r = proc.execute(code) # , debug = True)
-  code.print_code()
+  # code.print_code()
+  
+  spe_id = proc.execute(code, mode = 'async')
+  proc.join(spe_id)
 
   # Copy it back to the Python array
-  a_data.copy_from(data.buffer_info()[0], len(data))
-
-  print data[:20]
+  a_data.copy_from(data.buffer_info()[0], data_size)
 
   for i in range(data_size):
-    assert(data[i] == i + i)
-  
+    assert(data[i] == i + 1)
   return
 
 
@@ -149,6 +142,7 @@ def DoubleBufferExample(n_spus = 6):
   else:           code = InstructionStream()
 
   current = SignedWord(0, code)
+  two = SignedWord(2, code)
 
   # Create the stream buffer, parallelizing it if using more than 1 SPU
   stream = stream_buffer(code, addr, n_bytes, buffer_size, 0, buffer_mode='double', save = True)
@@ -161,7 +155,7 @@ def DoubleBufferExample(n_spus = 6):
     # buffer.  Note: this will be supported by var/vec iters soon.
     for lsa in syn_iter(code, buffer_size, 16):
       code.add(spu.lqx(current, lsa, buffer))
-      current.v = current + current
+      current.v = current - two
       code.add(spu.stqx(current, lsa, buffer))
 
   # Run the synthetic program and copy the results back to the array 
@@ -169,13 +163,19 @@ def DoubleBufferExample(n_spus = 6):
   r = proc.execute(code, n_spus = n_spus)
   a.copy_from(a_array.buffer_info()[0], len(a_array))    
 
-  for i in range(0, len(a_array)):
-    assert(a_array[i] == i + i)
+  for i in range(2, len(a_array)):
+    try:
+      assert(a_array[i] == i - 2)
+    except:
+      print 'DoubleBuffer error:', a_array[i], i - 2
   
   return
 
 
 if __name__=='__main__':
   SimpleSPU()
-  MemoryDescExample()
+  
+  for i in [4100, 10000, 20000, 30000]:
+    MemoryDescExample(i)
+
   DoubleBufferExample()

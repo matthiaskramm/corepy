@@ -13,6 +13,9 @@ Base classes for the Synthetic Programming Environment.
 """
 
 import array
+
+import inspect
+import os.path
 import traceback
 
 from syn_util import *
@@ -457,6 +460,27 @@ class ExtendedInstruction(object):
 # InstructionStream
 # ------------------------------------------------------------
 
+
+def _extract_stack_info(stack):
+  stack_info = []
+  for frame in stack:
+    stack_info.append(frame[1:])
+  return stack_info
+
+def _first_user_frame(stack_info):
+  """
+  Find the first frame that's not from InstructionStream
+  """
+  idx = 0
+  for i, frame in enumerate(stack_info):
+    file = os.path.split(frame[0])[1]
+    if file != 'spe.py' and file[:5] != 'spre_' and file not in ('util.py', 'spu_extended.py') \
+           and file[-9:] != '_types.py':
+      idx = i
+      break
+    
+  return stack_info[idx], file
+  
 class InstructionStream(object):
   """
   InstructionStream mantains ABI compliance and code cach
@@ -471,6 +495,10 @@ class InstructionStream(object):
     self._epilogue = None
     self._instructions = None
 
+    # Debugging information
+    self._stack_info = None
+    self._debug = False
+    
     # Alignment parameters
     self._offset = 0
     
@@ -501,6 +529,10 @@ class InstructionStream(object):
 
     return
 
+  def set_debug(self, debug): self._debug = debug
+  def get_debug(self): return self._debug
+  debug = property(get_debug, set_debug)
+  
   def set_active_callback(self, cb): self._active_callback = cb
   
   def __del__(self):
@@ -548,6 +580,7 @@ class InstructionStream(object):
     """
     self._code = array.array(self.instruction_type)
     self._instructions = []
+    self._stack_info = []
     self.reset_cache()
     return
 
@@ -614,6 +647,10 @@ class InstructionStream(object):
       if inst.active_code_used is not self:
         self._code.append(inst.render())
         self._instructions.append(inst)
+
+        if self._debug:
+          self._stack_info.append(_extract_stack_info(inspect.stack()))
+        
     elif isinstance(inst, ExtendedInstruction):
       if inst.active_code_used is not self:
         old_active = inst.get_active_code()
@@ -798,10 +835,34 @@ class InstructionStream(object):
 
     print 
 
-    for inst, dec, i in zip(self._instructions, self._code, range(0, self._code.buffer_info()[1])):
-      print '%4d %s' % (i, str(inst))
-      if binary:
-        print DecToBin(dec)
+    if self._debug:
+      last = [None, None]
+      for inst, dec, stack_info, i in zip(self._instructions, self._code, self._stack_info,
+                                          range(0, self._code.buffer_info()[1])):
+        user_frame, file = _first_user_frame(stack_info)
+
+        # if file == 'spu_types.py':
+        #  for frame in stack_info:
+        #    print frame
+            
+        if last == [user_frame, file]:
+          ssource = '  ""  ""'
+        else:
+          sdetails = '[%s:%s: %d]' % (file, user_frame[2], user_frame[1])
+          sdetails += ' ' * (35 - len(sdetails))
+          ssource = '%s %s' % (sdetails, user_frame[3][0][:-1]) # .strip())
+        
+        sinst   = '%4d %s' % (i, str(inst))
+        sinst += ' ' * (40 - len(sinst))
+        last = [user_frame, file]
+        print sinst,  ssource
+        if binary:
+          print DecToBin(dec)
+    else:
+      for inst, dec, i in zip(self._instructions, self._code, range(0, self._code.buffer_info()[1])):
+        print '%4d %s' % (i, str(inst))
+        if binary:
+          print DecToBin(dec)
 
     print 
 

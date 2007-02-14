@@ -3,6 +3,7 @@
 import array
 import time
 
+import corepy.spre.spe as spe
 import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
@@ -99,99 +100,111 @@ class memory_desc(object):
     self.size = self.size / var.INT_SIZES[self.typecode]
     return
 
-  def get(self, code, lsa, tag = 12, ls_var = None):
-    return self._transfer_data(code, dma.mfc_get, lsa, tag, ls_var)
+  def get(self, code, lsa, tag = 1):
+    return self._transfer_data(code, dma.mfc_get, lsa, tag)
 
-  def put(self, code, lsa, tag = 12, ls_var = None):
-    return self._transfer_data(code, dma.mfc_put, lsa, tag, ls_var)
+  def put(self, code, lsa, tag = 2):
+    return self._transfer_data(code, dma.mfc_put, lsa, tag)
   
-  def _transfer_data(self, code, kernel, lsa, tag, ls_var):
+  def _transfer_data(self, code, kernel, lsa, tag):
     """
     Load the data into the SPU memory
     """
 
+    # Check the types
+    if not isinstance(code, spe.InstructionStream):
+      raise Exception('Code must be an InstructionStream')
+    if not isinstance(lsa, int):
+      raise Exception('lsa must be an integer')
+    if not isinstance(tag, int):
+      raise Exception('tag must be an integer')
+    
+    old_code = spu.get_active_code()
+    spu.set_active_code(code)
+
+    # Acquire registers for address and size, if they were not
+    # supplied by the user
     if self.r_addr is None: r_ea_data = code.acquire_register()
     else:                   r_ea_data = self.r_addr
       
     if self.r_size is None: r_size = code.acquire_register()
     else:                   r_size = self.r_size
 
-    ea_addr = var.SignedWord(code = code, reg = r_ea_data)
-    aligned_size = var.SignedWord(0, code = code)
-    mod_16 = var.SignedWord(0xF, code = code)
-    
-    ls_addr = var.SignedWord(lsa, code = code)
+    # Create variables 
+    ea_addr      = var.SignedWord(reg = r_ea_data)
+    aligned_size = var.SignedWord(0)
+    mod_16       = var.SignedWord(0xF)
 
-    # Get the local store address from a variable
-    if ls_var is not None:
-      ls_addr.v = ls_var
+    # Initialize the lsa_addr variable. 
+    if isinstance(lsa, int):
+      # From a constant
+      ls_addr   = var.SignedWord(lsa)
+    elif isinstance(lsa, (spe.Register, spe.Variable)):
+      # From a variable
+      ls_addr   = var.SignedWord(lsa)      
+      ls_addr.v = lsa
       
-    tag_var = var.SignedWord(tag, code = code)
-    cmp = var.SignedWord(0, code = code)
+      
+    tag_var = var.SignedWord(tag)
+    cmp = var.SignedWord(0)
 
     # Load the effective address
     if self.r_addr is None:
       if self.addr % 16 != 0:
-        # raise Exception('[get_memory] Misaligned data')
         print '[get_memory] Misaligned data'
 
-      # print 'loading: 0x%X' % (self.addr) 
-      util.load_word(code, ea_addr.reg, self.addr)
+      util.load_word(code, ea_addr, self.addr)
 
     # Load the size, rounding up as required to be 16-byte aligned
     if self.r_size is None:
       rnd_size = self.size * var.INT_SIZES[self.typecode]
-      if (rnd_size % 16) != 0:
+      if rnd_size < 16:
+        rnd_size = 16
+      elif (rnd_size % 16) != 0:
         rnd_size += (16 - (rnd_size % 16))
-      # print 'get: rnd_size %d, self.size %d, addr: 0x%X' % (rnd_size, self.size, self.addr)
-      util.load_word(code, aligned_size.reg, rnd_size)
+      util.load_word(code, aligned_size, rnd_size)
     else:
       # Same as above, but using SPU arithemtic to round
-      size  = var.SignedWord(code = code, reg = r_size)
+      size  = var.SignedWord(reg = r_size)
       cmp.v = ((size & mod_16) == size)
       aligned_size.v = size + (16 - (size & mod_16))
-      code.add(spu.selb(cmp.reg, size.reg, aligned_size.reg, aligned_size.reg, order = _mi(spu.selb)))
+      spu.selb(aligned_size.reg, size.reg, aligned_size.reg, cmp.reg, order = _mi(spu.selb))
 
-      
-    # Use an auxillary register for the moving ea value if the caller supplied the register
+    # Use an auxillary register for the moving ea value if the
+    # caller supplied the address register
     if self.r_addr is not None:
-      ea_load = spuvar.spu_int_var(code, 0)
-      ea_load.v = ea_addr      
+      ea_load   = var.SignedWord(0)
+      ea_load.v = ea_addr
     else:
-      ea_load = ea_addr # note this is reference, not .v assignment
+      ea_load = ea_addr # note that this is reference, not .v assignment
 
     # Transfer parameters
-    buffer_size = var.SignedWord(16384, code = code)
-    remaining   = var.SignedWord(0, code)
-    transfer_size = var.SignedWord(0, code)
+    buffer_size   = var.SignedWord(16384)
+    remaining     = var.SignedWord(0)
+    transfer_size = var.SignedWord(0)
+    remaining.v   = aligned_size
 
-    remaining.v = aligned_size
-
-    # Transfer at most 16k at a time
+    # Set up the iterators to transfer at most 16k at a time
     xfer_iter = syn_iter(code, 0, 16384)
-    # print 'aligned_size', aligned_size.reg
     xfer_iter.set_stop_reg(aligned_size.reg)
 
     for offset in xfer_iter:
-      cmp.v = remaining < buffer_size
-      code.add(spu.selb(cmp.reg, remaining.reg, buffer_size.reg, transfer_size.reg, order = _mi(spu.selb)))
+      cmp.v = buffer_size > remaining
+      spu.selb(transfer_size, buffer_size, remaining, cmp)
 
-      # code.add(spu.stop(0xD, order = _mi(spu.stop)))
-      
       # Transfer the data
-      kernel(code, ls_addr.reg, ea_load.reg, transfer_size.reg, tag_var.reg)
+      kernel(code, ls_addr, ea_load, transfer_size, tag_var)
       ls_addr.v = ls_addr + buffer_size
       ea_load.v = ea_load + buffer_size
 
       remaining.v = remaining - buffer_size
 
-      
     # Set the tag bit to tag
     dma.mfc_write_tag_mask(code, 1<<tag);
 
     # Wait for the transfer to complete
     dma.mfc_read_tag_status_all(code);
-    
+
     # Release the registers
     code.release_register(buffer_size.reg)
     code.release_register(remaining.reg)
@@ -201,7 +214,9 @@ class memory_desc(object):
     code.release_register(ls_addr.reg)
     code.release_register(tag_var.reg)
     code.release_register(ea_load.reg)
-    
+
+    if old_code is not None:
+      spu.set_active_code(old_code)
     return 
 
 
@@ -295,7 +310,8 @@ class syn_iter(object):
       
     if self.mode == DEC:
       if self._external_start:
-        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))        
+        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
+        self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_count())
 
@@ -304,7 +320,8 @@ class syn_iter(object):
         self.r_stop = self.code.acquire_register()
 
       if self._external_start:
-        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))        
+        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
+        self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_start())
 
@@ -339,21 +356,25 @@ class syn_iter(object):
     if self.mode == DEC:
       # Note: using addic here may cause problems with zip/nested loops...tread with caution!
       if self.r_step is not None:
-        self.code.add(spu.sf(self.r_count, self.r_step, self.r_count, order = _mi(spu.sf)))
+        # self.code.add(spu.sf(self.r_count, self.r_step, self.r_count, order = _mi(spu.sf)))
+        self.code.add(spu.sf(self.r_count, self.r_step, self.r_count))
       else:
-        self.code.add(spu.ai( -self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+        # self.code.add(spu.ai( -self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+        self.code.add(spu.ai( self.r_count, self.r_count, -self.step_size()))
     elif self.mode == INC:
       if self.r_step is not None:
-        self.code.add(spu.a(self.r_step, self.r_count, self.r_count, order = _mi(spu.a)))
+        # self.code.add(spu.a(self.r_step, self.r_count, self.r_count, order = _mi(spu.a)))
+        self.code.add(spu.a(self.r_count, self.r_count, self.r_step))
       else:
-        self.code.add(spu.ai(self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+        # self.code.add(spu.ai(self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
+        self.code.add(spu.ai(self.r_count, self.r_count, self.step_size()))
       
     return
 
   def end(self, branch = True):
     if self.hint == True:
       next = self.code.size() + 1
-      self.code.add(spu.hbrr(0, -(next-self.start_label) * env.WORD_SIZE, (self.code.size() + 2) * env.WORD_SIZE, order = _mi(spu.hbrr)))
+      # self.code.add(spu.hbrr(0, -(next-self.start_label) * env.WORD_SIZE, (self.code.size() + 2) * env.WORD_SIZE, order = _mi(spu.hbrr)))
 
     if self.mode == DEC:
       # branch if r_count is not zero (CR)
@@ -361,7 +382,8 @@ class syn_iter(object):
       #   condition register properly.
       if branch:
         next = self.code.size() + 1
-        self.code.add(spu.brnz(-(next - self.start_label) * env.WORD_SIZE, self.r_count, order = _mi(spu.brnz)))
+        # self.code.add(spu.brnz(-(next - self.start_label) * env.WORD_SIZE, self.r_count, order = _mi(spu.brnz)))
+        self.code.add(spu.brnz(self.r_count, -(next - self.start_label) * env.WORD_SIZE))
 
       # Reset the counter in case this is a nested loop
       util.load_word(self.code, self.r_count, self.get_count())
@@ -369,15 +391,20 @@ class syn_iter(object):
     elif self.mode == INC:
       # branch if r_current < r_stop
       if branch:
-        r_cmp = self.code.acquire_register()
-        self.code.add(spu.clgt(self.r_count, self.r_stop, r_cmp, order = _mi(spu.clgt)))
+        r_cmp_gt = self.code.acquire_register()
+
+        self.code.add(spu.cgt(r_cmp_gt, self.r_stop, self.r_count))
+
         next = self.code.size() + 1
-        self.code.add(spu.brnz(-(((next - self.start_label) * env.WORD_SIZE) >> 2), r_cmp, order = _mi(spu.brnz)))
-        self.code.release_register(r_cmp)
+
+        # self.code.add(spu.brnz(-(((next - self.start_label) * env.WORD_SIZE) >> 2), r_cmp_gt, order = _mi(spu.brnz)))
+        self.code.add(spu.brnz(r_cmp_gt, -(((next - self.start_label) * env.WORD_SIZE) >> 2)))
+        self.code.release_register(r_cmp_gt)        
 
       # Reset the the current value in case this is a nested loop
       if self._external_start:
-        self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
+        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
+        self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_start())
 
@@ -1217,7 +1244,6 @@ def TestVecIter(n_spus = 1):
   for buffer in stream:
     for current in spu_vec_iter(code, md):
       current.v = current + current
-    # code.add(spu.stop(0xB))
 
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)

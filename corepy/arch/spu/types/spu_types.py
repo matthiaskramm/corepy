@@ -91,7 +91,7 @@ class HalfwordType(BitType):
   array_typecode  = 'H'
   
   def __lshift__(self, amount):
-    if isinstance(amount, (Halfword, Word)):
+    if isinstance(amount, (HalfwordType, WordType)):
       return spu.shlh.ex(self, amount, type_cls = self.var_cls)
     elif isinstance(amount, self.literal_types):
       return spu.shlhi.ex(self, amount, type_cls = self.var_cls)
@@ -120,18 +120,40 @@ class WordType(BitType):
   lshift = staticmethod(__lshift__)
 
   def __rshift__(self, amount):
-    if isinstance(amount, (Halfword, Word)):
+    if isinstance(amount, (HalfwordType, WordType)):
       return spuex.shr.ex(self, amount, type_cls = self.var_cls)
     # elif isinstance(amount, int):
     #  return spu.shli.ex(self, amount, type_cls = self.var_cls)
   lshift = staticmethod(__lshift__)
+
+  def __gt__(self, other):
+    if isinstance(other, (WordType)):
+      return spu.cgt.ex(self, other, type_cls = Bits)
+    elif isinstance(other, self.literal_types):
+      return spu.cgti.ex(self, other, type_cls = Bits)
+  gt = staticmethod(__gt__)
+
+  def __lt__(self, other):
+    if isinstance(other, WordType):
+      return spuex.lt.ex(self, other, type_cls = Bits)
+    elif isinstance(other, self.literal_types):
+      return spuex.lti.ex(self, other, type_cls = Bits)
+  lt = staticmethod(__lt__)
+
+  def eq(self, d, a, b):
+    if isinstance(other, (WordType)):
+      return spu.ceq.ex(self, other, type_cls = Bits)
+    elif isinstance(other, self.literal_types):
+      return spu.ceqi.ex(self, other, type_cls = Bits)
+  eq = staticmethod(eq)
+
 
 
 class SignedWordType(WordType):
   array_typecode  = 'i'   
 
   def __add__(self, other):
-    if isinstance(other, SignedWord):
+    if isinstance(other, SignedWordType):
       return spu.a.ex(self, other, type_cls = self.var_cls)
     elif isinstance(other, int) and (-512 < other < 512):
       return spu.ai.ex(self, other, type_cls = self.var_cls)
@@ -139,8 +161,8 @@ class SignedWordType(WordType):
 
   def __sub__(self, other): 
     # RD = RB - RA
-    if isinstance(other, SignedWord):
-      return spu.sf.ex(self, other, type_cls = self.var_cls)
+    if isinstance(other, SignedWordType):
+      return spu.sf.ex(other, self, type_cls = self.var_cls)
     elif isinstance(other, int):
       return spu.ai.ex(self, -other, type_cls = self.var_cls)
   sub = staticmethod(__sub__)

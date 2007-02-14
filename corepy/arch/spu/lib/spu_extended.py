@@ -21,8 +21,8 @@ class shr(SPUExt):
     # Based on example on p133 of SPU ISA manual
     code = self.get_active_code()
     temp = code.acquire_register()
-    spu.sfi(0, b, temp)
-    spu.rotm(temp, a, d)
+    spu.sfi(temp, b, 0)
+    spu.rotm(d, a, temp)
     code.release_register(temp)
     return
 
@@ -32,10 +32,62 @@ class cneq(SPUExt):
   not equal, register d contains all ones.
   """
   def block(self, d, a, b):
-    spu.ceq(b, a, d)
+    spu.ceq(d, a, a)
     spu.nor(d, d, d)
     return
 
+
+class cge(SPUExt):
+  """
+  Word compare greater than equal.
+  """
+
+  def block(self, d, a, b):
+    code = self.get_active_code()
+    temp = code.acquire_register()
+    spu.cgt(temp, a, b)
+    spu.ceq(d, a, b)
+    spu.or_(d, d, temp)
+    code.release_register(temp)
+    return
+
+class cgei(SPUExt):
+  """
+  Word compare greater than equal immediate.
+  """
+
+  def block(self, d, a, b):
+    code = self.get_active_code()
+    temp = code.acquire_register()
+    spu.cgti(temp, a, b)
+    spu.ceqi(d, a, b)
+    spu.or_(d, d, temp)
+    code.release_register(temp)
+    return
+
+
+class lt(SPUExt):
+  """
+  Word compare less than
+  """
+
+  def block(self, d, a, b):
+    spu.cgt(d, b, a)
+    return
+
+class lti(SPUExt):
+  """
+  Word compare less than
+  """
+
+  def block(self, d, a, b):
+    temp = code.acquire_register()
+    spu.cgti(temp, a, b)
+    spu.ceqi(d, a, b)
+    spu.nor(d, d, temp)
+    code.release_register(temp)
+    
+    return
 
 # ------------------------------------------------------------
 # Unit Tests

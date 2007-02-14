@@ -308,7 +308,9 @@ def TestMFC():
   proc.execute(code)
 
   data.copy_from(data_array.buffer_info()[0], len(data_array))
-  print data_array
+
+  for i in range(size):
+    assert(data_array[i] == i + 1)
   
   return
 
