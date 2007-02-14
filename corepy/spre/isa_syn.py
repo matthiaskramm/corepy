@@ -91,7 +91,8 @@ class Field:
     else:
       self.param = name + '=' + str(default)
       self.has_default = True
-      
+
+    self.mask = mask
     self.sCode = self.codeTemplate % {'name':name, 'shift':shift, 'mask':mask} 
     self.sFunc = self.callTemplate % {'name':name, 'shift':shift, 'mask':mask}
     code = compile(self.sFunc, '<Field %s>' % name, 'exec')

@@ -339,6 +339,16 @@ class Instruction(object):
 #       order = self.asm_order
     
     for op, field in zip(operands, order):
+
+      # Check immediate operands to make sure they fit
+      if (field.mask is not None and
+          ((op >= 0 and (field.mask & op) != op) or
+           (op < 0 and (field.mask & (-op)) != (-op)))):
+        frame, file = _first_user_frame(_extract_stack_info(inspect.stack()))
+        print '[%s:%s:%d] Warning: immediate operand %d does not fit in allocated bits' % (
+          file, frame[2], frame[1], op)
+
+      # Store the operand
       self._operands[field.name] = op
 
     if koperands.has_key('type_cls'):
