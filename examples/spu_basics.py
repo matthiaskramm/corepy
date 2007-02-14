@@ -71,6 +71,7 @@ def MemoryDescExample():
   code = InstructionStream()
   proc = Processor()
 
+  code.debug = True
   spu.set_active_code(code)
 
   data_size = 20000
@@ -91,23 +92,33 @@ def MemoryDescExample():
 
   # Create memory descriptor for the data in the local store for use
   # in the iterator  
-  lsa_data = memory_desc('I', 0, data_size)
+  lsa_data = memory_desc('i', 0, data_size)
 
   # Add one to each value
   for x in spu_vec_iter(code, lsa_data):
     x.v = x + 1
 
+  test = code.acquire_register()
+  spu.lqa(test, 0)
+  spu.ceqi(test, test, 1) # test = (x == 1)
+
+  spu.brnz(test, 2) # if test == 0:
+  spu.stop(0xA)     #   stop
+  
   # Transfer the data back to main memory
   data_desc.put(code, 0)
 
   # Execute the synthetic program
   r = proc.execute(code) # , debug = True)
+  code.print_code()
 
   # Copy it back to the Python array
   a_data.copy_from(data.buffer_info()[0], len(data))
 
+  print data[:20]
+
   for i in range(data_size):
-    assert(data[i] == i + 1)
+    assert(data[i] == i + i)
   
   return
 
