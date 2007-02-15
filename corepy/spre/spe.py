@@ -21,7 +21,43 @@ import traceback
 from syn_util import *
 
 # ------------------------------------------------------------
-# Helper classes
+# Helpers
+# ------------------------------------------------------------
+
+
+def _extract_stack_info(stack):
+  """
+  Given a stack, save the static info for each frame (basically
+  everything except for the reference to the frame).
+  """
+
+  stack_info = []
+  for frame in stack: stack_info.append(frame[1:])
+  return stack_info
+
+def _first_user_frame(stack_info):
+  """
+  Find the first frame that's not from InstructionStream.
+
+  TODO: This is somewhat of a hack at this point.  Abstract it so the
+        corepy_conf.py has a regexp or something that the user can use
+        to determine what files should be used for printing code.
+  """
+  idx = 0
+  for i, frame in enumerate(stack_info):
+    file = os.path.split(frame[0])[1]
+    if (file != 'spe.py' and
+        file[:5] != 'spre_' and
+        file not in ('util.py', 'spu_extended.py') and
+        file[-9:] != '_types.py'):
+      idx = i
+      break
+    
+  return stack_info[idx], file
+
+
+# ------------------------------------------------------------
+# Register Management
 # ------------------------------------------------------------
 
 class RegisterFile(object):
@@ -98,9 +134,6 @@ class RegisterFile(object):
         s += '%s* ' % str(reg)
     return s
   
-# ------------------------------------------------------------
-# Registers
-# ------------------------------------------------------------
     
 class Register(object):
   def __init__(self, reg, code):
@@ -156,9 +189,43 @@ class Type(object):
 # ------------------------------------------------------------
 
 class Variable(object):
+  """
+  Variable, along with Expression, forms the basis of user-defined
+  type semantics in CorePy. Variable and Expression are based on the
+  Interpreter design pattern.
+
+  Variables abstract a register and are extended by
+  library/user-defined types to support type-specific operations, such
+  as support for operators and storage sharing between Python and
+  synthetic programs. 
+
+  The base variable class is fairly simple and supports simple
+  register management and assignment through the var.v attribute.
+
+  Becuase Python does not provide any mechanism to overload assignment
+  directly, Variables have a special attribute, 'v', that can be used
+  to assign the result of an expression to the register abstracted by
+  the variable.
+
+  Subclasses must implement the following methods:
+
+    copy_register(self, other) - copy the value from other into the
+      local register
+    _set_literal_value(self, value) - store a literal value in the
+      register 
+      
+  """
+
   def __init__(self, value = None, code = None, reg = None):
+    """
+    Set up the variable and initialize the register with value, if
+    present.
+
+    Most of the logic in the constructor is identifies the appropriate
+    code instance to use and sets up the register.
+    """
     super(Variable, self).__init__()
-    
+
     if code is None and self.active_code is not None:
       code = self.active_code
     
@@ -185,19 +252,13 @@ class Variable(object):
     else:
       self.code = code
 
+    # self.v triggers the assignement mechanism. 
     if value is not None:
       self.v = self.value
 
     self.assigned = False
     self.expression = None
     return
-
-  #   def __del__(self):
-  #     if self.reg is not None and self.acquired_register:
-  #       # print 'Releasing register %s through Variable.__del__' % (str(self.reg))
-  #       self.code.release_register(self.reg)
-  #       self.reg = None
-  #     return
 
   def release_register(self, force = False):
     if self.reg is not None and (self.acquired_register or force):
@@ -211,12 +272,18 @@ class Variable(object):
     # return '<%s reg = %s>' % (type(self), str(self.reg))
     return '<%s>' % str(self.reg)
 
+  # Assignment property
   def get_value(self): return self.value
   def _set_value(self, v): self.set_value(v)
   # def _set_literal_value(self, v): raise Exception('No method to set literal values for %s' % (type(self)))
   v = property(get_value, _set_value)
 
   def set_value(self, value):
+    """
+    Assignment method.  This method is called when a value is assigned
+    to the .v property.
+    """
+
     if isinstance(value, Variable):
       self.copy_register(value)
     elif isinstance(value, Expression):
@@ -239,8 +306,22 @@ class Variable(object):
 # ------------------------------------------------------------
 
 class Expression(object):
+  """
+  Expression manages delayed evaluation and work in conjunction with
+  variables to support user-defined type semantics.
+
+  An expression contains an instruction and its arguments - less the
+  destination register - and calls the instruction with the arguments
+  with the eval() method is invoked.
+
+  The destination register is either provided as a value to eval or
+  acquired by eval.
+  """
 
   def __init__(self, inst, *operands, **koperands):
+    """
+    Collect the arguments for later use.
+    """
     super(Expression, self).__init__()
     
     self._inst = inst
@@ -266,6 +347,10 @@ class Expression(object):
     return
 
   def eval(self, code, reg = None):
+    """
+    Evaluate the instruction, using reg as the destination or
+    acquiring a new register if reg is None.
+    """
     target = reg
 
     if reg is None:
@@ -279,7 +364,6 @@ class Expression(object):
       else:
         eval_ops.append(op)
 
-    # print 'Eval:', eval_ops, self._koperands
     code.add(self._inst(*eval_ops, **self._koperands))
 
     return target
@@ -313,16 +397,48 @@ def _expression_method(cls, *operands, **koperands):
 class Instruction(object):
   """
   Main user interface to machine instructions.
+
+  Instruction supports to main modes of operation, an 'immediate' mode
+  that creates the instruction and adds it to the active code (if
+  active code is set) and a delayed evaluation mode.
+
+  Immediate mode is the standard approach for using instructions.  See
+  the comments in __init__ for more details.
+
+  Delayed evaluation mode allows any instruction to be used in an
+  expression. For instance, the spu.ai instruction can be insterted
+  into an expression of SignedWord variables using the following code:
+
+    r.v = x + y + spu.ai.ex(z, 12, type_cls=SignedWord)
+
+  This tells ai to create an expression-compatible version of the
+  instruction with a return type of SignedWord.  The argument list to
+  the delayed form of the instruction consists of all arguments except
+  for the destination operand (which in assembly order is the first
+  operand). 
   """
   
   def __init__(self, *operands, **koperands):
+    """
+    The constructor for Instruction takes the underlying instructions
+    operands as its operands.  By default, the operands are assumed to
+    be in the same order as the assembly language specification for
+    the instruction.
 
+    The optional 'order' keyword argument can change the order the
+    operands are interpreted in. This feature exists primarily to
+    switch to machine order for an instruction, e.g.:
+      spu.ai(b, a, d, order=spu.ai.machine_inst._machine_order)
+
+    Compared this to the normal asm order:
+      spu.ai(d, a, b) 
+    """
+
+    # Determin the order for the operands
     user_order = None
     if koperands.has_key('order'):
       user_order = koperands['order']
       del koperands['order']
-      # if koperands['order'] == 'mio':
-      #  user_order = self.machine_inst._machine_order
 
     self._operands = koperands
     order = user_order or self.asm_order or self.machine_inst._machine_order
@@ -333,17 +449,14 @@ class Instruction(object):
 
     if order is self.machine_inst._machine_order:
       print 'using machine order'
-#     if self.asm_order is None:
-#       order = self.machine_inst._machine_order
-#     else:
-#       order = self.asm_order
-    
+
+    # Create the orded list of operands
     for op, field in zip(operands, order):
 
       # Check immediate operands to make sure they fit
-      if (field.mask is not None and
-          ((op >= 0 and (field.mask & op) != op) or
-           (op < 0 and (field.mask & (-op)) != (-op)))):
+      if (field.mask is not None and                     # is immediate? 
+          ((op >= 0 and (field.mask & op) != op) or      # positive values
+           (op < 0 and (field.mask & (-op)) != (-op)))): # negative values
         frame, file = _first_user_frame(_extract_stack_info(inspect.stack()))
         print '[%s:%s:%d] Warning: immediate operand %d does not fit in allocated bits' % (
           file, frame[2], frame[1], op)
@@ -351,10 +464,12 @@ class Instruction(object):
       # Store the operand
       self._operands[field.name] = op
 
+    # Check to make sure the user didn't intend to call the delayed
+    # version of the instruction
     if koperands.has_key('type_cls'):
-      # file, line, func, text = traceback.extract_stack()[3]
       print "Warning: Instruction created with keyword argument 'type_cls'.  Did you mean to use ex()?" 
       traceback.print_stack()
+
     # If active code is present, add ourself to it and remember that
     # we did so.  active_code_used is checked by InstructionStream
     # to avoid double adds from code.add(inst(...)) when active_code
@@ -364,6 +479,7 @@ class Instruction(object):
     if self.active_code is not None:
       self.active_code.add(self)
       self.active_code_used = self.active_code
+
     return
 
   def __str__(self):
@@ -382,6 +498,12 @@ class Instruction(object):
   ex = classmethod(_expression_method)
   
   def render(self):
+    """
+    Generate the binary form of the instruction by extracting the
+    immediate and register values from the operands and passing them
+    to the underlying machine instruction.
+    """
+
     rendered_operands = {}
     for key in self._operands:
       op = self._operands[key]
@@ -471,26 +593,6 @@ class ExtendedInstruction(object):
 # ------------------------------------------------------------
 
 
-def _extract_stack_info(stack):
-  stack_info = []
-  for frame in stack:
-    stack_info.append(frame[1:])
-  return stack_info
-
-def _first_user_frame(stack_info):
-  """
-  Find the first frame that's not from InstructionStream
-  """
-  idx = 0
-  for i, frame in enumerate(stack_info):
-    file = os.path.split(frame[0])[1]
-    if file != 'spe.py' and file[:5] != 'spre_' and file not in ('util.py', 'spu_extended.py') \
-           and file[-9:] != '_types.py':
-      idx = i
-      break
-    
-  return stack_info[idx], file
-  
 class InstructionStream(object):
   """
   InstructionStream mantains ABI compliance and code cach
