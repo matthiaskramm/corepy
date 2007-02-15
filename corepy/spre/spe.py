@@ -104,7 +104,7 @@ class RegisterFile(object):
       if reg in self._pool:
         del self._pool[self._pool.index(reg)]
       else:
-        raise Exception('Register ' + reg + ' is not available!')
+        raise Exception('Register ' + str(reg) + ' is not available!')
     else:
       reg = self._pool.pop()
 
@@ -476,7 +476,14 @@ class Instruction(object):
     # is set.
     self.active_code_used = None    
 
-    if self.active_code is not None:
+    # Allow the user to create an instruction without adding it to
+    # active code.  Used for debugging purposes.
+    ignore_active = False
+    if koperands.has_key('ignore_active'):
+      ignore_active = koperands['ignore_active']
+      del koperands['ignore_active']
+
+    if self.active_code is not None and not ignore_active:
       self.active_code.add(self)
       self.active_code_used = self.active_code
 
@@ -658,6 +665,13 @@ class InstructionStream(object):
     self._code[key + self._offset] = inst.render()
     self._instructions[key + self._offset] = inst
 
+
+  def get_inst(self, idx):
+    """
+    Return the instruction at idx.
+    """
+    return self._instructions[idx + self._offset]
+    
 
   def add_storage(self, s):
     """
@@ -884,7 +898,7 @@ class InstructionStream(object):
     it.  Also perform alignment checks.  Once the checks are
     preformed, the code should not be modified.
     """
-
+    
     # HACK: Disable the current active code
     # NOTE: This may not work in the presence of multiple ISAs...
     active_callback = None

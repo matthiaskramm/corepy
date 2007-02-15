@@ -157,7 +157,7 @@ class InstructionStream(spe.InstructionStream):
     spe.InstructionStream.__init__(self)
 
     self._optimize = optimize
-
+    self.code_offset = 0
     return
 
   # ------------------------------
@@ -203,6 +203,7 @@ class InstructionStream(spe.InstructionStream):
     if len(self._prologue._code) % 2 == 1: # Odd number of instructions
       self._prologue.add(spu.lnop(0))
 
+    self.code_offset = len(self._prologue._code)
     self._prologue._code.extend(self._code)
     self._prologue._check_alignment(self._prologue._code, 'spu prologue')
     
@@ -210,6 +211,11 @@ class InstructionStream(spe.InstructionStream):
     self._cached = True
     return
 
+
+  def debug_set(self, idx, inst):
+    self._prologue._code[idx + self.code_offset] = inst.render()
+    self[idx] = inst
+    return
 
   def add_return(self):
     """
@@ -454,6 +460,195 @@ class Processor(spe.Processor):
     return retval
 
 
+DEBUG_STOP = 0xD
+
+class DebugProcessor(spe.Processor):
+  """
+  Experimental class for simple debugging.
+  """
+
+  exec_module = spu_exec
+  debug_stop = spu.stop(DEBUG_STOP, ignore_active = True)
+  
+  def __init__(self):
+    spe.Processor.__init__(self)
+    self.params = None
+    self.spe_id = None
+    self.code   = None
+
+    self.ea  = None
+    self.lsa = None 
+    self.inst_size = None
+
+    self.last_pc = None
+    
+    self.instructions = {} # key: inst, backup copy of we've replaced
+
+    return
+  
+  def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
+
+    if type(code) is ParallelInstructionStream:
+      raise Exception('DebugProcessor does not support ParallelInstructionStream')
+
+    self.code = code
+    
+    if len(code._code) == 0:
+      return None
+
+    # Add the two debug instructions
+    self.debug_idx = self.code.size()
+    self.code.add(spu.stop(DEBUG_STOP))
+
+    self.debug_branch = self.code.size()    
+    self.code.add(spu.stop(DEBUG_STOP))    
+
+    # Cache the code here
+    if not code._cached:
+      code.cache_code()
+
+    # Setup the parameter structure
+    if params is None:
+      params = spu_exec.ExecParams()
+
+    addr = code._prologue.inst_addr()
+    params.addr = addr
+    params.size = len(code._prologue._code) * 4 # size in bytes
+
+    self.params = params
+    self.ea   = code._prologue.inst_addr()
+    self.lsa  = (0x3FFFF - params.size) & 0xFFF80;
+    self.size = params.size + (16 - params.size % 16);
+    self.last_pc   = self.lsa
+    self.last_stop = 1 
+
+    self.debug_lsa = (self.lsa + self.code.code_offset * 4 + self.debug_idx * 4) >> 2
+
+    mode = 'async'
+
+    self.replace(self.last_stop, spu.bra(self.debug_lsa, ignore_active = True))
+
+    self.spe_id = spe.Processor.execute(self, code, mode, debug, params)
+    code.print_code()
+
+    retval = self.wait_debug()
+    
+    return retval
+
+  def replace(self, idx, inst):
+    self.instructions[idx] = self.code.get_inst(idx) # self.code._prologue._code[idx]
+    self.code.debug_set(idx, inst)
+    return
+
+  def restore(self, idx):
+    # self.code._prologue._code[idx] = self.instructions[idx]
+    self.code.debug_set(idx, self.instructions[idx])
+    return
+
+  def get_instructions(self):
+    # return spe_mfc_getb(speid, ls, (void *)ea, size, tag, tid, rid);
+    tag = 5
+    ea = self.code._prologue.inst_addr()
+    spu_exec.spu_getb(self.spe_id, self.lsa, ea, self.size, tag, 0, 0)
+    spu_exec.read_tag_status_all(self.spe_id, 1 << tag);
+    return
+
+  def wait_debug(self):
+    r = spu_exec.wait_stop_event(self.spe_id)
+    if r != DEBUG_STOP:
+      print 'Warning: SPU stopped for unknown reason:', r
+    else:
+      print 'Debug stop'
+    return r
+
+  def nexti(self):
+    self.restore(self.last_stop)
+    next_stop = self.last_stop + 1
+
+    last_instruction = (next_stop == (self.debug_idx - 1))
+
+    if not last_instruction:
+      self.replace(next_stop,    spu.bra(self.debug_lsa, ignore_active = True))
+      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - self.last_stop), ignore_active = True))
+      # self.replace(next_stop, self.debug_stop)
+      
+    self.get_instructions()
+    self.code.print_code()
+    self.resume(self.spe_id)
+
+    if last_instruction:
+      r = self.join(self.spe_id)
+      r = None
+    else:
+      r = self.wait_debug()      
+      self.last_stop = next_stop
+    return r
+
+  def dump_regs(self):
+    current_pc = self.lsa + self.code.code_offset * 4 + self.last_stop * 4 
+    next_inst = self.last_stop + 1    
+    mbox   = 28 # write out mbox channel
+
+    # Pseudo-code:
+    #  1) Save code is: (do this as an array, not an instruction stream)
+    save_size = 128 * 2 + 4
+    save_code = array.array('I', range(save_size))
+    
+    for i in range(0, 128 * 2, 2):
+      save_code[i] = spu.wrch(i / 2, mbox, ignore_active = True).render()
+      save_code[i + 1] = spu.stop(0x6, ignore_active = True).render()
+
+    # branch back to the debug stop
+    save_code[128 * 2] = spu.stop(0x7, ignore_active = True).render()
+    ret = spu.bra(self.debug_lsa, ignore_active = True)
+    save_code[128 * 2 + 1] = ret.render()
+
+    aligned_save_code = aligned_memory(save_size, typecode = 'I')
+    aligned_save_code.copy_to(save_code.buffer_info()[0], len(save_code))
+
+    #  2) Save lsa[0:len(save_code)]
+    # TODO: do this with putb
+
+    #  3) Push save code to lsa[0:]
+    tag = 2
+    spu_exec.spu_getb(self.spe_id, 0, aligned_save_code.buffer_info()[0], save_size * 4, tag, 0, 0)
+    spu_exec.read_tag_status_all(self.spe_id, 1 << tag);
+    
+    #  3) Replace the debug branch with a branch to 0
+    self.replace(self.debug_branch, spu.bra(0, ignore_active = True))
+    self.get_instructions()
+
+    #  4) Resume
+    self.resume(self.spe_id)    
+
+    #  5) Read the register values and send the ok signal
+    regs = []
+    for i in range(128):
+      while spu_exec.stat_out_mbox(self.spe_id) == 0: pass
+      value = spu_exec.read_out_mbox(self.spe_id)
+      regs.append(value)
+
+      r = spu_exec.wait_stop_event(self.spe_id)
+      self.resume(self.spe_id)
+      
+    #  6) Restore code at original pc
+    self.restore(next_inst)
+    self.get_instructions()
+
+    #  7) Restore lsa[0:len(save_code)]
+    # TODO: do this with putb
+
+    #  8) Resume
+    r = spu_exec.wait_stop_event(self.spe_id)
+    self.resume(self.spe_id)
+    r = self.wait_debug()
+
+    return regs
+
+  def dump_mem(self):
+    # Use putb to copy the local store to Python array
+    return
+    
 # ------------------------------------------------------------
 # Unit tests
 # ------------------------------------------------------------
@@ -522,7 +717,7 @@ def TestParams():
 
 
   r = proc.execute(code, params = params)
-  print r
+
   assert(r == 0xA)
   # print 'int result:', r
   # while True:
@@ -586,6 +781,45 @@ def TestParallel():
 
   assert(True)
   return
+
+
+def TestDebug():
+  code = InstructionStream()
+  proc = DebugProcessor()
+
+  spu.set_active_code(code)
+  
+  ra = code.acquire_register()
+  rb = code.acquire_register()
+
+  spu.ai(ra, 0, 14)
+  spu.ai(rb, 0, 13)
+  spu.ai(rb, 0, 14)
+  spu.ai(rb, 0, 15)
+  spu.ai(rb, 0, 16)
+  spu.ai(rb, 0, 17)
+  
+  spu.stop(0x200A)
+  
+  r = proc.execute(code) # , debug = True)
+
+  r = proc.nexti()
+  r = proc.nexti()
+  r = proc.nexti()
+  
+  while r != None:
+    regs = proc.dump_regs()
+    print regs
+    
+    r = proc.nexti()
+    
+  assert(r == None)
+  print 'int result:', r
+  # while True:
+  #   pass
+  return
+
+
 
 
 def TestOptimization():
@@ -672,8 +906,9 @@ def TestInt2(i0 = 0, i1 = 1):
   return
 
 if __name__ == '__main__':
+  # TestDebug()
   TestInt()
   TestParams()
-  TestParallel()
+  # TestParallel()
   # TestOptimization()
   # TestAlignedMemory()
