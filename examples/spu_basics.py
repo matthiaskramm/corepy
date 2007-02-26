@@ -7,6 +7,7 @@ from corepy.arch.spu.lib.iterators import memory_desc, spu_vec_iter, \
 import corepy.arch.spu.lib.dma as dma
 from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
      Processor, aligned_memory, spu_exec
+
   
 def SimpleSPU():
   """
