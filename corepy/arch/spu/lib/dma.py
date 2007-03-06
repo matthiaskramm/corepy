@@ -4,9 +4,11 @@
 #          linux-2.6.16/include/asm-powerpc/spu.h
 
 import array
+import time
 import corepy.arch.spu.platform as synspu 
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.util as util
+import corepy.spre.spe as spe
 
 # ------------------------------------------------------------
 # Constants
@@ -43,6 +45,18 @@ MFC_GETL_CMD   = 0x44
 MFC_GETLF_CMD  = 0x46
 MFC_GETLB_CMD  = 0x45
 
+# SPU Event Mask
+SPU_WrEventMask  = 1
+SPU_WrEventAck   = 2
+SPU_RdEventMask  = 11
+
+# Signals (ibid)
+SPU_RdSigNotify1 = 3
+SPU_RdSigNotify2 = 4
+
+# SPU Decrementer Channels (BE Handbook, Ch. 17, p443-445)
+SPU_WrDec = 7
+SPU_RdDec = 8
 
 # MFC Command Parameter Channels (BE Handbook, Ch. 17, p443-445)
 MFC_LSA   = 16
@@ -51,10 +65,6 @@ MFC_EAL   = 18
 MFC_Size  = 19
 MFC_TagID = 20
 MFC_Cmd   = 21
-
-# Signals (ibid)
-SPU_RdSigNotify1 = 3
-SPU_RdSigNotify2 = 4
 
 # MFC Tag Status (ibid)
 MFC_WrTagMask   = 22
@@ -65,6 +75,9 @@ MFC_RdTagStat   = 24
 SPU_WrOutMbox   = 28
 SPU_RdInMbox    = 29
 SPU_WrOutIntrMbox = 30
+
+# Mask values for SPU_RdEventStat, SPU_WrEventMask, and SPU_WrEventAck (BE Handbook 447,384,464)
+MFC_DECREMENTER_EVENT = 0x0020
 
 # Tag Status update conditions (BE Handbook, p458)
 MFC_TAG_UPDATE_IMMEDIATE = 0
@@ -111,12 +124,14 @@ def spu_mfcdma64(code, r_ls, r_eah, r_eal, r_size, r_tagid, cmd):
   return last
 
 def spu_writech(code, ch, msg):
-  r_msg = code.acquire_register()
+  # msg may be either a literal value, or a register containing the value
+  if isinstance(msg, spe.Register):
+    last = code.add(spu.wrch(msg, ch))
+  else:
+    r_msg = code.acquire_register()
+    util.load_word(code, r_msg, msg)
+    last = code.add(spu.wrch(r_msg, ch))
 
-  util.load_word(code, r_msg, msg)
-  last = code.add(spu.wrch(r_msg, ch))
-
-  code.release_register(r_msg)
   return last
 
 def spu_readch(code, ch, r_msg = None):
@@ -211,9 +226,6 @@ def spu_stat_in_mbox(code):
 def spu_write_out_mbox(code, data):
   return spu_writech(code, SPU_WrOutMbox, data)
 
-def spu_write_out_mbox(code, data):
-  return spu_writech(code, SPU_WrOutMbox,data)
-
 def spu_stat_out_mbox(code):
   spu_readchcnt(code, SPU_WrOutMbox)
 
@@ -223,6 +235,22 @@ def spu_write_out_intr_mbox(code, data):
 def spu_stat_out_intr_mbox(code):
   return spu_readchcnt(code, SPU_WrOutIntrMbox)
 
+# ------------------------------------------------------------
+# Performance Decrementer
+# ------------------------------------------------------------
+
+def spu_read_decr(code, reg = None):
+  return spu_readch(code, SPU_RdDec, reg)
+
+def spu_write_decr(code, data):
+  return spu_writech(code, SPU_WrDec, data)
+
+def spu_start_decr(code):
+  return spu_writech(code, SPU_WrEventMask, MFC_DECREMENTER_EVENT)
+
+def spu_stop_decr(code):
+  spu_writech(code, SPU_WrEventMask, 0)
+  return spu_writech(code, SPU_WrEventAck, MFC_DECREMENTER_EVENT)
 
 # ------------------------------------------------------------
 # Unit Tests
@@ -320,7 +348,7 @@ def TestMbox():
   code = synspu.InstructionStream()
 
   # Send a message to the PPU
-  spu_write_out_mbox(code, 0xDEADBEAFl)
+  spu_write_out_mbox(code, 0xDEADBEEFl)
 
   # Get a message from the PPU
   reg = spu_read_in_mbox(code)
@@ -365,7 +393,40 @@ def TestSignal():
   return
 
 
+def TestDecrementer():
+
+  code = synspu.InstructionStream()
+
+  spu_write_decr(code, 0x7FFFFFFFl)
+  spu_start_decr(code)
+
+  # Get a message from the PPU
+  spu_read_in_mbox(code)
+
+  reg = spu_read_decr(code)
+  spu_write_out_mbox(code, reg)
+  spu_stop_decr(code)
+
+  proc = synspu.Processor()
+
+  spe_id = proc.execute(code, mode='async')
+
+  print 'test is sleeping for 1 second'
+  time.sleep(1)
+  synspu.spu_exec.write_in_mbox(spe_id, 0x44CAFE)
+
+  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+
+  print 'spu said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
+
+  proc.join(spe_id)
+
+  return
+
+
 if __name__=='__main__':
   TestMFC()
   TestMbox()
   TestSignal()
+  TestDecrementer()
+
