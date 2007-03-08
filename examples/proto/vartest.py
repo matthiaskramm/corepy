@@ -189,3 +189,13 @@ d = SignedHalfword(reg = 4, code = code)
 
 c.v = a + b + 1 + SignedWord.cast(rotate(d, 1)) + SignedWordOps.add(c, 1)
 
+# Copyright 2006 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+

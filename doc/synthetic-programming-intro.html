@@ -41,20 +41,36 @@ to help you get a working version of CorePy!
 
 <p>
 <b>Basic Installation:</b>
+
+<p>
+<i>Note: This process will be replaced soon with a proper setup.py installation script</i>
+
 <ol>
-<li> Download the CorePy tarball from ??? or check out the latest version
-	from ???.
+<li> Check out the latest version from subversion.  The repository is at: <br>
+&nbsp;&nbsp;&nbsp;&nbsp; https://svn.osl.iu.edu/svn/corepy/branch <br>
+To check out:
+<pre>
+  % svn checkout --username anonymous https://svn.osl.iu.edu/svn/corepy/branch corepy<br>
+</pre>
+  The top level directory for the working copy will be referred to as
+  $corepy_root.  If you used the above command, this will be
+  ./corepy.  Note that $corepy_root contains the corepy package
+  directory at $corepy_root/corepy, which using our naming convention
+  gives you the ./corepy/corepy director hierarchy.
 <li> Add the path to the corepy package to your PYTHONPATH, <br>
-     <pre>% export PYTHONPATH=$PYTHONPATH:/path/to/corepy_parent</pre>
-<li>Build and test the native packages for your environment.  <br>
+     <pre>% export PYTHONPATH=$PYTHONPATH:$corepy_root</pre>
+
+<li>Build and test the native packages for your environment.   <br>
 	<pre>
   # Build and test the PowerPC support package
   # (for OSX, run make in .../platform/osx)
+  % cd $corepy_root
   % cd corepy/arch/ppc/platform/linux
   % make
   % python spre_ppc_linux.py
 
   # Build and test the SPU support package
+  % cd $corepy_root
   % cd corepy/arch/spu/platform/linux
   % make
   % python spre_spu_linux.py
@@ -63,7 +79,8 @@ to help you get a working version of CorePy!
   there are no segmentation faults or bus errors. 
 <li> Run the basic examples <br>
   <pre>
-  % cd corepy/examples
+  % cd $corepy_root
+  % cd examples
   % python basics.py
   % python spu_basics.py
   </pre>
