@@ -1,3 +1,13 @@
+# Copyright 2006-2007 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 import array
 
 import corepy.arch.ppc.isa as ppc
@@ -265,13 +275,3 @@ def TestLiterals():
 if __name__=='__main__':
   from corepy.arch.ppc.lib.util import RunTest
   RunTest(TestLiterals)
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-

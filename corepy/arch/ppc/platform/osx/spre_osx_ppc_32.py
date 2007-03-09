@@ -4,8 +4,10 @@
 # redistirubted or used for any other purposes without express written
 # permission from the authors.
 
-# Author:
-#   Christopher Mueller
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 
 __doc__="""
 An implementation of InstructionStream that conforms to the OS X

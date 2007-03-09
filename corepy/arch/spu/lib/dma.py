@@ -1,3 +1,13 @@
+# Copyright 2006-2007 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 # Synthetic functions and components for DMA operations
 # Based on /opt/IBM/cell-sdk-1.1/src/include/spu/spu_mfcio.h
 #          /opt/IBM/cell-sdk-1.1/sysroot/usr/lib/gcc/spu/4.0.2/include/spu_internals.h
@@ -429,14 +439,4 @@ if __name__=='__main__':
   TestMbox()
   TestSignal()
   TestDecrementer()
-
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
 

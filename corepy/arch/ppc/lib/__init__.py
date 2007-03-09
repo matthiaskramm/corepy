@@ -1,4 +1,3 @@
-
 # Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be

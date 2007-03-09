@@ -1,3 +1,13 @@
+# Copyright 2006-2007 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 
 import corepy.corepy_conf as conf
 
@@ -24,13 +34,4 @@ for cls in platform_imports:
 class _Empty: pass
 
 synbuffer = _Empty()
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
 

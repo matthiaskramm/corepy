@@ -1,3 +1,13 @@
+# Copyright 2006-2007 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 # Playing around with debugging and interactive SPE development...
 
 import corepy.arch.spu.platform as synspu
@@ -319,14 +329,3 @@ if __name__=='__main__':
   # cli.stop()
   app = SPUApp(0)
   app.MainLoop()
-  
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
