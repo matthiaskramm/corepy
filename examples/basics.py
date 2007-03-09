@@ -1,3 +1,13 @@
+# Copyright 2006-2007 The Trustees of Indiana University.
+
+# This software is available for evaluation purposes only.  It may not be
+# redistirubted or used for any other purposes without express written
+# permission from the authors.
+
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 import array
 
 import corepy.arch.ppc.isa as ppc
@@ -92,9 +102,20 @@ vmx.set_active_code(code)
 
 v_x = code.acquire_register('vector')
 
-result = array.array('I', [0,0,0,0])
+result = array.array('I', [0,0,0,0,0,0])
 r_addr = code.acquire_register()
-load_word(code, r_addr, result.buffer_info()[0])
+
+# Minor hack to align the address to a 16-byte boundary.
+# Note that enough space was allocated in the array to
+# ensure the save location is valid.
+# (we are working on a cleaner memory management interface
+#  for CorePy that will fix these annoying alignment issues)
+addr = result.buffer_info()[0]
+if addr % 16 != 0:
+  addr += 16 - (addr % 16)
+  print 'aligning addr'
+
+load_word(code, r_addr, addr)
 
 vmx.vspltisw(v_x, 4)
 vmx.stvx(v_x, 0, r_addr)
@@ -106,13 +127,3 @@ r = proc.execute(code) # , debug = True)
 
 print result
   
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
