@@ -261,7 +261,7 @@ print spu.a(a, b, c)
 spu.a.ex(a, spu.ai.ex(b, 1)).eval()
 
 (a + I10.cast(1)).eval()
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
 # redistirubted or used for any other purposes without express written

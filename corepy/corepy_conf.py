@@ -22,7 +22,7 @@ else:
   OS = 'dummy'
   ARCH = 'dummy'
   BITS = 0
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
 # redistirubted or used for any other purposes without express written

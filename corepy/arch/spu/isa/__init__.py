@@ -44,7 +44,7 @@ for inst in spu_isa.SPU_ISA:
   members['active_code']  = property(__get_active_code) 
   globals()[inst[0]] = type(name, (spe.Instruction,), members)
                                                        
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
 # redistirubted or used for any other purposes without express written

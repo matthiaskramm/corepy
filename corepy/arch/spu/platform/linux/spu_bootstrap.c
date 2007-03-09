@@ -1,14 +1,19 @@
+// Copyright 2006-2007 The Trustees of Indiana University.
+
+// This software is available for evaluation purposes only.  It may not be
+// redistirubted or used for any other purposes without express written
+// permission from the authors.
+
+// Authors:
+//   Christopher Mueller (chemuell@cs.indiana.edu)
+//   Andrew Lumsdaine    (lums@cs.indiana.edu)
+
 #include <stdio.h>
 #include <spu_intrinsics.h>
 #include <spu_mfcio.h>
 
 #define SPU_EXIT_FAILURE 0x2001
 #define SPU_READY 0x000D
-
-// There are three ways the user can get parameters:
-//    1) $r80-81 (non-volatile regs)
-//    2) LS: 0x10, 0x20, 0x30 
-//    3) $r3-5 (function parameters)
 
 typedef void (*Stream_func_void)( vector unsigned int v1, 
                                   vector unsigned int v2,

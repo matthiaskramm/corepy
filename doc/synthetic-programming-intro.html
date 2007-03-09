@@ -1,4 +1,16 @@
 <html>
+<!--
+Copyright 2006-2007 The Trustees of Indiana University.
+
+This software is available for evaluation purposes only.  It may not be
+redistirubted or used for any other purposes without express written
+permission from the authors.
+
+Authors:
+  Christopher Mueller (chemuell@cs.indiana.edu)
+  Andrew Lumsdaine    (lums@cs.indiana.edu)
+-->
+
 <head>
   <title>Synthetic Programming with CorePy</title>
 </head>
@@ -46,17 +58,18 @@ to help you get a working version of CorePy!
 <i>Note: This process will be replaced soon with a proper setup.py installation script</i>
 
 <ol>
-<li> Check out the latest version from subversion.  The repository is at: <br>
-&nbsp;&nbsp;&nbsp;&nbsp; https://svn.osl.iu.edu/svn/corepy/branch <br>
+<li> Check out the latest version from subversion using anonymous checkout.  The repository is at: <br><br>
+&nbsp;&nbsp;&nbsp;&nbsp; 
+<a href="https://svn.osl.iu.edu/svn/corepy/trunk">https://svn.osl.iu.edu/svn/corepy/trunk</a> <br><br>
 To check out:
 <pre>
-  % svn checkout --username anonymous https://svn.osl.iu.edu/svn/corepy/branch corepy<br>
+  % svn checkout https://svn.osl.iu.edu/svn/corepy/branch corepy<br>
 </pre>
   The top level directory for the working copy will be referred to as
   $corepy_root.  If you used the above command, this will be
   ./corepy.  Note that $corepy_root contains the corepy package
   directory at $corepy_root/corepy, which using our naming convention
-  gives you the ./corepy/corepy director hierarchy.
+  gives you the ./corepy/corepy director hierarchy. <br><br>
 <li> Add the path to the corepy package to your PYTHONPATH, <br>
      <pre>% export PYTHONPATH=$PYTHONPATH:$corepy_root</pre>
 
@@ -76,7 +89,7 @@ To check out:
   % python spre_spu_linux.py
 	</pre>
   The tests output some debugging information.  They are successful if 
-  there are no segmentation faults or bus errors. 
+  there are no segmentation faults or bus errors. <br><br>
 <li> Run the basic examples <br>
   <pre>
   % cd $corepy_root

@@ -15,7 +15,7 @@ platform_module = __import__(platform_string, globals(), locals(), platform_impo
 for cls in platform_imports:
   locals()[cls] = getattr(platform_module, cls)
   
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
 # redistirubted or used for any other purposes without express written

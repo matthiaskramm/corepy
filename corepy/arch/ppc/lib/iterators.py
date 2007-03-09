@@ -1000,7 +1000,7 @@ if __name__=='__main__':
   util.RunTest(TestVecIter)
   util.RunTest(TestZipIter)
   # TestParallelIter()
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
 # redistirubted or used for any other purposes without express written

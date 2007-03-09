@@ -1,11 +1,12 @@
-# Copyright 2006 The Trustees of Indiana University.
+# Copyright 2006-2007 The Trustees of Indiana University.
 
 # This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written 
+# redistirubted or used for any other purposes without express written
 # permission from the authors.
 
-# Author:
-#   Christopher Mueller
+# Authors:
+#   Christopher Mueller (chemuell@cs.indiana.edu)
+#   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
 # Synthetic Programming Environment Makefile for OS X 10.4.6
 
