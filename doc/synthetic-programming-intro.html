@@ -20,12 +20,12 @@ Authors:
 <i>Chris Mueller</i>
 
 <p>
-CorePy is a library for generating high-performace computational
+CorePy is a library for generating high-performance computational
 kernels from scripting languages.  It exposes the underlying 
 processor instruction sets, memory system, and execution environment
 as Python functions, objects, and modules, allowing the developer to
 work directly with the local hardware resources to produce
-highly-optmized code.  
+highly-optimized code.  
 CorePy currently supports the full PowerPC, AltiVec/VMX, and
 Cell BE SPE instruction sets under both Linux and OS X.
 
@@ -34,7 +34,7 @@ Cell BE SPE instruction sets under both Linux and OS X.
 
 <p>
 CorePy should work on any Linux or OS X system with a PowerPC
-processor.  CorePy has been sucessfully used on the following
+processor.  CorePy has been successfully used on the following
 configurations: 
 
 <ul>
@@ -69,7 +69,7 @@ To check out:
   $corepy_root.  If you used the above command, this will be
   ./corepy.  Note that $corepy_root contains the corepy package
   directory at $corepy_root/corepy, which using our naming convention
-  gives you the ./corepy/corepy director hierarchy. <br><br>
+  leads to the ./corepy/corepy director hierarchy. <br><br>
 <li> Add the path to the corepy package to your PYTHONPATH, <br>
      <pre>% export PYTHONPATH=$PYTHONPATH:$corepy_root</pre>
 
@@ -115,7 +115,7 @@ interacting with the processor:
   instructions, called synthetic programs, and are responsible for
   managing operating specific tasks for executing the instructions
   (e.g., ABI compliance).
-  <li><b>Processor</b>s execute synthetic programms, synchronously or 
+  <li><b>Processor</b>s execute synthetic programs, synchronously or 
   asynchronously, and can pass parameters to and from synthetic
   programs.
   <li><b>Memory Classes</b> provide support for describing memory and
@@ -125,11 +125,11 @@ interacting with the processor:
 
 These components are used to develop <i>synthetic programs</i>.
 Synthetic programs are small computational kernels <i>synthesized</i>
-at runtime and  optimized for the data they will
+at run time and  optimized for the data they will
 process. A single Python program can use many synthetic programs 
 during its lifetime, much in the same way it can use many external
 libraries.  Synthetic programs may be created using <i>synthetic
-omponets</i>.  Synthetic components are reusable synthetic functions
+components</i>.  Synthetic components are reusable synthetic functions
 and classes.
 
 <p>
@@ -167,7 +167,7 @@ Python library.
 <p>
 To get a feel for CorePy, let's start with a simple interactive session.
 First, make sure corepy is in your Python path and start the Python
-interpreter.  Import the ppc instructions and runtime environment:
+interpreter.  Import the ppc instructions and run-time environment:
 <pre>
   % python
   >>> import corepy.arch.ppc.isa as ppc
@@ -176,7 +176,7 @@ interpreter.  Import the ppc instructions and runtime environment:
 </pre>
 
 (By convention, the isa is aliased to the name of the architecture, in
-this case ppc, and the runtime library is aliased to env.)
+this case ppc, and the run-time library is aliased to env.)
 
 <p>
 Now, create a new InstructionStream and add an instruction to it:
@@ -266,7 +266,7 @@ more about how to use their features.
 <p>
 <b>Documentation</b>
 <p>
-Documentation is currenty limited.  But, portions of the code are well
+Documentation is currently limited.  But, portions of the code are well
 commented and most files contain unit tests that are good usage
 examples.  
 
@@ -355,7 +355,7 @@ For instance, the SPU <tt>ai</tt>, or add immediate, instruction, adds
 the value in register A to a constant and stores the value in register
 D.  The assembly and CorePy versions of the instruction are:
 <pre>
-  ai D, A, 12       # Assemby
+  ai D, A, 12       # Assembly
   spu.ai(D, A, 12)  # CorePy
 </pre>
 
@@ -372,8 +372,8 @@ complain about this, I'll drop the x's.
 <p>
 Many instructions have bit flags that are commonly set to the same
 value every time the instruction is used.  In assembly language, these
-bit flags are changed by using mneumonic forms of the instructions.
-Instead of using mneumonics, CorePy makes these flags optional keyword
+bit flags are changed by using mnemonic forms of the instructions.
+Instead of using mnemonics, CorePy makes these flags optional keyword
 arguments. In all cases, the flags default to 0.  For example, the
 full form of the <tt>addx</tt> instruction is 
 <pre>
@@ -469,7 +469,7 @@ Key points:
   using the load instructions.
   <li> Data can be created in Python using any form of memory buffer,
   e.g. array, Numeric array
-  <li> Memory addresses can hardcoded into the instruction sequence or
+  <li> Memory addresses can hard coded into the instruction sequence or
   passed as parameters.
   <li> <tt>InstructionStream.add_storage(data)</tt> keeps a reference
   to arbitrary data objects to avoid having them garbage collected.
@@ -483,7 +483,7 @@ sword.  On one side, you have direct access to the full power of the
 processor.  But, expressing common things can be tedious and make one
 long for high-level languages.  CorePy's variable and expression
 libraries add support for building stronger type checking and building
-expresions for common operations. 
+expressions for common operations. 
 
 <p>
 Machine instructions, while technically only operating on the Register
@@ -568,8 +568,8 @@ expressions.
 Iterator libraries exist for PowerPC (ppc/lib/iterators.py) and SPU 
 (spu/lib/iterators.py).  Iterators types include iterators for scalar
 arrays, vector arrays (e.g., simple auto-simdization), Pythonic
-iteration (zip/range),  thread/processor-parallel block decompostion
-(auto-natural parallism), and stream buffer management for moving data
+iteration (zip/range),  thread/processor-parallel block decomposition
+(auto-natural parallelism), and stream buffer management for moving data
 to and from SPU local stores.  Explore the iterator files for
 examples.   
 
