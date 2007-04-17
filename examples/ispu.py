@@ -10,12 +10,48 @@
 
 # Playing around with debugging and interactive SPE development...
 
+__doc__ = """
+
+ispu is an interactive SPU program that lets the user execute commands
+one at a time on the SPU and view the results in Python.  
+
+ispu has command line and GUI modes.  The GUI used wxPython.  To run
+the GUI, make sure wxPython is installed and simply run ispu.py from
+the command line:
+
+% pythonw ispu.py
+
+The command line mode lets the user run ispu in the Python
+interpreter. The following is a a simple SPU session:
+
+% python
+...
+>>> import corepy.arch.spu.isa as spu
+>>> import ispu
+
+>>> cli = ispu.ISPU()
+
+>>> cli.start()
+>>> cli.execute(spu.iohl(127, 0xB8CA))
+>>> cli.execute(spu.iohl(126, 0x1234))
+>>> cli.execute(spu.a(125, 126, 127))
+
+>>> regs = cli.get_regs()
+>>> print '%X' % regs[125][0]
+
+>>> cli.stop()
+
+When running, ispu reserves an SPU.  When used interactively, make
+sure to call the stop() method to free the SPU when done.
+
+"""
+
 import corepy.arch.spu.platform as synspu
 import corepy.arch.spu.isa as spu
 import array
 import sys
 
-class SPUCLI:
+class ISPU:
   """
   Simple Command line interface to the SPUs.
   """
@@ -84,10 +120,10 @@ class SPUCLI:
       code[lbl_store + i] = spu.stqr(i, st_offset)
 
     code.cache_code()
-    code.print_code()
+    # code.print_code()
     code_size = len(code._prologue._code) * 4
     self.xfer_size = code_size  + (16 - (code_size) % 16);
-    print 'xfer_size:', self.xfer_size
+    # print 'xfer_size:', self.xfer_size
     self.code_lsa = (0x3FFFF - code_size) & 0xFFF80;
     self.reg_lsa = self.code_lsa + lbl_regs * 4
 
@@ -98,15 +134,15 @@ class SPUCLI:
   def load_regs(self):
     reg_bytes = 128 * 16
     tag = 2
-    print 'loading %d bytes from 0x%X-0x%X to 0x%X' % (reg_bytes, self.reg_lsa,
-                                                       self.reg_lsa + reg_bytes,
-                                                       self.regs.buffer_info()[0])
+    # print 'loading %d bytes from 0x%X-0x%X to 0x%X' % (reg_bytes, self.reg_lsa,
+    # self.reg_lsa + reg_bytes,
+    # self.regs.buffer_info()[0])
 
     synspu.spu_exec.spu_putb(self.speid, self.reg_lsa, self.regs.buffer_info()[0],
                              reg_bytes, tag, 0, 0)
-    print 'waiting for regs...'
+    # print 'waiting for regs...'
     synspu.spu_exec.read_tag_status_all(self.speid, 1 << tag)
-    print 'got regs.'
+    # print 'got regs.'
     return
 
   def get_regs(self):
@@ -172,7 +208,11 @@ class SPUCLI:
     return
 
 
-import wx
+try:
+  import wx
+except:
+  print 'Warning: wx not found.  GUI is not available'
+  wx = None
 
 class RegisterWindow(wx.Panel):
 
@@ -183,7 +223,7 @@ class RegisterWindow(wx.Panel):
     return
 
   def _buildGUI(self):
-    listRegs = wx.ListCtrl(self, -1, style=wx.LC_REPORT)
+    listRegs = wx.ListCtrl(self, -1, style=wx.LC_REPORT | wx.SUNKEN_BORDER)
 
     listRegs.InsertColumn(0, 'Register')
     listRegs.InsertColumn(1, 'Value')
@@ -225,6 +265,28 @@ class RegisterWindow(wx.Panel):
 class SPUApp(wx.App):
 
   def OnInit(self):
+    print """
+    *** Thank you for using the wxPython Interactive SPU *** 
+
+    To use, simply type any SPU ISA command into the command box using 
+    the CorePy ISA syntax and with integer values for registers.  For
+    example, to create and add two vectors, enter the following
+    commands one at time followed by a return:
+
+      ai(11, 0, 127) 
+      ai(31, 0, 126)
+      a(127, 126, 125)
+
+    ISPU will highlight registers as they change.
+
+    Previous instructions can be accessed from the history list using
+    the up/down arrow keys.
+
+    Type 'quit' or close the window to exit.
+    
+    *** Email chemuell@cs.indiana.edu with any questions/comments ***  
+    """
+
     self.lastDiffs = []
     self.regDiffs = []
 
@@ -239,13 +301,23 @@ class SPUApp(wx.App):
   def _buildGUI(self):
     frame = wx.Frame(None, -1, 'Interactive SPU')
 
+    stcCmd = wx.StaticText(frame, -1, 'Command:')
     txtCmd = wx.TextCtrl(frame, -1, style = wx.TE_PROCESS_ENTER)
+
+    txtSizer = wx.BoxSizer(wx.HORIZONTAL)
+    txtSizer.Add((5,-1))
+    txtSizer.Add(stcCmd, flag = wx.ALIGN_CENTER)
+    txtSizer.Add(txtCmd, 1)
+    txtSizer.Add((5,-1))    
+    txtSizer.Layout()
+    
     listRegs = RegisterWindow(frame)
 
     cmdSizer = wx.BoxSizer(wx.VERTICAL)
     cmdSizer.Add(listRegs, 1, wx.EXPAND)
-    cmdSizer.Add(txtCmd, 0, wx.EXPAND)
-    
+    cmdSizer.Add((-1,2))        
+    cmdSizer.Add(txtSizer, 0, wx.EXPAND)
+    cmdSizer.Add((-1,2))            
     cmdSizer.Layout()
 
     lstHistory = wx.ListCtrl(frame, -1, size = (150, -1),
@@ -273,7 +345,7 @@ class SPUApp(wx.App):
     return
 
   def _startSPU(self):
-    cli = SPUCLI()
+    cli = ISPU()
     cli.start()
 
     # self.lastRegs = cli.get_regs()
@@ -348,7 +420,7 @@ class SPUApp(wx.App):
     if len(self.history) == 0:
       pass
     elif key == wx.WXK_UP:
-      print 'up'
+      # print 'up'
       
       idx = self.currentCmd
       if idx == -1: idx = len(self.history) - 1
@@ -358,7 +430,7 @@ class SPUApp(wx.App):
       self.txtCmd.SetValue(self.history[self.currentCmd])
       
     elif key == wx.WXK_DOWN and (self.currentCmd + 1) < len(self.history):
-      print 'down'
+      # print 'down'
       idx = self.currentCmd
       if idx == -1: idx = len(self.history) - 1
       else:         idx += 1
@@ -387,7 +459,7 @@ class SPUApp(wx.App):
 
 if __name__=='__main__':
 
-  # cli = SPUCLI()
+  # cli = ISPU()
   
   # cli.start()
   
