@@ -187,14 +187,16 @@ class RegisterWindow(wx.Panel):
 
     listRegs.InsertColumn(0, 'Register')
     listRegs.InsertColumn(1, 'Value')
-    
+
+    fixedFont = wx.Font(11, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
     for i in range(128):
       idx = listRegs.InsertStringItem(i, '%d' % (i))
       listRegs.SetStringItem(idx, 1, '0x???????? 0x???????? 0x???????? 0x????????')
       listRegs.SetItemData(idx, i)
+      listRegs.SetItemFont(idx, fixedFont)
 
-    listRegs.SetColumnWidth(0, wx.LIST_AUTOSIZE)
-    listRegs.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+    listRegs.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
+    listRegs.SetColumnWidth(1, 350) # wx.LIST_AUTOSIZE)
     
     sizer = wx.BoxSizer(wx.VERTICAL)
     sizer.Add(listRegs, 1, wx.EXPAND)
@@ -219,11 +221,15 @@ class RegisterWindow(wx.Panel):
     self.listRegs.SetStringItem(reg, 1, '0x%08X 0x%08X 0x%08X 0x%08X' % value)
     return
   
+
 class SPUApp(wx.App):
 
   def OnInit(self):
     self.lastDiffs = []
     self.regDiffs = []
+
+    self.history = []
+    self.currentCmd = -1
     
     self._buildGUI()
     self._startSPU()
@@ -241,13 +247,27 @@ class SPUApp(wx.App):
     cmdSizer.Add(txtCmd, 0, wx.EXPAND)
     
     cmdSizer.Layout()
+
+    lstHistory = wx.ListCtrl(frame, -1, size = (150, -1),
+                             style = (wx.LC_REPORT | wx.LC_NO_HEADER | wx.LC_SINGLE_SEL | 
+                                      wx.SUNKEN_BORDER))
+    lstHistory.InsertColumn(0, 'Command History', -1)
+    lstHistory.SetColumnWidth(0, 120)
     
-    frame.SetSizer(cmdSizer)
+    mainSizer = wx.BoxSizer(wx.HORIZONTAL)
+    mainSizer.Add(cmdSizer, 1, wx.EXPAND)
+    mainSizer.Add(lstHistory, 0, wx.EXPAND)
+
+    mainSizer.Layout()
+    
+    frame.SetSizer(mainSizer)
     frame.Show(True)
 
     self.Bind(wx.EVT_TEXT_ENTER, self.OnExecute, id=txtCmd.GetId())
+    self.Bind(wx.EVT_CHAR, self.OnChar, id=txtCmd.GetId())    
 
     self.txtCmd = txtCmd
+    self.lstHistory = lstHistory
     self.listRegs = listRegs
     self.frame = frame
     return
@@ -302,6 +322,51 @@ class SPUApp(wx.App):
       self._updateRegView()
       
     return
+
+  def _setCurrent(self, idx):
+
+    if self.currentCmd != -1:
+      self.lstHistory.SetItemBackgroundColour(self.currentCmd, wx.WHITE)
+      self.lstHistory.SetItemTextColour(self.currentCmd, wx.BLACK)
+
+    self.currentCmd = idx
+
+    if idx == -1:
+      self.lstHistory.SetItemBackgroundColour(self.currentCmd, wx.WHITE)
+      self.lstHistory.SetItemTextColour(self.currentCmd, wx.BLACK)
+    else:      
+      self.lstHistory.SetItemBackgroundColour(self.currentCmd, wx.BLUE)
+      self.lstHistory.SetItemTextColour(self.currentCmd, wx.WHITE)
+
+    self.lstHistory.EnsureVisible(self.currentCmd)    
+    return
+  
+  def OnChar(self, event):
+
+    key = event.GetKeyCode()
+
+    if len(self.history) == 0:
+      pass
+    elif key == wx.WXK_UP:
+      print 'up'
+      
+      idx = self.currentCmd
+      if idx == -1: idx = len(self.history) - 1
+      else:         idx -= 1
+
+      self._setCurrent(idx)
+      self.txtCmd.SetValue(self.history[self.currentCmd])
+      
+    elif key == wx.WXK_DOWN and (self.currentCmd + 1) < len(self.history):
+      print 'down'
+      idx = self.currentCmd
+      if idx == -1: idx = len(self.history) - 1
+      else:         idx += 1
+      self._setCurrent(idx)
+      self.txtCmd.SetValue(self.history[self.currentCmd])
+
+    event.Skip()
+    return 
   
   def OnExecute(self, event):
     cmd = self.txtCmd.GetValue()
@@ -311,7 +376,13 @@ class SPUApp(wx.App):
     else:
       self._executeSPU(cmd)
       self.txtCmd.Clear()
-    
+
+      cmdIdx = len(self.history)
+      self.history.append(cmd)
+      self.lstHistory.InsertStringItem(cmdIdx, cmd)
+      
+      self.lstHistory.EnsureVisible(cmdIdx)
+      self._setCurrent(-1)
     return
 
 if __name__=='__main__':
