@@ -18,6 +18,7 @@ import math
 
 import corepy.spre.spe as spe
 import spu_exec
+import synbuffer
 
 # Set the path to the spu bootstrap object file
 import os.path
@@ -149,7 +150,7 @@ class InstructionStream(spe.InstructionStream):
   """
 
   # Class attributes
-  RegisterFiles = (('gp', SPURegister, range(0,128)),)
+  RegisterFiles = (('gp', SPURegister, range(1,128)),)
   default_register_type = SPURegister
   
   exec_module   = spu_exec
@@ -175,7 +176,7 @@ class InstructionStream(spe.InstructionStream):
     self._prologue = InstructionStream()
     
     # Reserve register r0 for the value zero
-    self.acquire_register(reg = 0)
+    # self.acquire_register(reg = 0)
     util.load_word(self._prologue, 0, 0, zero = False)
 
     return
@@ -539,12 +540,14 @@ class DebugProcessor(spe.Processor):
     return retval
 
   def replace(self, idx, inst):
+    print 'replacing:', idx
     self.instructions[idx] = self.code.get_inst(idx) # self.code._prologue._code[idx]
     self.code.debug_set(idx, inst)
     return
 
   def restore(self, idx):
     # self.code._prologue._code[idx] = self.instructions[idx]
+    print 'restore:', len(self.instructions), self.instructions.keys()
     self.code.debug_set(idx, self.instructions[idx])
     return
 
@@ -572,7 +575,9 @@ class DebugProcessor(spe.Processor):
 
     if not last_instruction:
       self.replace(next_stop,    spu.bra(self.debug_lsa, ignore_active = True))
-      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - self.last_stop), ignore_active = True))
+      print 'target:', -(self.debug_lsa - ((self.lsa >> 2) + self.last_stop)), self.debug_lsa, self.last_stop, self.lsa
+      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - ((self.lsa >> 2) + self.last_stop)),
+                                             ignore_active = True))
       # self.replace(next_stop, self.debug_stop)
       
     self.get_instructions()
@@ -633,16 +638,19 @@ class DebugProcessor(spe.Processor):
 
       r = spu_exec.wait_stop_event(self.spe_id)
       self.resume(self.spe_id)
-      
+
+    r = spu_exec.wait_stop_event(self.spe_id)
+    print 'next stop', r
     #  6) Restore code at original pc
-    self.restore(next_inst)
+    self.restore(self.debug_branch)
     self.get_instructions()
 
     #  7) Restore lsa[0:len(save_code)]
     # TODO: do this with putb
 
     #  8) Resume
-    r = spu_exec.wait_stop_event(self.spe_id)
+    # self.resume(self.spe_id)    
+    # r = spu_exec.wait_stop_event(self.spe_id)
     self.resume(self.spe_id)
     r = self.wait_debug()
 
@@ -794,27 +802,28 @@ def TestDebug():
   
   ra = code.acquire_register()
   rb = code.acquire_register()
-
+  rc = code.acquire_register()
+  rd = code.acquire_register()
+  re = code.acquire_register()
+  rf = code.acquire_register()
+  
   spu.ai(ra, 0, 14)
   spu.ai(rb, 0, 13)
-  spu.ai(rb, 0, 14)
-  spu.ai(rb, 0, 15)
-  spu.ai(rb, 0, 16)
-  spu.ai(rb, 0, 17)
+  spu.ai(rc, 0, 14)
+  spu.ai(rd, 0, 15)
+  spu.ai(re, 0, 16)
+  spu.ai(rf, 0, 17)
+  spu.nop(0)
   
   spu.stop(0x200A)
   
   r = proc.execute(code) # , debug = True)
 
-  r = proc.nexti()
-  r = proc.nexti()
-  r = proc.nexti()
-  
   while r != None:
-    regs = proc.dump_regs()
-    print regs
-    
     r = proc.nexti()
+    if r is not None:
+      regs = proc.dump_regs()
+      print regs[122:]
     
   assert(r == None)
   print 'int result:', r
