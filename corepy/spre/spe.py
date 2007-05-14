@@ -49,7 +49,7 @@ def _first_user_frame(stack_info):
     file = os.path.split(frame[0])[1]
     if (file != 'spe.py' and
         file[:5] != 'spre_' and
-        file not in ('util.py', 'spu_extended.py') and
+        file not in ('util.py', 'spu_extended.py', 'iterators.py', '__init__.py') and
         file[-9:] != '_types.py'):
       idx = i
       break
@@ -137,7 +137,7 @@ class RegisterFile(object):
   
     
 class Register(object):
-  def __init__(self, reg, code):
+  def __init__(self, reg, code, prefix = 'r'):
     """
     Create a new register:
       reg is the architecture dependent value for the register, usually an int.
@@ -145,9 +145,10 @@ class Register(object):
     """
     self.reg = reg
     self.code = code
+    self.prefix = prefix
     return
 
-  def __str__(self): return 'r%d' % self.reg
+  def __str__(self): return '%s%d' % (self.prefix, self.reg)
 
   def __eq__(self, other):
     if isinstance(other, Register):
@@ -448,8 +449,8 @@ class Instruction(object):
       raise Exception("Not enough arguments supplied to %s.  %d required, %d supplied" % (
         self.machine_inst.name, len(self.asm_order), len(operands)))
 
-    if order is self.machine_inst._machine_order:
-      print 'using machine order'
+    # if order is self.machine_inst._machine_order:
+    #    print self.machine_inst.name,'using machine order'
 
     # Create the orded list of operands
     for op, field in zip(operands, order):
@@ -963,6 +964,7 @@ class InstructionStream(object):
     print 
 
     if self._debug:
+      addr= self._code.buffer_info()[0]
       last = [None, None]
       for inst, dec, stack_info, i in zip(self._instructions, self._code, self._stack_info,
                                           range(0, self._code.buffer_info()[1])):
@@ -978,11 +980,12 @@ class InstructionStream(object):
           sdetails = '[%s:%s: %d]' % (file, user_frame[2], user_frame[1])
           sdetails += ' ' * (35 - len(sdetails))
           ssource = '%s %s' % (sdetails, user_frame[3][0][:-1]) # .strip())
-        
+
+        saddr   = '0x%08X' % (addr + i * 4)
         sinst   = '%4d %s' % (i, str(inst))
         sinst += ' ' * (40 - len(sinst))
         last = [user_frame, file]
-        print sinst,  ssource
+        print saddr, sinst,  ssource
         if binary:
           print DecToBin(dec)
     else:
