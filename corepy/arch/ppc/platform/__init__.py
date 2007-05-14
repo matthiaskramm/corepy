@@ -12,12 +12,15 @@ import corepy.corepy_conf as conf
 
 platform_imports = [
   'Processor', 'InstructionStream',
-  'WORD_SIZE', 'WORD_TYPE',
+  'WORD_SIZE', 'WORD_TYPE', 'ExecParams',
   'GPRegister', 'FPRegister', 'VMXRegister']
 
 platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
   'os': conf.OS, 'arch': conf.ARCH, 'bits': conf.BITS}
 
+if conf.OS == 'osx':
+  platform_imports.append('array_address')
+  
 print 'Platform:', platform_string
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 

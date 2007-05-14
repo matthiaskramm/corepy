@@ -142,6 +142,9 @@ class BitType(PPCType):
       
     return
 
+  def copy_register(self, other):
+    return self.code.add(ppc.addi(self, other, 0))
+
 
 # ------------------------------
 # Integer Types
@@ -160,6 +163,14 @@ class UnsignedWordType(BitType):
     if isinstance(other, SignedWordType):
       return self.expr_cls(ppc.divwux, *(self, other))
     raise NotImplemented
+  div = staticmethod(__div__)
+
+  def __mul__(self, other):
+    if isinstance(other, UnsignedWordType):
+      return self.expr_cls(ppc.mullwx, *(self, other))
+    elif isinstance(other, (spe.Immediate, int)):
+      return self.expr_cls(ppc.mulli, *(self, other))      
+    raise Exception('__mul__ not implemented for %s and %s' % (type(self), type(other)))          
   div = staticmethod(__div__)
 
 class SignedWordType(BitType):
@@ -247,6 +258,9 @@ class SingleFloatType(PPCType):
 
     return
 
+  def copy_register(self, other):
+    return self.code.add(ppc.fmr(self, other))
+
 class DoubleFloatType(PPCType):
   register_type_id = 'fp'
   literal_types = (float,)
@@ -284,13 +298,59 @@ class DoubleFloatType(PPCType):
   sub = staticmethod(__sub__)
     
   def _set_literal_value(self, value):
-    storage = array.array('d', (float(self.value),))
+    storage = array.array('d', (float(value),))
     self.code.add_storage(storage)
 
-    r_storage = self.code.acquire_register()
-    addr = Bits(storage.buffer_info()[0], reg = r_storage)
-    self.code.add(ppc.lfd(self.reg, addr.reg, 0))
-    self.code.release_register(r_storage)
+    self.load(storage.buffer_info()[0])
+#     r_storage = self.code.acquire_register()
+#     addr = Bits(storage.buffer_info()[0], reg = r_storage)
+#     self.code.add(ppc.lfd(self.reg, addr.reg, 0))
+#     self.code.release_register(r_storage)
+
+    return
+
+  def copy_register(self, other):
+    return self.code.add(ppc.fmrx(self, other))
+
+  def load(self, addr, offset = 0):
+
+    # If addr is a constant, create a variable and store the value
+    if not issubclass(type(addr), spe.Type):
+      r_storage = self.code.acquire_register()
+      addr = Bits(addr, reg = r_storage)
+    else:
+      r_storage = None
+
+    # If offset is a constant, use lfd, otherwise use lfdx
+    if issubclass(type(offset), spe.Type):
+      self.code.add(ppc.lfdx(self, addr, offset))
+    else:
+      # TODO: Check size of offset to ensure it fits in the immediate field 
+      self.code.add(ppc.lfd(self, addr, offset))
+
+    if r_storage is not None:
+      self.code.release_register(r_storage)
+
+    return
+
+  def store(self, addr, offset = 0):
+
+    # If addr is a constant, create a variable and store the value
+    if not issubclass(type(addr), spe.Type):
+      r_storage = self.code.acquire_register()
+      addr = Bits(addr, reg = r_storage)
+    else:
+      r_storage = None
+
+    # If offset is a constant, use lfd, otherwise use lfdx
+    if issubclass(type(offset), spe.Type):
+      self.code.add(ppc.stfdx(self, addr, offset))
+    else:
+      # TODO: Check size of offset to ensure it fits in the immediate field 
+      self.code.add(ppc.stfd(self, addr, offset))
+
+    if r_storage is not None:
+      self.code.release_register(r_storage)
 
     return
 
@@ -474,16 +534,64 @@ def TestFloatingPoint(float_type):
   x = float_type(1.0)
   y = float_type(2.0)
   z = float_type(3.0)
-  a = float_type(reg = code.fp_return)
 
-  a.v = (x + y) / y
+  a = float_type()
+  b = float_type()
+  c = float_type()
+  d = float_type()
+  
+  # Create some data
+  data = array.array('d', (1.0, 2.0, 3.0, 4.0))
+  addr = data.buffer_info()[0]
 
-  a.v = fmadd(a, y, z + z) + fnmadd(a, y, z + z) + fmsub(x, y, z) + fnmsub(x, y, z) 
+  # Load from addr
+  a.load(addr) 
+
+  # Load from addr with idx in register
+  offset = Bits(8)
+  b.load(data.buffer_info()[0], offset)
+
+  # Load from addr with constant idx 
+  c.load(data.buffer_info()[0], 8*2)
+  
+  # Load from addr with addr as a register
+  reg_addr = Bits(addr)
+  d.load(reg_addr)
+  
+  r = float_type(reg = code.fp_return)
+
+  r.v = (x + y) / y
+
+  r.v = fmadd(a, y, z + z) + fnmadd(a, y, z + z) + fmsub(x, y, z) + fnmsub(x, y, z) 
   x.v = -x
-  a.v = a + x - x
+  r.v = r + x - x + a + b - c + d - d
+
+  # Store from addr
+  a.v = 11.0
+  a.store(addr) 
+
+  # Store from addr with idx in register
+  offset = Bits(8)
+  b.v = 12.0
+  b.store(data.buffer_info()[0], offset)
+
+  # Store from addr with constant idx
+  c.v = 13.0
+  c.store(data.buffer_info()[0], 8*2)
+  
+  # Store from addr with addr as a register
+  d.v = 14.0
+  reg_addr = UnsignedWord(addr)
+  reg_addr.v = reg_addr + 8 * 3
+  d.store(reg_addr)
+  
   r = proc.execute(code, mode='fp')
   assert(r == 0.0)
-
+  assert(data[0] == 11.0)
+  assert(data[1] == 12.0)
+  assert(data[2] == 13.0)
+  assert(data[3] == 14.0)
+  
   return
 
 if __name__=='__main__':

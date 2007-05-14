@@ -19,7 +19,7 @@ import sys
 
 import corepy.spre.spe as spe
 import ppc_exec
-
+from synnumeric import array_address
 
 import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
@@ -33,8 +33,13 @@ ExecParams = ppc_exec.ExecParams
 # ------------------------------
 
 class GPRegister(spe.Register): pass
-class FPRegister(spe.Register): pass
-class VMXRegister(spe.Register): pass
+class FPRegister(spe.Register):
+  def __init__(self, reg, code):
+    spe.Register.__init__(self, reg, code, 'f')
+
+class VMXRegister(spe.Register): 
+  def __init__(self, reg, code):
+    spe.Register.__init__(self, reg, code, 'v')
 
 
 # ------------------------------

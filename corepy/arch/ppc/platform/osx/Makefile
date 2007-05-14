@@ -22,7 +22,7 @@
 FRAMEWORKS= -framework Carbon
 INC=-I/System/Library/Frameworks/Python.framework/Headers
 
-all: _ppc_execmodule.so # _cjaccardmodule.so synnumeric.so synbuffer.so
+all: _ppc_execmodule.so synnumeric.so # _cjaccardmodule.so synnumeric.so synbuffer.so
 ppc: _ppc_execmodule.so
 numeric: synnumeric.so
 buffer: synbuffer.so
