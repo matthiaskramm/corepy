@@ -56,7 +56,7 @@ def _gepp_blk_var1(A, B, C, mb, nb):
   
   return
 
-_MB, _KB, _NB = 64, 256, 256
+_MB, _KB, _NB = 64, 64, 128
 # _MB, _KB, _NB = 1024, 1024, 1024
 
 def numeric_gemm_var1(A, B, C, mb = _MB, kb = _KB, nb = _NB):
@@ -417,7 +417,7 @@ def test(algs, niters = 2, validate = False):
 
   # Cache effects show up between 2048 and 4096 on a G4
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
-  tests = [128, 256, 512] # , 1024] # , 2048] #, 4096]
+  tests = [128, 256, 512, 1024, 2048] #, 4096]
   for size in tests: 
     m,n,k = (size, size, size)
     A, B, C = create_matrices(m, k, n)
@@ -600,7 +600,7 @@ def main():
       print alg, colors[i]
     pylab.show()
   else:
-    print 'Algorithm  \tSize        \tAvg      \tMin      \tMax      \t'
+    print 'Algorithm           \tSize        \tAvg      \tMin      \tMax      \t'
 
     for result in results:
       print str(result)
