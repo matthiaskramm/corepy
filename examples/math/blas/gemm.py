@@ -162,7 +162,7 @@ import corepy.arch.ppc.isa as ppc
 import corepy.arch.ppc.platform as synppc
 import corepy.arch.ppc.types.ppc_types as ppcvar
 
-from corepy.arch.ppc.lib.iterators import syn_range
+from corepy.arch.ppc.lib.iterators import syn_range, syn_iter, CTR
 
 class SynGEPB:
 
@@ -240,7 +240,7 @@ class SynGEPB:
             c[ci][cj].v = 0.0
 
         # Inner loop over k
-        for k in syn_range(code, 0, kc * 8, 8):
+        for k in syn_iter(code, kc, mode = CTR): # syn_range(code, 0, kc * 8, 8):
         
           # Load the next values from tA and tB
           for ai in range(mr):
@@ -325,9 +325,11 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   proc = synppc.Processor()
 
   gepb = SynGEPB()
-  params = synppc.ExecParams()
+  pm1 = synppc.ExecParams()
+  pm2 = synppc.ExecParams()  
 
-  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+  C_aux1 = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+  C_aux2 = Numeric.zeros((mr, nc), typecode=Numeric.Float)  
 
   M, N = C.shape
   K = A.shape[0]
@@ -343,37 +345,48 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   start = time.time()
 
   tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)  
+  tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)
 
-  params.p1 = synppc.array_address(tA)
-  params.p2 = synppc.array_address(tB)
-
-  params.p4 = synppc.array_address(C_aux)  
-
+  tB1 = Numeric.zeros((kc, nc), typecode = Numeric.Float)    
+  tB2 = Numeric.zeros((kc, nc), typecode = Numeric.Float)
+  
   C_addr = synppc.array_address(C)
-  params.p3 = C_addr  
+
+  pm1.p1 = synppc.array_address(tA)
+  pm1.p2 = synppc.array_address(tB1)
+  pm1.p3 = C_addr  
+  pm1.p4 = synppc.array_address(C_aux1)  
+
+  pm2.p1 = synppc.array_address(tA)
+  pm2.p2 = synppc.array_address(tB2)
+  pm2.p3 = C_addr  
+  pm2.p4 = synppc.array_address(C_aux2)  
+
   nc8 = nc * 8
 
+  pm2.p3 = C_addr + (N / 2) * 8
+  
   k = 0
   for k in range(0, K, kc):
     # Pack A into tA
     tA[:,:] = A[:,k:k+kc]
 
-    params.p3 = C_addr  
+    pm1.p3 = C_addr  
+    pm2.p3 = C_addr + nc8
 
-    for j in range(0, N, nc):
-      jnc = j+nc
+    for j in range(0, N, nc*2):
       # Pack B into tB
-      tB[:,:] = B[k:k+kc, j:jnc]
+      tB1[:,:] = B[k:k+kc, j:j+nc]
+      tB2[:,:] = B[k:k+kc, j+nc:j+nc*2]      
 
-      proc.execute(code, params = params)
-      params.p3 += nc8
+      t1 = proc.execute(code, params = pm1, mode = 'async')
+      t2 = proc.execute(code, params = pm2, mode = 'async')
 
-      #  for i in range(0, M): # , mc):
-      #    # Ci = AiB + Ci
-      #    # imc = i+mc
-      #    ABi = Numeric.matrixmultiply(tA[i,:], tB)
-      #    Numeric.add(C[i,j:jnc], ABi, C[i,j:jnc])
+      proc.join(t1)
+      proc.join(t2)
+      
+      pm1.p3 += nc8 
+      pm2.p3 += nc8 
 
   end = time.time()
   return end - start
@@ -607,8 +620,8 @@ def test(algs, niters = 2, validate = False):
         _validate(alg.func_name, m, n, k, C, C_valid)
 
       for mc in [32]: # , 64, 128, 256]:
-        for kc in [256]: # [32, 64, 128, 256]:
-          for nc in [128]: # , 64, 128, 256]:
+        for kc in [64]: # [32, 64, 128, 256]:
+          for nc in [32]: # , 64, 128, 256]:
             print '  ', mc, kc, nc
             times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
             result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
@@ -762,7 +775,7 @@ def main():
   colors = 'rgbko'
 
   # algs = [numeric_mm, numeric_gemm_var1_flat, numeric_gemm_var1_row, syn_gemm]
-  algs = [syn_gemm]  
+  algs = [numeric_mm, syn_gemm]  
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
 
