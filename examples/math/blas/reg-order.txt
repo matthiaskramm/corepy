@@ -36,7 +36,7 @@ This gives the best numbers on a G4 (~632 MFlops)
 6          c[2][3].v = ppcvar.fmadd(a[2], b[3], c[2][3])
 
 
-Nother good one:
+Another good one:
 
           a[0].load(p_tA, 0 * A_row_stride)
           b[0].load(p_tB, 0 * B_col_stride)

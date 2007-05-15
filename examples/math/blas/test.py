@@ -1,3 +1,4 @@
+import inspect
 
 mr = 4
 nr = 4
@@ -5,7 +6,8 @@ nr = 4
 def load_a(i): print 'load a[%d]' % i
 def load_b(i): print 'load b[%d]' % i
 
-def compute(i,j): print 'compute c[%d][%d]' % (i,j)
+def compute(i,j):
+  print 'compute c[%d][%d]' % (i,j)
 
 
 # load_a(0)
