@@ -24,7 +24,7 @@ def python_mm(A, B, C):
 
   return
 
-def numeric_mm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
+def numeric_mm(A, B, C, mc, kc, nc, mr=1, nr=1):
   C[:,:] = Numeric.matrixmultiply(A, B)
   return
 
@@ -59,7 +59,7 @@ def _gepp_blk_var1(A, B, C, mc, nc):
 _MC, _KC, _NC = 64, 64, 128
 # _MC, _KC, _NC = 1024, 1024, 1024
 
-def numeric_gemm_var1(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
+def numeric_gemm_var1(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   GEMM_VAR1, top branch 
   """
@@ -76,7 +76,7 @@ def numeric_gemm_var1(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
   return
 
 
-def numeric_gemm_var1_flat(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
+def numeric_gemm_var1_flat(A, B, C, mc, kc, nc, mr=1, nr=1):
   M, N = C.shape
   K = A.shape[0]
 
@@ -105,7 +105,7 @@ def numeric_gemm_var1_flat(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
         # Store Caux into memory
   return
 
-def numeric_gemm_var1_row(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
+def numeric_gemm_var1_row(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   Observations on flat/row:
   - Using the same basic approach and keeping the parameters
@@ -166,7 +166,7 @@ from corepy.arch.ppc.lib.iterators import syn_range
 
 class SynGEPB:
 
-  def synthesize(self, code, M, K, N, kc, nc): 
+  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1): 
     """
     tA is M  x nc
     tB is nc x kc
@@ -176,6 +176,17 @@ class SynGEPB:
 
     old_code = ppc.get_active_code()
     ppc.set_active_code(code)
+
+    # Constants
+    C_col_stride = 8    
+    C_row_stride = N * C_col_stride
+
+    # Assume A and B are packed
+    A_col_stride = 8
+    A_row_stride = kc * A_col_stride
+
+    B_col_stride = 8
+    B_row_stride = nc * B_col_stride
 
     # Address variables
     r_tA_addr = ppcvar.UnsignedWord()
@@ -190,86 +201,102 @@ class SynGEPB:
     
     p_tA = ppcvar.UnsignedWord()
     p_tB = ppcvar.UnsignedWord()
-    p_C  = ppcvar.UnsignedWord()
-    p_C_aux = ppcvar.UnsignedWord()    
+    p_C  = [ppcvar.UnsignedWord() for i in range(mr)]
+    p_C_aux = [ppcvar.UnsignedWord() for i in range(mr)]
 
+    # Set the array pointers 
     p_tA.v = r_tA_addr
-    p_tB.v = r_tB_addr    
-    p_C.v  = r_C_addr
-    p_C_aux.v  = r_C_aux_addr    
-    
-    tB_offset = ppcvar.UnsignedWord()
+    p_tB.v = r_tB_addr
+
+    for ci in range(mr):
+      p_C[ci].v     = r_C_addr + ci * C_row_stride
+      p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
 
     # Inner loop variables
-    a = ppcvar.DoubleFloat()
-    b = ppcvar.DoubleFloat()
-    c = ppcvar.DoubleFloat()            
-    c_current = ppcvar.DoubleFloat()
+    if mr != nr:
+      raise Exception('mr (%d) should equal nr (%d)' % (mr, nr))
+    a = [ppcvar.DoubleFloat() for i in range(mr)]
+    b = [ppcvar.DoubleFloat() for j in range(nr)]
+    c = [[ppcvar.DoubleFloat() for j in range(nr)] for i in range(mr)]
 
-    # Constants
-    C_col_stride = 8    
-    C_row_stride = N * C_col_stride
-
-    # Assume A and B are packed
-    A_col_stride = 8
-    A_row_stride = kc * A_col_stride
-
-    B_col_stride = 8
-    B_row_stride = nc * B_col_stride
-    
     # For each row in C
-    for ii in syn_range(code, 0, M):
-      # Set p_C to the current row in C
-      p_C.v = r_C_addr + ii * C_row_stride
-      p_C_aux.v = r_C_aux_addr
+    for ii in syn_range(code, 0, M, mr):
 
       # Reset p_tB
       p_tB.v = r_tB_addr
 
       # For each column in C
-      for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
-        
+      for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride * nr):
+      
         # Set p_tA to the current row in tA
-        p_tA.v = r_tA_addr + ii * A_row_stride
-
-        # Register-scale BP
-
-        # Initialize c_current 
-        c_current.v = 0.0
-
-        # for j in syn_range(code, 0, nc * 8, 8):
-        tB_offset.v = 0
-
-        for k in syn_range(code, 0, kc * 8, 8):
-            
-            # Load the next values from tA and tB
-            a.load(p_tA, k)
-            b.load(p_tB, tB_offset)
-            
-            # Update c
-            c_current.v = ppcvar.fmadd(a, b, c_current)
-            
-            # Increment tB's offset by a full row
-            tB_offset.v = tB_offset + B_row_stride
-          # /end for j
-
-        # /end for k
+        p_tA.v = r_tA_addr + ii * A_row_stride # * mr
 
         # Set p_tB to the current col in tB
-        p_tB.v = p_tB + B_col_stride
+        p_tB.v = r_tB_addr + jj 
+
+        # Initialize c
+        for ci in range(mr):
+          for cj in range(nr):
+            c[ci][cj].v = 0.0
+
+        # Inner loop over k
+        for k in syn_range(code, 0, kc * 8, 8):
+        
+          # Load the next values from tA and tB
+          for ai in range(mr):
+            a[ai].load(p_tA, ai * A_row_stride)
+
+          for bj in range(nr):
+            b[bj].load(p_tB, bj * B_col_stride)
+        
+          # Update c
+          for ci in range(mr):
+            for cj in range(nr):
+              c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
+              
+          # Increment p_tA, p_tB
+          p_tA.v = p_tA + A_col_stride
+          p_tB.v = p_tB + B_row_stride
+        
+        # /end for k
 
         # Save c_current to c_aux
-        c_current.store(p_C_aux, jj)
+        for ci in range(mr):
+          for cj in range(nr):
+            c[ci][cj].store(p_C_aux[ci], cj * C_col_stride)
+            
+        # Increment the sub-matrix in C_aux
+        for ci in range(mr):
+          p_C_aux[ci].v = p_C_aux[ci] + C_col_stride * nr
 
       # /end for jj
 
+      # Reset p_C_aux
+      for ci in range(mr):
+        p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
+
       # Copy C_aux to C
       for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
-        c.load(p_C, jj)
-        c_current.load(r_C_aux_addr, jj)
-        c.v = c + c_current
-        c.store(p_C, jj)
+        for ci in range(mr):
+
+          a[ci].load(p_C[ci], jj)
+          b[ci].load(p_C_aux[ci], jj)
+
+          a[ci].v = a[ci] + b[ci]
+          a[ci].store(p_C[ci], jj)
+
+        # /end for ci
+
+        # Increment p_C 
+        # for ci in range(mr):
+        #    p_C[ci].v = p_C[ci] + nc * C_col_stride
         
+      # /end for jj
+      
+      # Increment p_C 
+      for ci in range(mr):
+        p_C[ci].v = p_C[ci] + C_row_stride * mr
+            
     # /end for ii
 
     ppc.set_active_code(old_code)
@@ -291,7 +318,7 @@ class SynGEPB:
 
 #     return
   
-def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
+def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   """
   code = synppc.InstructionStream()
@@ -300,7 +327,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
   gepb = SynGEPB()
   params = synppc.ExecParams()
 
-  C_aux = Numeric.zeros(nc, typecode=Numeric.Float)
+  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
 
   M, N = C.shape
   K = A.shape[0]
@@ -309,7 +336,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
   kc = min(kc, K)
   mc = min(mc, M)
   # code.set_debug(True)
-  gepb.synthesize(code, M, N, K, kc, nc)
+  gepb.synthesize(code, M, K, N, kc, nc, mr, nr)
   code.cache_code()
   # code.print_code()
   
@@ -324,6 +351,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
   params.p4 = synppc.array_address(C_aux)  
 
   C_addr = synppc.array_address(C)
+  params.p3 = C_addr  
   nc8 = nc * 8
 
   k = 0
@@ -331,7 +359,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
     # Pack A into tA
     tA[:,:] = A[:,k:k+kc]
 
-    params.p3 = C_addr
+    params.p3 = C_addr  
 
     for j in range(0, N, nc):
       jnc = j+nc
@@ -351,12 +379,121 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, kr=1, nr=1):
   return end - start
 
 
+def proto_reg_mm_2x2():
+  mr = 2
+  nr = 2
+  kc = 16
+
+  A = Numeric.arange(mr * kc)
+  B = Numeric.arange(kc * nr)
+  C = Numeric.zeros((mr, nr))  
+
+  A.shape = (mr, kc)
+  B.shape = (kc, nr)
+
+  c11 = 0
+  c12 = 0
+  c21 = 0
+  c22 = 0
+
+  for k in range(kc):
+    a1 = A[0, k]
+    a2 = A[1, k]    
+
+    b1 = B[k, 0]
+    b2 = B[k, 1]
+
+    c11 = c11 + a1 * b1
+    c12 = c12 + b2 * a1
+    c21 = c21 + a2 * b1
+    c22 = c22 + a2 * b2    
+
+  C[0,0] = c11
+  C[0,1] = c12
+  C[1,0] = c21
+  C[1,1] = c22
+
+  C_valid = Numeric.matrixmultiply(A, B)
+  _validate('proto', mr, nr, kc, C, C_valid)
+  return
+
+
+def proto_reg_mm_4x4():
+  mr = 4
+  nr = 4
+  kc = 16
+
+  A = Numeric.arange(mr * kc)
+  B = Numeric.arange(kc * nr)
+  C = Numeric.zeros((mr, nr))  
+
+  A.shape = (mr, kc)
+  B.shape = (kc, nr)
+
+  a = [0.0 for i in range(mr)]
+  b = [0.0 for j in range(nr)]
+  c = [[0.0 for j in range(nr)] for i in range(mr)]
+  
+  # c11 = 0   c21 = 0  c31 = 0   c41 = 0
+  # c12 = 0   c22 = 0  c32 = 0   c42 = 0
+  # c13 = 0   c23 = 0  c33 = 0   c43 = 0
+  # c14 = 0   c24 = 0  c34 = 0   c44 = 0
+
+  for k in range(kc):
+
+    # a1 = A[0, k]
+    # a2 = A[1, k]
+    # a3 = A[2, k]
+    # a4 = A[3, k]        
+    
+    for ai in range(mr):
+      a[ai] = A[ai, k]
+
+    # b1 = B[k, 0]
+    # b2 = B[k, 1]
+    # b3 = B[k, 2]
+    # b4 = B[k, 3]
+    for bj in range(mr):
+      b[bj] = B[k, bj]
+
+    for ci in range(mr):
+      for cj in range(nr):
+        c[ci][cj] = c[ci][cj] + a[ci] * b[cj]
+        # c11 = c11 + a1 * b1 # c21 = c21 + a2 * b1
+        # c12 = c12 + a1 * b2 # c22 = c22 + a2 * b2
+        # c13 = c13 + a1 * b3 # c23 = c23 + a2 * b3
+        # c14 = c14 + a1 * b4 # c24 = c24 + a2 * b4
+        # c31 = c31 + a3 * b1 # c41 = c41 + a4 * b1
+        # c32 = c32 + a3 * b2 # c42 = c42 + a4 * b2
+        # c33 = c33 + a3 * b3 # c43 = c43 + a4 * b3
+        # c34 = c34 + a3 * b4 # c44 = c44 + a4 * b4
+
+  # Store
+  for ci in range(mr):
+    for cj in range(nr):
+      C[ci][cj] = c[ci][cj]
+        
+      # C[0,0] = c11 # C[2,0] = c31
+      # C[0,1] = c12 # C[2,1] = c32
+      # C[0,2] = c13 # C[2,2] = c33
+      # C[0,3] = c14 # C[2,3] = c34
+                                   
+      # C[1,0] = c21 # C[3,0] = c41
+      # C[1,1] = c22 # C[3,1] = c42
+      # C[1,2] = c23 # C[3,2] = c43
+      # C[1,3] = c24 # C[3,3] = c44
+
+  C_valid = Numeric.matrixmultiply(A, B)
+  _validate('proto', mr, nr, kc, C, C_valid)
+  return
+
+
 # ------------------------------------------------------------
 # Test Harness
 # ------------------------------------------------------------
 
 def _mflops(m, k, n, elapsed):
-  return 2 * m*n*k / (elapsed * 1.0e6)
+  return 2 * m * k * n / (elapsed * 1.0e6)
 
 class _result:
   """
@@ -400,23 +537,27 @@ def _validate(name, m, n, k, C, C_valid):
   if Numeric.product(eq) == 0:
     eq.shape = C.shape
     for i, row in enumerate(eq[:]):
+      # or i == 3 or i == 4
+      # (i == 0 or i == 1 or i == 2 ) and 
       if Numeric.product(row) == 0:
         print 'row', i, 'failed'
-        # print C[i,:]
-        # print C_valid[i,:]
-        
+        print C[i,:]
+        print C_valid[i,:]
+      else:
+        print 'row', i, 'succeeded'
     raise Exception("Algorithm '%s' failed validation for %d x %d x %d matrices" %
                     (name, m, k, n))
+  print name, 'passed'
   return
 
-def run_alg(alg, A, B, C, mc, kc, nc, niters):
+def run_alg(alg, A, B, C, mc, kc, nc, mr, nr, niters):
   """
   Time an experiment niters times.
   """
   times = []
   for i in range(niters):
     start = time.time()
-    t = alg(A, B, C, mc, kc, nc)
+    t = alg(A, B, C, mc, kc, nc, mr, nr)
     end   = time.time()
 
     if t is not None:
@@ -429,7 +570,7 @@ def run_alg(alg, A, B, C, mc, kc, nc, niters):
 def create_matrices(m, k, n):
   A = Numeric.arange(m*k, typecode = Numeric.Float)
   B = Numeric.arange(k*n, typecode = Numeric.Float)
-  C = Numeric.zeros(m*n, typecode = Numeric.Float)  
+  C = Numeric.zeros(m*n, typecode = Numeric.Float) # + 12.0 
 
   A.shape = (m, k)
   B.shape = (k, n)
@@ -465,11 +606,11 @@ def test(algs, niters = 2, validate = False):
         alg(A, B, C)
         _validate(alg.func_name, m, n, k, C, C_valid)
 
-      for mc in [32, 64, 128, 256]:
-        for kc in [32, 64, 128, 256]:
-          for nc in [32, 64, 128, 256]:
+      for mc in [32]: # , 64, 128, 256]:
+        for kc in [256]: # [32, 64, 128, 256]:
+          for nc in [128]: # , 64, 128, 256]:
             print '  ', mc, kc, nc
-            times = run_alg(alg, A, B, C, mc, kc, nc, niters)
+            times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
             result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
             results.append(result)
 
@@ -502,14 +643,17 @@ def test_syn_gepb():
   kc = k
   nc = 32
 
-  C_aux = Numeric.zeros(kc, typecode=Numeric.Float)
+  mr = 4
+  nr = 4
+  
+  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float) # + 13.0
   
   A_addr = synppc.array_address(A)
   B_addr = synppc.array_address(B)
   C_addr = synppc.array_address(C)
   C_aux_addr = synppc.array_address(C_aux)
-  
-  gepb.synthesize(code, m, k, n, kc, nc) # , A_addr, B_addr, C_addr)
+
+  gepb.synthesize(code, m, k, n, kc, nc, mr, nr) # , A_addr, B_addr, C_addr)
 
   params = synppc.ExecParams()
   params.p1 = A_addr
@@ -523,7 +667,7 @@ def test_syn_gepb():
 
   C_valid = Numeric.matrixmultiply(A, B)
 
-  _validate('test_gebp_opt1', m,n,k, C, C_valid)
+  _validate('syn_gepb', m,n,k, C, C_valid)
   return
 
 def test_gepp_blk_var1():
@@ -582,9 +726,8 @@ def test_numeric_gemm_var1_row():
   nc = 32
   kc = 32
   mr = 1
-  kr = 1
-
-  numeric_gemm_var1_row(A, B, C, nc, kc, mr, kr)
+  nr = 1
+  numeric_gemm_var1_row(A, B, C, nc, kc, mr, nr)
 
   C_valid = Numeric.matrixmultiply(A, B)
   
@@ -600,14 +743,14 @@ def test_syn_gemm():
   kc = 32
   nc = 64
   
-  mr = 1
-  kr = 1
+  mr = 4
+  nr = 4
 
-  syn_gemm(A, B, C, mc, kc, nc)
+  syn_gemm(A, B, C, mc, kc, nc, mr = mr, nr = nr)
 
   C_valid = Numeric.matrixmultiply(A, B)
   
-  _validate('test_gepp_blk_var1', m,n,k, C, C_valid)
+  _validate('syn_gemm', m,n,k, C, C_valid)
   return
 
 # ------------------------------------------------------------
@@ -660,5 +803,6 @@ if __name__=='__main__':
   # test_syn_gepb()
   # test_syn_gemm()
   main()
+  # proto_reg_mm_4x4()
   
   
