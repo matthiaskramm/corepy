@@ -126,7 +126,7 @@ class InstructionStream(spe.InstructionStream):
   # These are used during instanciation to create register files for 
   # the InstructionStream instance.
   RegisterFiles = (('gp', GPRegister, range(2,10) + range(14, 31)),
-                   ('fp', FPRegister, range(1,32)),
+                   ('fp', FPRegister, range(0,32)),
                    ('vector', VMXRegister, range(0,32)))
 
   default_register_type = GPRegister

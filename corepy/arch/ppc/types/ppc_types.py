@@ -173,6 +173,7 @@ class UnsignedWordType(BitType):
     raise Exception('__mul__ not implemented for %s and %s' % (type(self), type(other)))          
   div = staticmethod(__div__)
 
+
 class SignedWordType(BitType):
 
   def __add__(self, other):
