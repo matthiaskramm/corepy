@@ -203,7 +203,9 @@ class SynGEPB:
     p_tB = ppcvar.UnsignedWord()
     p_C  = [ppcvar.UnsignedWord() for i in range(mr)]
     p_C_aux = [ppcvar.UnsignedWord() for i in range(mr)]
-
+    
+    jj2 = ppcvar.SignedWord()
+    
     # Set the array pointers 
     p_tA.v = r_tA_addr
     p_tB.v = r_tB_addr
@@ -215,6 +217,7 @@ class SynGEPB:
     # Inner loop variables
     if mr != nr:
       raise Exception('mr (%d) should equal nr (%d)' % (mr, nr))
+
     a = [ppcvar.DoubleFloat() for i in range(mr)]
     b = [ppcvar.DoubleFloat() for j in range(nr)]
     c = [[ppcvar.DoubleFloat() for j in range(nr)] for i in range(mr)]
@@ -242,25 +245,52 @@ class SynGEPB:
         # Inner loop over k
         for k in syn_iter(code, kc, mode = CTR): # syn_range(code, 0, kc * 8, 8):
         
-          # Load the next values from tA and tB
-          for ai in range(mr):
-            a[ai].load(p_tA, ai * A_row_stride)
+          # Load the next values from tA and tB -- generating loops
+          # for ai in range(mr):
+          #   a[ai].load(p_tA, ai * A_row_stride)
 
-          for bj in range(nr):
-            b[bj].load(p_tB, bj * B_col_stride)
-        
-          # Update c
-          for ci in range(mr):
-            for cj in range(nr):
-              c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
-              
+          # for bj in range(nr):
+          #   b[bj].load(p_tB, bj * B_col_stride)
+
+          # Update c -- generating loop
+          # for ci in range(mr):
+          #   for cj in range(nr):
+          #     c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
+
+          # Generate the operations so that there is some overlap between
+          # loads and computations.
+          
+          def load_a(i): a[i].load(p_tA, i * A_row_stride)
+          def load_b(i): b[i].load(p_tB, i * B_col_stride)
+          def compute(i,j): c[i][j].v = ppcvar.fmadd(a[i], b[j], c[i][j]); 
+
+          load_a(0)
+          load_b(0)          
+
+          for ri in range(0, mr):
+            compute(ri, ri)
+  
+            if ri < (mr - 1):
+              load_a(ri+1)
+              load_b(ri+1)
+  
+            for ci in range(0, ri):
+              compute(ci, ri)
+
+            for cj in range(0, ri):
+              compute(ri, cj)     
+          # /end for ri
+
+          compute(mr-1, mr-1)
+
           # Increment p_tA, p_tB
           p_tA.v = p_tA + A_col_stride
           p_tB.v = p_tB + B_row_stride
         
         # /end for k
 
-        # Save c_current to c_aux
+        # Save c_current to c_aux -- generating loop
+        # (this is OK performance-wise)
         for ci in range(mr):
           for cj in range(nr):
             c[ci][cj].store(p_C_aux[ci], cj * C_col_stride)
@@ -275,22 +305,62 @@ class SynGEPB:
       for ci in range(mr):
         p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
 
+        # # Copy C_aux to C
+        # # ~620 MFlops
+        # for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
+        #   for ci in range(mr):
+        
+        #     a[ci].load(p_C[ci], jj)
+        #     b[ci].load(p_C_aux[ci], jj)
+        
+        #     a[ci].v = a[ci] + b[ci]
+        #     a[ci].store(p_C[ci], jj)
+        
+        #   # /end for ci
+        # # /end for jj
+        
       # Copy C_aux to C
+
+      c_mem = a + b
+      c_aux = c[0] + c[1]
+      
       for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
-        for ci in range(mr):
 
-          a[ci].load(p_C[ci], jj)
-          b[ci].load(p_C_aux[ci], jj)
+          # ~ 650 Mflops (one extra unroll does not affect result)
+          if mr >= 1:
+            c_mem[0].load(p_C[0], jj)
+            c_aux[0].load(p_C_aux[0], jj)
 
-          a[ci].v = a[ci] + b[ci]
-          a[ci].store(p_C[ci], jj)
+          if mr >= 2:
+            c_mem[1].load(p_C[1], jj)
+            c_aux[1].load(p_C_aux[1], jj)
+
+          if mr >= 1:
+            c_mem[0].v = c_mem[0] + c_aux[0]
+
+          if mr >= 2:
+            c_mem[1].v = c_mem[1] + c_aux[1]
+
+          if mr >= 3:
+            c_mem[2].load(p_C[2], jj)
+            c_aux[2].load(p_C_aux[2], jj)
+
+          if mr >= 4:
+            c_mem[3].load(p_C[3], jj)
+            c_aux[3].load(p_C_aux[3], jj)
+
+          if mr >= 3:
+            c_mem[2].v = c_mem[2] + c_aux[2]
+
+          if mr >= 4:
+            c_mem[3].v = c_mem[3] + c_aux[3]
+
+          if mr >= 1: c_mem[0].store(p_C[0], jj)
+          if mr >= 2: c_mem[1].store(p_C[1], jj)
+          if mr >= 3: c_mem[2].store(p_C[2], jj)
+          if mr >= 4: c_mem[3].store(p_C[3], jj)
 
         # /end for ci
-
-        # Increment p_C 
-        # for ci in range(mr):
-        #    p_C[ci].v = p_C[ci] + nc * C_col_stride
-        
       # /end for jj
       
       # Increment p_C 
@@ -302,22 +372,6 @@ class SynGEPB:
     ppc.set_active_code(old_code)
     return
 
-# class SynGEPP:
-
-#   def synthesize(self, code, M, K, N, kc, nc):
-
-#     r_B_addr = ppcvar.UnsignedWord()
-#     r_B_addr
-#     for j in range(0, N, nc):
-#       jnc = j+nc
-#       # Pack B into tB
-#       tB[:,:] = B[k:k+kc, j:jnc]
-
-#       proc.execute(code, params = params)
-#       params.p3 += nc8
-
-#     return
-  
 def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   """
@@ -337,7 +391,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   nc = min(nc, N)
   kc = min(kc, K)
   mc = min(mc, M)
-  # code.set_debug(True)
+  code.set_debug(True)
   gepb.synthesize(code, M, K, N, kc, nc, mr, nr)
   code.cache_code()
   # code.print_code()
@@ -590,7 +644,7 @@ def create_matrices(m, k, n):
   C.shape = (m, n)
   return A, B, C
 
-def test(algs, niters = 2, validate = False):
+def test(algs, niters = 5, validate = False):
   """
   Test a numcer of algorithms and return the results.
   """
@@ -619,9 +673,14 @@ def test(algs, niters = 2, validate = False):
         alg(A, B, C)
         _validate(alg.func_name, m, n, k, C, C_valid)
 
+      KC = [32, 64, 128, 256]
+      KC = [64]
+      NC = [32, 64, 128, 256]
+      NC = [32] 
+
       for mc in [32]: # , 64, 128, 256]:
-        for kc in [64]: # [32, 64, 128, 256]:
-          for nc in [32]: # , 64, 128, 256]:
+        for kc in KC:
+          for nc in NC:
             print '  ', mc, kc, nc
             times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
             result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
@@ -775,7 +834,7 @@ def main():
   colors = 'rgbko'
 
   # algs = [numeric_mm, numeric_gemm_var1_flat, numeric_gemm_var1_row, syn_gemm]
-  algs = [numeric_mm, syn_gemm]  
+  algs = [syn_gemm]  
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
 
