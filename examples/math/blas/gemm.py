@@ -455,91 +455,66 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   proc = synppc.Processor()
 
   gepb = SynGEPB()  
-  pm1 = synppc.ExecParams()
-  pm2 = synppc.ExecParams()  
+
 
   packb = SynPackB()
   
-  C_aux1 = Numeric.zeros((mr, nc), typecode=Numeric.Float)
-  C_aux2 = Numeric.zeros((mr, nc), typecode=Numeric.Float)  
-
   M, N = C.shape
-  M = M
   K = A.shape[0]
 
   nc = min(nc, N)
   kc = min(kc, K)
   mc = min(mc, M)
 
+  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
+  tB = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
+  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+
   cgepb.set_debug(True)
   gepb.synthesize(cgepb, M, K, N, kc, nc, mr, nr, _transpose = True)
   cgepb.cache_code()
   # cgepb.print_code()
 
-  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)
-
-  # tB1 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 14.0
-  tB1 = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
-  tB2 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 15.0
-
   cpackb.set_debug(True)
-  packb.synthesize(cpackb, tB1, N)
+  packb.synthesize(cpackb, tB, N)
   cpackb.cache_code()
   # cpackb.print_code()  
 
-  pack_params = synppc.ExecParams()
   B_addr = synppc.array_address(B)
+  C_addr = synppc.array_address(C)
 
-  C_addr1 = synppc.array_address(C)
-  C_addr2 = synppc.array_address(C) + (N / 2) * 8
+  pack_params = synppc.ExecParams()
+  pm = synppc.ExecParams()
 
-  pm1.p1 = synppc.array_address(tA)
-  pm1.p2 = synppc.array_address(tB1)
-  pm1.p3 = C_addr1
-  pm1.p4 = synppc.array_address(C_aux1)  
-
-  pm2.p1 = synppc.array_address(tA)
-  pm2.p2 = synppc.array_address(tB2)
-  pm2.p3 = C_addr2
-  pm2.p4 = synppc.array_address(C_aux2)  
+  pm.p1 = synppc.array_address(tA)
+  pm.p2 = synppc.array_address(tB)
+  pm.p3 = C_addr
+  pm.p4 = synppc.array_address(C_aux)  
 
   nc8 = nc * 8
   total = 0.0
 
   start = time.time()
 
-  # print 'Addresses: tA 0x%08X tB 0x%08X C 0x%08X' % (pm1.p1, pm1.p2, pm1.p3)
   k = 0
   for k in range(0, K, kc):
     # Pack A into tA
     tA[:,:] = A[:,k:k+kc]
 
-    pm1.p3 = C_addr1
-    # pm2.p3 = C_addr + nc8
-    # pm2.p3 = C_addr2
+    pm.p3 = C_addr
+
     kN = k * N * 8
     for j in range(0, N * 8, nc * 8):
-      # Pack B into tB
-      # tB1[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
+      # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
       pack_params.p1 = B_addr + kN + j # (k * N + j) * 8
-      t1 = proc.execute(cpackb, params = pack_params)
-      # tB1[:,:] = B[k:k+kc, j:j+nc]
-
-      # j2 = j + N/2
-      # tB2[:,:] = B[k:k+kc, j2:j2+nc]      
+      proc.execute(cpackb, params = pack_params)
 
       # start1 = time.time()
-      t1 = proc.execute(cgepb, params = pm1) # , mode = 'async')
+      proc.execute(cgepb, params = pm)
       # stop1  = time.time()
       # total += stop1 - start1
-      # t2 = proc.execute(cgepb, params = pm2) # , mode = 'async')
-
-      # proc.join(t1)
-      # proc.join(t2)
       
-      pm1.p3 += nc8 
-      # pm2.p3 += nc8 
+      pm.p3 += nc8 
 
   end = time.time()
 
