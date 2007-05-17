@@ -163,6 +163,47 @@ import corepy.arch.ppc.types.ppc_types as ppcvar
 
 from corepy.arch.ppc.lib.iterators import syn_range, syn_iter, CTR
 
+class SynPackB:
+
+  def synthesize(self, code, tB, N):
+    """
+    Extract a block from B and pack it for fast access.
+
+    tB is transposed.
+    """
+    old_code = ppc.get_active_code()
+    ppc.set_active_code(code)
+
+    code.add_storage(tB)
+    
+    nc, kc = tB.shape
+
+    vN = ppcvar.UnsignedWord(N)
+    vkc = ppcvar.UnsignedWord(kc)
+    
+    vB = ppcvar.UnsignedWord()
+    vBi = ppcvar.UnsignedWord()
+
+    bij = ppcvar.UnsignedWord()
+    tbji = ppcvar.UnsignedWord()
+    
+    vb = ppcvar.DoubleFloat()
+
+    vtB = ppcvar.UnsignedWord(synppc.array_address(tB))
+    vB.copy_register(3) # First parameter
+    
+    for i in syn_iter(code, kc):
+      vBi = i * vN
+      
+      for j in syn_iter(code, nc):
+        bij.v  = (vBi + j) * 8
+        tbji.v = (j * kc + i) * 8
+        vb.load(vB, bij)
+        vb.store(vtB, tbji)        
+
+    ppc.set_active_code(old_code)        
+    return
+
 class SynGEPB:
 
   def reg_loop_4x4(self, a, b, c, mr, nr, p_tA, p_tB, A_row_stride, B_col_stride):
@@ -409,13 +450,16 @@ class SynGEPB:
 def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   """
-  code = synppc.InstructionStream()
+  cgepb = synppc.InstructionStream()
+  cpackb = synppc.InstructionStream()  
   proc = synppc.Processor()
 
-  gepb = SynGEPB()
+  gepb = SynGEPB()  
   pm1 = synppc.ExecParams()
   pm2 = synppc.ExecParams()  
 
+  packb = SynPackB()
+  
   C_aux1 = Numeric.zeros((mr, nc), typecode=Numeric.Float)
   C_aux2 = Numeric.zeros((mr, nc), typecode=Numeric.Float)  
 
@@ -427,12 +471,10 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   kc = min(kc, K)
   mc = min(mc, M)
 
-  code.set_debug(True)
-  gepb.synthesize(code, M, K, N, kc, nc, mr, nr, _transpose = True)
-  code.cache_code()
-  # code.print_code()
-  
-  start = time.time()
+  cgepb.set_debug(True)
+  gepb.synthesize(cgepb, M, K, N, kc, nc, mr, nr, _transpose = True)
+  cgepb.cache_code()
+  # cgepb.print_code()
 
   tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
   tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)
@@ -440,7 +482,15 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   # tB1 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 14.0
   tB1 = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
   tB2 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 15.0
-  
+
+  cpackb.set_debug(True)
+  packb.synthesize(cpackb, tB1, N)
+  cpackb.cache_code()
+  # cpackb.print_code()  
+
+  pack_params = synppc.ExecParams()
+  B_addr = synppc.array_address(B)
+
   C_addr1 = synppc.array_address(C)
   C_addr2 = synppc.array_address(C) + (N / 2) * 8
 
@@ -457,6 +507,8 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   nc8 = nc * 8
   total = 0.0
 
+  start = time.time()
+
   # print 'Addresses: tA 0x%08X tB 0x%08X C 0x%08X' % (pm1.p1, pm1.p2, pm1.p3)
   k = 0
   for k in range(0, K, kc):
@@ -466,20 +518,22 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
     pm1.p3 = C_addr1
     # pm2.p3 = C_addr + nc8
     # pm2.p3 = C_addr2
-    
-    for j in range(0, N, nc):
+    kN = k * N * 8
+    for j in range(0, N * 8, nc * 8):
       # Pack B into tB
-      tB1[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
+      # tB1[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
+      pack_params.p1 = B_addr + kN + j # (k * N + j) * 8
+      t1 = proc.execute(cpackb, params = pack_params)
       # tB1[:,:] = B[k:k+kc, j:j+nc]
 
       # j2 = j + N/2
       # tB2[:,:] = B[k:k+kc, j2:j2+nc]      
 
       # start1 = time.time()
-      t1 = proc.execute(code, params = pm1) # , mode = 'async')
+      t1 = proc.execute(cgepb, params = pm1) # , mode = 'async')
       # stop1  = time.time()
       # total += stop1 - start1
-      # t2 = proc.execute(code, params = pm2) # , mode = 'async')
+      # t2 = proc.execute(cgepb, params = pm2) # , mode = 'async')
 
       # proc.join(t1)
       # proc.join(t2)
@@ -727,6 +781,59 @@ def test_syn_gemm():
   _validate('syn_gemm', m,n,k, C, C_valid)
   return
 
+
+def test_syn_pack_b():
+
+  # Create a 10x10 B array of indices
+  B = Numeric.zeros((10, 10), typecode = Numeric.Float)
+  a = Numeric.arange(10)
+
+  for i in range(10):
+    B[i,:] = a + i * 10
+
+  B.shape = (10,10)
+
+  # Create the packed array
+  tB = Numeric.arange(25, typecode = Numeric.Float) * 0.0
+  tB.shape = (5,5)
+
+  B_offset = 3 * 10 + 0
+
+  K, N = B.shape
+  nc, kc = tB.shape
+
+  pack_b = SynPackB()
+  
+  code = synppc.InstructionStream()
+  proc = synppc.Processor()
+  params = synppc.ExecParams()
+
+  pack_b.synthesize(code, tB, N)
+  
+  params.p1 = synppc.array_address(B) + B_offset * 8
+
+  proc.execute(code, params = params)
+  
+  
+  # Validate
+  B.shape  = (K * N,)
+
+  tB_valid = Numeric.arange(nc*kc, typecode = Numeric.Float) * 0.0
+
+  for i in range(kc):
+    B_row = B_offset + i * N
+    for j in range(nc):
+      b  = B_row + j
+      tb = j * kc + i
+      tB_valid[tb] = B[b]
+        
+  tB_valid.shape = (nc,kc)
+  B.shape  = (K, N)
+
+  _validate('syn_pack_b', nc, nc, N, tB, tB_valid)
+
+  return
+
 def test(algs, niters = 2, validate = False):
   """
   Test a numcer of algorithms and return the results.
@@ -823,8 +930,9 @@ if __name__=='__main__':
   # test_numeric_gemm_var1()
   # test_numeric_gemm_var1_flat()
   # test_numeric_gemm_var1_row()
-  test_syn_gepb()
+  # test_syn_gepb()
   # test_syn_gemm()
+  # test_syn_pack_b()
   main()
   # proto_reg_mm_4x4()
   
