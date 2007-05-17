@@ -823,8 +823,8 @@ def test(algs, niters = 2, validate = False):
   # Cache effects show up between 2048 and 4096 on a G4
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
   tests = [128, 256, 512] # , 1024, 2048] #, 4096]
-  # tests = [1024]
-  tests = [512]
+  tests = [1024]
+  # tests = [512] 
   for size in tests: 
     m,n,k = (size, size, size)
     A, B, C = create_matrices(m, k, n)
@@ -841,11 +841,11 @@ def test(algs, niters = 2, validate = False):
 
       KC = [32, 64, 128, 256] # , 512]
       KC = [32, 64, 128, 256] # , 256] # , 512]      
-      KC = [64]
-      KC = [128]
+      # KC = [64]
+      # KC = [128]
       # KC = [128, 128, 128]      
-      # NC = [32, 64, 128, 256] # , 512]
-      NC = [32, 32, 32] 
+      NC = [32, 64, 128, 256] # , 512]
+      # NC = [32, 32, 32] 
       # NC = [256, 256, 256]
 
       for mc in [32]: # , 64, 128, 256]:
