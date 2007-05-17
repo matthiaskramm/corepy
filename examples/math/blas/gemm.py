@@ -266,7 +266,7 @@ class SynGEPB:
     # /end for jj
     return
 
-  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1): 
+  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1, _transpose = False): 
     """
     tA is M  x nc
     tB is nc x kc
@@ -288,10 +288,14 @@ class SynGEPB:
     A_col_stride = 8
     A_row_stride = kc * A_col_stride
 
-    B_col_stride = 8
-    B_row_stride = nc * B_col_stride
-    # B_row_stride = 8
-    # B_col_stride = nc * B_row_stride
+    # B_col_stride = 8
+    # B_row_stride = nc * B_col_stride
+    if _transpose:
+      B_row_stride = 8
+      B_col_stride = kc * B_row_stride
+    else:
+      B_col_stride = 8      
+      B_row_stride = nc * B_col_stride
 
     # Address variables
     r_tA_addr = ppcvar.UnsignedWord()
@@ -309,8 +313,6 @@ class SynGEPB:
     p_tB = ppcvar.UnsignedWord()
     p_C  = [ppcvar.UnsignedWord() for i in range(mr)]
     p_C_aux = [ppcvar.UnsignedWord() for i in range(mr)]
-
-    tB_inc = ppcvar.UnsignedWord(kc * nr)
 
     JJ = ppcvar.UnsignedWord()
     
@@ -342,14 +344,14 @@ class SynGEPB:
 
       # For each column in C
       # for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride * nr):
-      for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride * nr):
+      for jj in syn_range(code, 0, nc, nr):
 
         # Set p_tA to the current row in tA
         p_tA.v = r_tA_addr + ii * A_row_stride # * mr
         # prefetch_load(0, p_tA)
         
         # Set p_tB to the current col in tB
-        p_tB.v = r_tB_addr + jj
+        p_tB.v = r_tB_addr + jj * B_col_stride
         
         # Zero the c register block
         ppc.fsubx(c[0][0], c[0][0], c[0][0])
@@ -358,92 +360,21 @@ class SynGEPB:
             c[ci][cj].copy_register(c[0][0])
             
         # Inner loop over k
-
-        # Increment p_tA, p_tB
-        a[0].load(p_tA, 0 * A_row_stride)
-        b[0].load(p_tB, 0 * B_col_stride)
-        b[1].load(p_tB, 1 * B_col_stride)                    
-        a[1].load(p_tA, 1 * A_row_stride)
-        
-        b[2].load(p_tB, 2 * B_col_stride)          
-        b[3].load(p_tB, 3 * B_col_stride)
-          
-        a[2].load(p_tA, 2 * A_row_stride)
-        a[3].load(p_tA, 3 * A_row_stride)
-        
-        p_tA.v = p_tA + A_col_stride
-        p_tB.v = p_tB + B_row_stride
-        
-        for k in syn_iter(code, kc / 2 , mode = CTR): # syn_range(code, 0, kc * 8, 8):
-          # self.reg_loop_simple(a, b, c, mr, nr, p_tA, p_tB, A_row_stride, B_row_stride)
-
-          a_pre[0].load(p_tA, 0 * A_row_stride)
-          b_pre[1].load(p_tB, 1 * B_col_stride)
-          b_pre[0].load(p_tB, 0 * B_col_stride)          
-          a_pre[1].load(p_tA, 1 * A_row_stride)
-
-          b_pre[2].load(p_tB, 2 * B_col_stride)
-          b_pre[3].load(p_tB, 3 * B_col_stride)          
-
-          a_pre[2].load(p_tA, 2 * A_row_stride)
-          a_pre[3].load(p_tA, 3 * A_row_stride)
+        for k in syn_iter(code, kc, mode = CTR): # syn_range(code, 0, kc * 8, 8):
+          # Load the next values from tA and tB -- generating loops
+          for ai in range(mr):
+            a[ai].load(p_tA, ai * A_row_stride)
+    
+          for bj in range(nr):
+            b[bj].load(p_tB, bj * B_col_stride)
+    
+          # Update c -- generating loop
+          for ci in range(mr):
+            for cj in range(nr):
+              c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
 
           p_tA.v = p_tA + A_col_stride
           p_tB.v = p_tB + B_row_stride
-          
-          c[0][0].v = ppcvar.fmadd(a[0], b[0], c[0][0]); 
-          c[0][1].v = ppcvar.fmadd(a[0], b[1], c[0][1]);
-          c[1][0].v = ppcvar.fmadd(a[1], b[0], c[1][0])
-          c[1][1].v = ppcvar.fmadd(a[1], b[1], c[1][1])
-
-          c[1][2].v = ppcvar.fmadd(a[1], b[2], c[1][2])
-          c[0][2].v = ppcvar.fmadd(a[0], b[2], c[0][2]); 
-          c[2][0].v = ppcvar.fmadd(a[2], b[0], c[2][0])
-          c[2][1].v = ppcvar.fmadd(a[2], b[1], c[2][1])
-
-          c[2][2].v = ppcvar.fmadd(a[2], b[2], c[2][2])
-          c[2][3].v = ppcvar.fmadd(a[2], b[3], c[2][3])
-          c[0][3].v = ppcvar.fmadd(a[0], b[3], c[0][3]);
-          c[1][3].v = ppcvar.fmadd(a[1], b[3], c[1][3])
-          
-          c[3][0].v = ppcvar.fmadd(a[3], b[0], c[3][0])
-          c[3][1].v = ppcvar.fmadd(a[3], b[1], c[3][1])
-          c[3][2].v = ppcvar.fmadd(a[3], b[2], c[3][2])
-          c[3][3].v = ppcvar.fmadd(a[3], b[3], c[3][3])
-
-          a[0].load(p_tA, 0 * A_row_stride)
-          b[1].load(p_tB, 1 * B_col_stride)
-          b[0].load(p_tB, 0 * B_col_stride)
-          a[1].load(p_tA, 1 * A_row_stride)
-          
-          b[2].load(p_tB, 2 * B_col_stride)
-          b[3].load(p_tB, 3 * B_col_stride)
-
-          a[2].load(p_tA, 2 * A_row_stride)
-          a[3].load(p_tA, 3 * A_row_stride)
-
-          p_tA.v = p_tA + A_col_stride
-          p_tB.v = p_tB + B_row_stride
-
-          c[0][0].v = ppcvar.fmadd(a_pre[0], b_pre[0], c[0][0]); 
-          c[0][1].v = ppcvar.fmadd(a_pre[0], b_pre[1], c[0][1]);
-          c[1][0].v = ppcvar.fmadd(a_pre[1], b_pre[0], c[1][0])
-          c[1][1].v = ppcvar.fmadd(a_pre[1], b_pre[1], c[1][1])
-
-          c[1][2].v = ppcvar.fmadd(a_pre[1], b_pre[2], c[1][2])
-          c[0][2].v = ppcvar.fmadd(a_pre[0], b_pre[2], c[0][2]); 
-          c[2][0].v = ppcvar.fmadd(a_pre[2], b_pre[0], c[2][0])
-          c[2][1].v = ppcvar.fmadd(a_pre[2], b_pre[1], c[2][1])
-
-          c[2][2].v = ppcvar.fmadd(a_pre[2], b_pre[2], c[2][2])
-          c[2][3].v = ppcvar.fmadd(a_pre[2], b_pre[3], c[2][3])
-          c[0][3].v = ppcvar.fmadd(a_pre[0], b_pre[3], c[0][3]);
-          c[1][3].v = ppcvar.fmadd(a_pre[1], b_pre[3], c[1][3])
-
-          c[3][0].v = ppcvar.fmadd(a_pre[3], b_pre[0], c[3][0])
-          c[3][1].v = ppcvar.fmadd(a_pre[3], b_pre[1], c[3][1])
-          c[3][2].v = ppcvar.fmadd(a_pre[3], b_pre[2], c[3][2])
-          c[3][3].v = ppcvar.fmadd(a_pre[3], b_pre[3], c[3][3])
 
         # /end for k
 
@@ -457,9 +388,6 @@ class SynGEPB:
         for ci in range(mr):
           p_C_aux[ci].v = p_C_aux[ci] + C_col_stride * nr
 
-        # For B transpose
-        # p_tB.v = p_tB + kc * (nr - 1) * B_row_stride
-
       # /end for jj
 
       # Reset p_C_aux
@@ -467,52 +395,8 @@ class SynGEPB:
         p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
 
       # Copy C_aux to C
-      # self.c_aux_save_simple(code, nc, mr, a, b, p_C, p_C_aux, C_col_stride)
+      self.c_aux_save_simple(code, nc, mr, a, b, p_C, p_C_aux, C_col_stride)
 
-      c_mem = a + b
-      if mr > 1:  c_aux = c[0] + c[1]
-      else:       c_aux = c[0]
-
-      for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
-        JJ = jj
-
-        # ~ 650 Mflops (one extra unroll does not affect result)
-        if mr >= 1:
-          c_mem[0].load(p_C[0], JJ)
-          c_aux[0].load(p_C_aux[0], JJ)
-        
-        if mr >= 2:
-          c_mem[1].load(p_C[1], JJ)
-          c_aux[1].load(p_C_aux[1], JJ)
-
-        if mr >= 1:
-          c_mem[0].v = c_mem[0] + c_aux[0]
-
-        if mr >= 2:
-          c_mem[1].v = c_mem[1] + c_aux[1]
-
-        if mr >= 3:
-          c_mem[2].load(p_C[2], JJ)
-          c_aux[2].load(p_C_aux[2], JJ)
-
-        if mr >= 4:
-          c_mem[3].load(p_C[3], JJ)
-          c_aux[3].load(p_C_aux[3], JJ)
-
-        if mr >= 3:
-          c_mem[2].v = c_mem[2] + c_aux[2]
-
-        if mr >= 4:
-          c_mem[3].v = c_mem[3] + c_aux[3]
-
-        if mr >= 1: c_mem[0].store(p_C[0], JJ)
-        if mr >= 2: c_mem[1].store(p_C[1], JJ)
-        if mr >= 3: c_mem[2].store(p_C[2], JJ)
-        if mr >= 4: c_mem[3].store(p_C[3], JJ)
-
-        # /end for ci
-      # /end for jj
-      
       # Increment p_C 
       for ci in range(mr):
         p_C[ci].v = p_C[ci] + C_row_stride * mr
@@ -544,7 +428,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   mc = min(mc, M)
 
   code.set_debug(True)
-  gepb.synthesize(code, M, K, N, kc, nc, mr, nr)
+  gepb.synthesize(code, M, K, N, kc, nc, mr, nr, _transpose = True)
   code.cache_code()
   # code.print_code()
   
@@ -553,8 +437,8 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
   tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)
 
-  tB1 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 14.0
-  # tB1 = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
+  # tB1 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 14.0
+  tB1 = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
   tB2 = Numeric.zeros((kc, nc), typecode = Numeric.Float) + 15.0
   
   C_addr1 = synppc.array_address(C)
@@ -585,8 +469,8 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
     
     for j in range(0, N, nc):
       # Pack B into tB
-      # tB1[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
-      tB1[:,:] = B[k:k+kc, j:j+nc]
+      tB1[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
+      # tB1[:,:] = B[k:k+kc, j:j+nc]
 
       # j2 = j + N/2
       # tB2[:,:] = B[k:k+kc, j2:j2+nc]      
@@ -858,6 +742,7 @@ def test(algs, niters = 2, validate = False):
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
   tests = [128, 256, 512] # , 1024, 2048] #, 4096]
   # tests = [1024]
+  tests = [512]
   for size in tests: 
     m,n,k = (size, size, size)
     A, B, C = create_matrices(m, k, n)
@@ -874,12 +759,12 @@ def test(algs, niters = 2, validate = False):
 
       KC = [32, 64, 128, 256] # , 512]
       KC = [32, 64, 128, 256] # , 256] # , 512]      
-      # KC = [64]
+      KC = [64]
       KC = [128]
       # KC = [128, 128, 128]      
       # NC = [32, 64, 128, 256] # , 512]
-      # NC = [32, 32, 32] 
-      NC = [256, 256, 256]
+      NC = [32, 32, 32] 
+      # NC = [256, 256, 256]
 
       for mc in [32]: # , 64, 128, 256]:
         for kc in KC:
@@ -938,7 +823,7 @@ if __name__=='__main__':
   # test_numeric_gemm_var1()
   # test_numeric_gemm_var1_flat()
   # test_numeric_gemm_var1_row()
-  # test_syn_gepb()
+  test_syn_gepb()
   # test_syn_gemm()
   main()
   # proto_reg_mm_4x4()
