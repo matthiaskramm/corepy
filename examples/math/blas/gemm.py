@@ -165,32 +165,70 @@ from corepy.arch.ppc.lib.iterators import syn_range, syn_iter, CTR
 
 class SynPackB:
 
-  def synthesize(self, code, tB, N):
-    """
-    Extract a block from B and pack it for fast access.
-
-    tB is transposed.
-    """
-    old_code = ppc.get_active_code()
-    ppc.set_active_code(code)
-
+  def _init_constants(self, code, tB, N):
     code.add_storage(tB)
     
     nc, kc = tB.shape
 
-    vN = ppcvar.UnsignedWord(N)
-    vkc = ppcvar.UnsignedWord(kc)
-    
-    vB = ppcvar.UnsignedWord()
-    vBi = ppcvar.UnsignedWord()
+    self.block = _block()
+    self.block.nc = nc
+    self.block.kc = kc    
 
-    bij = ppcvar.UnsignedWord()
-    tbji = ppcvar.UnsignedWord()
+    self.dim = _dim(-1, -1, N)
+    self.tB = tB
     
-    vb = ppcvar.DoubleFloat()
+    return
 
-    vtB = ppcvar.UnsignedWord(synppc.array_address(tB))
-    vB.copy_register(3) # First parameter
+  def _init_vars(self, vb = None, vtB = None):
+    
+    self.vN = ppcvar.UnsignedWord(self.dim.N)
+    
+    self.vB = ppcvar.UnsignedWord()
+    self.vBi = ppcvar.UnsignedWord()
+
+    self.bij = ppcvar.UnsignedWord()
+    self.tbji = ppcvar.UnsignedWord()
+
+    self.vb_local = True
+    if vb is None:
+      self.vb = ppcvar.DoubleFloat()
+    else:
+      self.vb = vb; self.vb_local = False
+
+    self.vtB_local = True
+    if vtB is None:
+      self.vtB = ppcvar.UnsignedWord(synppc.array_address(self.tB))
+    else:
+      self.vtB = vtB; self.vtB_local = False
+
+    return
+
+  def _release_vars(self, code):
+    code.release_register(self.vN.reg)
+    
+    code.release_register(self.vB.reg)
+    code.release_register(self.vBi.reg)
+
+    code.release_register(self.bij.reg)
+    code.release_register(self.tbji.reg)
+
+    if self.vb_local:
+      code.release_register(self.vb.reg)
+
+    if self.vtB_local:
+      code.release_register(self.vtB.reg)
+    
+    return
+  
+  def _load_params(self, pvB = 3):
+    self.vB.copy_register(pvB) # First parameter    
+    return
+
+  def _pack_b(self, code):
+    kc, nc, = self.block.kc, self.block.nc
+    
+    vb, vB, vtB, vBi, bij, tbji, vN = (
+      self.vb, self.vB, self.vtB, self.vBi, self.bij, self.tbji, self.vN)
     
     for i in syn_iter(code, kc):
       vBi = i * vN
@@ -201,9 +239,45 @@ class SynPackB:
         vb.load(vB, bij)
         vb.store(vtB, tbji)        
 
+    return
+
+  def synthesize(self, code, tB, N):
+    """
+    Extract a block from B and pack it for fast access.
+
+    tB is transposed.
+    """
+    old_code = ppc.get_active_code()
+    ppc.set_active_code(code)
+
+    code.add_storage(tB)
+
+    self._init_constants(code, tB, N)
+    self._init_vars()
+    self._load_params()
+    self._pack_b(code)
+
     ppc.set_active_code(old_code)        
     return
 
+class _dim:
+  def __init__(self, M, K, N):
+    self.M = M
+    self.K = K
+    self.N = N
+    return
+
+class _stride:
+  def __init__(self, row, col):
+    self.row = row
+    self.col = col
+    return
+
+class _block:
+  def __init__(self):
+    # empty -- use appropriate property names (e.g, mr/nr
+    return
+    
 class SynGEPB:
 
   def reg_loop_4x4(self, a, b, c, mr, nr, p_tA, p_tB, A_row_stride, B_col_stride):
@@ -291,9 +365,12 @@ class SynGEPB:
     
     return
 
-  def c_aux_save_simple(self, code, nc, mr, a, b, p_C, p_C_aux, C_col_stride):
+  def c_aux_save_simple(self, code):
     # Copy C_aux to C
     # ~620 MFlops
+    nc, mr, a, b, p_C, p_C_aux, C_col_stride = (
+      self.block.nc, self.block.mr, self.a, self.b, self.p_C, self.p_C_aux, self.C_strides.col)
+    
     for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
       for ci in range(mr):
     
@@ -307,20 +384,10 @@ class SynGEPB:
     # /end for jj
     return
 
-  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1, _transpose = False): 
-    """
-    tA is M  x nc
-    tB is nc x kc
-    C  is M  x nc
-    I  is the current block column in C
-    """
+  def prefetch_load(self, A, B):  return ppc.dcbt(A, B)
+  def prefetch_store(self, A, B): return ppc.dcbtst(A, B)
 
-    def prefetch_load(A, B):  return ppc.dcbt(A, B)
-    def prefetch_store(A, B): return ppc.dcbtst(A, B)
-
-    old_code = ppc.get_active_code()
-    ppc.set_active_code(code)
-
+  def _init_constants(self, M, K, N, kc, nc, mr, nr, _transpose):
     # Constants
     C_col_stride = 8    
     C_row_stride = N * C_col_stride
@@ -338,112 +405,182 @@ class SynGEPB:
       B_col_stride = 8      
       B_row_stride = nc * B_col_stride
 
+    self.A_strides = A_row_stride
+    self.A_col_stride = A_col_stride
+
+    self.B_row_stride = B_row_stride
+    self.B_col_stride = B_col_stride
+
+    self.C_row_stride = C_row_stride
+    self.C_col_stride = C_col_stride
+
+    self.A_strides = _stride(A_row_stride, A_col_stride)
+    self.B_strides = _stride(B_row_stride, B_col_stride)
+    self.C_strides = _stride(C_row_stride, C_col_stride)
+    
+    self.dims = _dim(M, N, K)
+
+    self.block = _block()
+    self.block.kc = kc
+    self.block.nc = nc
+    self.block.mr = mr
+    self.block.nr = nr
+    
+    return
+
+  def _init_vars(self):
     # Address variables
-    r_tA_addr = ppcvar.UnsignedWord()
-    r_tB_addr = ppcvar.UnsignedWord()
-    r_C_addr  = ppcvar.UnsignedWord()
-    r_C_aux_addr  = ppcvar.UnsignedWord()    
+    self.r_tA_addr = ppcvar.UnsignedWord()
+    self.r_tB_addr = ppcvar.UnsignedWord()
+    self.r_C_addr  = ppcvar.UnsignedWord()
+    self.r_C_aux_addr  = ppcvar.UnsignedWord()    
 
-    # Load addresses from function parameters
-    ppc.addi(r_tA_addr, 3, 0)
-    ppc.addi(r_tB_addr, 4, 0)
-    ppc.addi(r_C_addr,  5, 0)
-    ppc.addi(r_C_aux_addr,  6, 0)    
+    self.p_tA = ppcvar.UnsignedWord()
+    self.p_tB = ppcvar.UnsignedWord()
+    self.p_C  = [ppcvar.UnsignedWord() for i in range(self.block.mr)]
+    self.p_C_aux = [ppcvar.UnsignedWord() for i in range(self.block.mr)]
+
+    self.JJ = ppcvar.UnsignedWord()
+
+    mr, nr = self.block.mr, self.block.nr
     
-    p_tA = ppcvar.UnsignedWord()
-    p_tB = ppcvar.UnsignedWord()
-    p_C  = [ppcvar.UnsignedWord() for i in range(mr)]
-    p_C_aux = [ppcvar.UnsignedWord() for i in range(mr)]
-
-    JJ = ppcvar.UnsignedWord()
-    
-    # Set the array pointers 
-    p_tA.v = r_tA_addr
-    p_tB.v = r_tB_addr
-
-    for ci in range(mr):
-      p_C[ci].v = r_C_addr + ci * C_row_stride
-      p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
-
     # Inner loop variables
     if mr != nr:
       raise Exception('mr (%d) should equal nr (%d)' % (mr, nr))
 
-    a = [ppcvar.DoubleFloat() for i in range(mr)]
-    b = [ppcvar.DoubleFloat() for j in range(nr)]
+    self.a = [ppcvar.DoubleFloat() for i in range(mr)]
+    self.b = [ppcvar.DoubleFloat() for j in range(nr)]
 
-    a_pre = [ppcvar.DoubleFloat() for i in range(mr)]
-    b_pre = [ppcvar.DoubleFloat() for j in range(nr)]
+    self.a_pre = [ppcvar.DoubleFloat() for i in range(mr)]
+    self.b_pre = [ppcvar.DoubleFloat() for j in range(nr)]
 
-    c = [[ppcvar.DoubleFloat() for j in range(nr)] for i in range(mr)]
+    self.c = [[ppcvar.DoubleFloat() for j in range(nr)] for i in range(mr)]
 
+    return
+
+  def _load_params(self, ptA_addr = 3, ptB_addr = 4, pC_addr = 5, pC_aux_addr = 6):
+
+    # Load addresses from function parameters
+    ppc.addi(self.r_tA_addr, ptA_addr, 0)
+    ppc.addi(self.r_tB_addr, ptB_addr, 0)
+    ppc.addi(self.r_C_addr,  pC_addr, 0)
+    ppc.addi(self.r_C_aux_addr,  pC_aux_addr, 0)    
+
+    return
+
+  def _init_pointers(self):
+
+    # Set the array pointers 
+    self.p_tA.v = self.r_tA_addr
+    self.p_tB.v = self.r_tB_addr
+
+    for ci in range(self.block.mr):
+      self.p_C[ci].v = self.r_C_addr + ci * self.C_strides.row
+      self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (self.block.nc * self.C_strides.col)
+
+    return
+
+  def k_loop_simple(self, code):
+    kc, mr, nr = self.block.kc, self.block.mr, self.block.nr
+    a, b, c = self.a, self.b, self.c
+    p_tA, p_tB = self.p_tA, self.p_tB
+    
+    # Inner loop over k
+    for k in syn_iter(code, kc, mode = CTR): # syn_range(code, 0, kc * 8, 8):
+      # Load the next values from tA and tB -- generating loops
+      for ai in range(mr):
+        a[ai].load(p_tA, ai * self.A_strides.row)
+    
+      for bj in range(nr):
+        b[bj].load(p_tB, bj * self.B_strides.col)
+    
+      # Update c -- generating loop
+      for ci in range(mr):
+        for cj in range(nr):
+          c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
+          
+      p_tA.v = p_tA + self.A_strides.col
+      p_tB.v = p_tB + self.B_strides.row
+    # /end for k
+
+    return
+
+  def _gepb(self, code):
+    a, b, c = self.a, self.b, self.c
+    p_tA, p_tB = self.p_tA, self.p_tB
+    M = self.dims.M
+    mr, nr, nc = self.block.mr, self.block.nr, self.block.nc
+    
     # For each row in C
     for ii in syn_range(code, 0, M, mr):
 
       # Reset p_tB
-      p_tB.v = r_tB_addr
+      p_tB.v = self.r_tB_addr
 
       # For each column in C
-      # for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride * nr):
       for jj in syn_range(code, 0, nc, nr):
 
         # Set p_tA to the current row in tA
-        p_tA.v = r_tA_addr + ii * A_row_stride # * mr
-        # prefetch_load(0, p_tA)
-        
+        p_tA.v = self.r_tA_addr + ii * self.A_strides.row # * mr
+            
         # Set p_tB to the current col in tB
-        p_tB.v = r_tB_addr + jj * B_col_stride
+        p_tB.v = self.r_tB_addr + jj * self.B_strides.col
         
         # Zero the c register block
         ppc.fsubx(c[0][0], c[0][0], c[0][0])
         for ci in range(mr):
           for cj in range(nr):
             c[ci][cj].copy_register(c[0][0])
-            
-        # Inner loop over k
-        for k in syn_iter(code, kc, mode = CTR): # syn_range(code, 0, kc * 8, 8):
-          # Load the next values from tA and tB -- generating loops
-          for ai in range(mr):
-            a[ai].load(p_tA, ai * A_row_stride)
-    
-          for bj in range(nr):
-            b[bj].load(p_tB, bj * B_col_stride)
-    
-          # Update c -- generating loop
-          for ci in range(mr):
-            for cj in range(nr):
-              c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
 
-          p_tA.v = p_tA + A_col_stride
-          p_tB.v = p_tB + B_row_stride
-
-        # /end for k
-
+        self.k_loop_simple(code)
+        
         # Save c_current to c_aux -- generating loop
         # (this is OK performance-wise)
         for ci in range(mr):
           for cj in range(nr):
-            c[ci][cj].store(p_C_aux[ci], cj * C_col_stride)
+            c[ci][cj].store(self.p_C_aux[ci], cj * self.C_strides.col)
             
         # Increment the sub-matrix in C_aux
         for ci in range(mr):
-          p_C_aux[ci].v = p_C_aux[ci] + C_col_stride * nr
+          self.p_C_aux[ci].v = self.p_C_aux[ci] + self.C_strides.col * nr
 
       # /end for jj
 
       # Reset p_C_aux
       for ci in range(mr):
-        p_C_aux[ci].v = r_C_aux_addr + ci * (nc * C_col_stride)
+        self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (nc * self.C_strides.col)
 
       # Copy C_aux to C
-      self.c_aux_save_simple(code, nc, mr, a, b, p_C, p_C_aux, C_col_stride)
+      self.c_aux_save_simple(code)
 
       # Increment p_C 
       for ci in range(mr):
-        p_C[ci].v = p_C[ci] + C_row_stride * mr
+        self.p_C[ci].v = self.p_C[ci] + self.C_strides.row * mr
             
     # /end for ii
 
+    return
+  
+  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1, _transpose = False): 
+    """
+    tA is M  x nc
+    tB is nc x kc
+    C  is M  x nc
+    I  is the current block column in C
+    """
+
+
+    old_code = ppc.get_active_code()
+    ppc.set_active_code(code)
+
+    self._init_constants(M, K, N, kc, nc, mr, nr, _transpose)
+
+    self._init_vars()
+    self._load_params()
+    self._init_pointers()
+
+    self._gepb(code)
+    
     ppc.set_active_code(old_code)
     return
 
@@ -455,7 +592,6 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   proc = synppc.Processor()
 
   gepb = SynGEPB()  
-
 
   packb = SynPackB()
   
@@ -906,9 +1042,9 @@ if __name__=='__main__':
   # test_numeric_gemm_var1_flat()
   # test_numeric_gemm_var1_row()
   # test_syn_gepb()
-  # test_syn_gemm()
+  test_syn_gemm()
   # test_syn_pack_b()
-  main()
+  # main()
   # proto_reg_mm_4x4()
   
   
