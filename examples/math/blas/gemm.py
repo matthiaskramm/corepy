@@ -179,6 +179,25 @@ class SynPackB:
     
     return
 
+  def _init_vars2(self, vars, fvar):
+    """
+    Use variables in vars instead of allocating new ones.
+    """
+    self.vN = vars[0]
+    self.vN.v = self.dim.N
+    
+    self.vB = vars[1]
+    self.vBi = vars[2]
+
+    self.bij = vars[3]
+    self.tbji = vars[4]
+
+    self.vtB = vars[5]
+    self.vtB.v = synppc.array_address(self.tB)
+
+    self.vb = fvar
+    return
+  
   def _init_vars(self, vb = None, vtB = None):
     
     self.vN = ppcvar.UnsignedWord(self.dim.N)
@@ -203,23 +222,6 @@ class SynPackB:
 
     return
 
-  def _release_vars(self, code):
-    code.release_register(self.vN.reg)
-    
-    code.release_register(self.vB.reg)
-    code.release_register(self.vBi.reg)
-
-    code.release_register(self.bij.reg)
-    code.release_register(self.tbji.reg)
-
-    if self.vb_local:
-      code.release_register(self.vb.reg)
-
-    if self.vtB_local:
-      code.release_register(self.vtB.reg)
-    
-    return
-  
   def _load_params(self, pvB = 3):
     self.vB.copy_register(pvB) # First parameter    
     return
@@ -584,6 +586,53 @@ class SynGEPB:
     ppc.set_active_code(old_code)
     return
 
+
+class SynGEPP:
+  def __init__(self):
+    return
+
+  def synthesize(self, code, tB, M, K, N, kc, nc, mr = 1, nr = 1):
+    old_code = ppc.get_active_code()
+    ppc.set_active_code(code)
+
+    gepb  = SynGEPB()
+    packb = SynPackB()
+
+    gepb._init_constants(M, K, N, kc, nc, mr, nr, True)
+    packb._init_constants(code, tB, N)
+
+    gepb._init_vars()
+
+    # Reuse the C/C_aux registers for B.  They are set in init pointers.
+    packb._init_vars2(gepb.p_C + gepb.p_C_aux, gepb.c[0][0])
+    
+    gepb._load_params()
+    packb._load_params(pvB = 7)
+
+    # kN = k * N * 8
+    # for j in range(0, N * 8, nc * 8):
+    for j in syn_iter(code, 0, N*8, nc*8):    
+      # # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
+      # pack_params.p1 = B_addr + kN + j # (k * N + j) * 8      
+      packb.vB.v = packb.vB + j
+      packb.vtB.v = synppc.array_address(tB)
+      packb.vN.v = N
+
+      # proc.execute(cpackb, params = pack_params)
+      packb._pack_b(code)
+      
+      # proc.execute(cgepb, params = pm)
+      gepb._init_pointers()
+      gepb._gepb(code)
+
+      # pm.p3 += nc8
+      gepb.r_C_addr.v = gepb.r_C_addr + nc * 8
+    # /end for j
+
+    ppc.set_active_code(old_code)
+    return 
+
+
 def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
   """
   """
@@ -651,6 +700,59 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
       # total += stop1 - start1
       
       pm.p3 += nc8 
+
+  end = time.time()
+
+  return end - start
+
+def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1):
+  """
+  """
+  cgepp = synppc.InstructionStream()
+  proc = synppc.Processor()
+
+  gepp = SynGEPP()  
+  
+  M, N = C.shape
+  K = A.shape[0]
+
+  nc = min(nc, N)
+  kc = min(kc, K)
+  mc = min(mc, M)
+
+  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
+  tB = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
+  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+
+  cgepp.set_debug(True)
+  gepp.synthesize(cgepp, tB, M, K, N, kc, nc, mr, nr)
+  cgepp.cache_code()
+  # cgepb.print_code()
+
+  B_addr = synppc.array_address(B)
+  C_addr = synppc.array_address(C)
+
+  pack_params = synppc.ExecParams()
+  pm = synppc.ExecParams()
+
+  pm.p1 = synppc.array_address(tA)
+  pm.p2 = synppc.array_address(tB)
+  pm.p3 = C_addr
+  pm.p4 = synppc.array_address(C_aux)  
+
+  nc8 = nc * 8
+  total = 0.0
+
+  start = time.time()
+
+  k = 0
+  for k in range(0, K, kc):
+    # Pack A into tA
+    tA[:,:] = A[:,k:k+kc]
+
+    pm.p3 = C_addr
+    pm.p4 = B_addr + k * N * 8
+    proc.execute(cgepp, params = pm)
 
   end = time.time()
 
@@ -892,6 +994,29 @@ def test_syn_gemm():
   _validate('syn_gemm', m,n,k, C, C_valid)
   return
 
+def test_syn_gemm_pp():
+  # m, k, n = (512, 512, 512)
+  m, k, n = (256, 256, 256)
+  # m, k, n = (128, 128, 128)
+  # m, k, n = (64, 64, 64)
+  
+  # m, k, n = (8, 8, 8)
+  A, B, C = create_matrices(m, k, n)
+
+  mc = 32
+  kc = 32
+  nc = 64
+  
+  mr = 4
+  nr = 4
+
+  syn_gemm_pp(A, B, C, mc, kc, nc, mr = mr, nr = nr)
+
+  C_valid = Numeric.matrixmultiply(A, B)
+  
+  _validate('syn_gemm_pp', m,n,k, C, C_valid)
+  return
+
 
 def test_syn_pack_b():
 
@@ -1042,7 +1167,8 @@ if __name__=='__main__':
   # test_numeric_gemm_var1_flat()
   # test_numeric_gemm_var1_row()
   # test_syn_gepb()
-  test_syn_gemm()
+  # test_syn_gemm()
+  test_syn_gemm_pp()
   # test_syn_pack_b()
   # main()
   # proto_reg_mm_4x4()
