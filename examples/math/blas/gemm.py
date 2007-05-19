@@ -179,25 +179,6 @@ class SynPackB:
     
     return
 
-  def _init_vars2(self, vars, fvar):
-    """
-    Use variables in vars instead of allocating new ones.
-    """
-    self.vN = vars[0]
-    self.vN.v = self.dim.N
-    
-    self.vB = vars[1]
-    self.vBi = vars[2]
-
-    self.bij = vars[3]
-    self.tbji = vars[4]
-
-    self.vtB = vars[5]
-    self.vtB.v = synppc.array_address(self.tB)
-
-    self.vb = fvar
-    return
-  
   def _init_vars(self, vb = None, vtB = None):
     
     self.vN = ppcvar.UnsignedWord(self.dim.N)
@@ -222,6 +203,27 @@ class SynPackB:
 
     return
 
+  def _init_vars2(self, vars, fvar, vtB):
+    """
+    Use variables in vars instead of allocating new ones.
+    """
+
+    # vB cannot change between runs, allocate locally.
+    self.vB = ppcvar.UnsignedWord()
+    
+    self.vN = vars[0]
+    self.vN.v = self.dim.N
+
+    self.vBi = vars[1]
+    self.bij = vars[2]
+    self.tbji = vars[3]
+
+    self.vtB = vtB
+
+    self.vb = fvar
+    return
+  
+
   def _load_params(self, pvB = 3):
     self.vB.copy_register(pvB) # First parameter    
     return
@@ -231,9 +233,10 @@ class SynPackB:
     
     vb, vB, vtB, vBi, bij, tbji, vN = (
       self.vb, self.vB, self.vtB, self.vBi, self.bij, self.tbji, self.vN)
+
     
     for i in syn_iter(code, kc):
-      vBi = i * vN
+      vBi.v = i * vN
       
       for j in syn_iter(code, nc):
         bij.v  = (vBi + j) * 8
@@ -477,11 +480,112 @@ class SynGEPB:
     self.p_tB.v = self.r_tB_addr
 
     for ci in range(self.block.mr):
-      self.p_C[ci].v = self.r_C_addr + ci * self.C_strides.row
+      self.p_C[ci].v     = self.r_C_addr     + ci * self.C_strides.row
       self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (self.block.nc * self.C_strides.col)
 
     return
 
+  def k_loop_prefetch(self, code):
+    A_row_stride = self.A_strides.row
+    A_col_stride = self.A_strides.col
+
+    B_row_stride = self.B_strides.row
+    B_col_stride = self.B_strides.col
+
+    kc, mr, nr = self.block.kc, self.block.mr, self.block.nr
+    a, b, c = self.a, self.b, self.c
+    a_pre, b_pre = self.a_pre, self.b_pre
+    p_tA, p_tB = self.p_tA, self.p_tB
+
+    # Increment p_tA, p_tB
+    a[0].load(p_tA, 0 * A_row_stride)
+    b[0].load(p_tB, 0 * B_col_stride)
+    b[1].load(p_tB, 1 * B_col_stride)                    
+    a[1].load(p_tA, 1 * A_row_stride)
+    
+    b[2].load(p_tB, 2 * B_col_stride)          
+    b[3].load(p_tB, 3 * B_col_stride)
+    
+    a[2].load(p_tA, 2 * A_row_stride)
+    a[3].load(p_tA, 3 * A_row_stride)
+    
+    p_tA.v = p_tA + A_col_stride
+    p_tB.v = p_tB + B_row_stride
+    
+    for k in syn_iter(code, kc / 2 , mode = CTR): # syn_range(code, 0, kc * 8, 8):
+      # self.reg_loop_simple(a, b, c, mr, nr, p_tA, p_tB, A_row_stride, B_row_stride)
+      
+      a_pre[0].load(p_tA, 0 * A_row_stride)
+      b_pre[1].load(p_tB, 1 * B_col_stride)
+      b_pre[0].load(p_tB, 0 * B_col_stride)          
+      a_pre[1].load(p_tA, 1 * A_row_stride)
+      
+      b_pre[2].load(p_tB, 2 * B_col_stride)
+      b_pre[3].load(p_tB, 3 * B_col_stride)          
+      
+      a_pre[2].load(p_tA, 2 * A_row_stride)
+      a_pre[3].load(p_tA, 3 * A_row_stride)
+      
+      p_tA.v = p_tA + A_col_stride
+      p_tB.v = p_tB + B_row_stride
+      
+      c[0][0].v = ppcvar.fmadd(a[0], b[0], c[0][0]); 
+      c[0][1].v = ppcvar.fmadd(a[0], b[1], c[0][1]);
+      c[1][0].v = ppcvar.fmadd(a[1], b[0], c[1][0])
+      c[1][1].v = ppcvar.fmadd(a[1], b[1], c[1][1])
+      
+      c[1][2].v = ppcvar.fmadd(a[1], b[2], c[1][2])
+      c[0][2].v = ppcvar.fmadd(a[0], b[2], c[0][2]); 
+      c[2][0].v = ppcvar.fmadd(a[2], b[0], c[2][0])
+      c[2][1].v = ppcvar.fmadd(a[2], b[1], c[2][1])
+      
+      c[2][2].v = ppcvar.fmadd(a[2], b[2], c[2][2])
+      c[2][3].v = ppcvar.fmadd(a[2], b[3], c[2][3])
+      c[0][3].v = ppcvar.fmadd(a[0], b[3], c[0][3]);
+      c[1][3].v = ppcvar.fmadd(a[1], b[3], c[1][3])
+      
+      c[3][0].v = ppcvar.fmadd(a[3], b[0], c[3][0])
+      c[3][1].v = ppcvar.fmadd(a[3], b[1], c[3][1])
+      c[3][2].v = ppcvar.fmadd(a[3], b[2], c[3][2])
+      c[3][3].v = ppcvar.fmadd(a[3], b[3], c[3][3])
+      
+      a[0].load(p_tA, 0 * A_row_stride)
+      b[1].load(p_tB, 1 * B_col_stride)
+      b[0].load(p_tB, 0 * B_col_stride)
+      a[1].load(p_tA, 1 * A_row_stride)
+      
+      b[2].load(p_tB, 2 * B_col_stride)
+      b[3].load(p_tB, 3 * B_col_stride)
+      
+      a[2].load(p_tA, 2 * A_row_stride)
+      a[3].load(p_tA, 3 * A_row_stride)
+      
+      p_tA.v = p_tA + A_col_stride
+      p_tB.v = p_tB + B_row_stride
+      
+      c[0][0].v = ppcvar.fmadd(a_pre[0], b_pre[0], c[0][0]); 
+      c[0][1].v = ppcvar.fmadd(a_pre[0], b_pre[1], c[0][1]);
+      c[1][0].v = ppcvar.fmadd(a_pre[1], b_pre[0], c[1][0])
+      c[1][1].v = ppcvar.fmadd(a_pre[1], b_pre[1], c[1][1])
+      
+      c[1][2].v = ppcvar.fmadd(a_pre[1], b_pre[2], c[1][2])
+      c[0][2].v = ppcvar.fmadd(a_pre[0], b_pre[2], c[0][2]); 
+      c[2][0].v = ppcvar.fmadd(a_pre[2], b_pre[0], c[2][0])
+      c[2][1].v = ppcvar.fmadd(a_pre[2], b_pre[1], c[2][1])
+      
+      c[2][2].v = ppcvar.fmadd(a_pre[2], b_pre[2], c[2][2])
+      c[2][3].v = ppcvar.fmadd(a_pre[2], b_pre[3], c[2][3])
+      c[0][3].v = ppcvar.fmadd(a_pre[0], b_pre[3], c[0][3]);
+      c[1][3].v = ppcvar.fmadd(a_pre[1], b_pre[3], c[1][3])
+      
+      c[3][0].v = ppcvar.fmadd(a_pre[3], b_pre[0], c[3][0])
+      c[3][1].v = ppcvar.fmadd(a_pre[3], b_pre[1], c[3][1])
+      c[3][2].v = ppcvar.fmadd(a_pre[3], b_pre[2], c[3][2])
+      c[3][3].v = ppcvar.fmadd(a_pre[3], b_pre[3], c[3][3])
+      
+      # /end for k
+    return
+  
   def k_loop_simple(self, code):
     kc, mr, nr = self.block.kc, self.block.mr, self.block.nr
     a, b, c = self.a, self.b, self.c
@@ -534,7 +638,8 @@ class SynGEPB:
           for cj in range(nr):
             c[ci][cj].copy_register(c[0][0])
 
-        self.k_loop_simple(code)
+        # self.k_loop_simple(code)
+        self.k_loop_prefetch(code)
         
         # Save c_current to c_aux -- generating loop
         # (this is OK performance-wise)
@@ -604,29 +709,32 @@ class SynGEPP:
     gepb._init_vars()
 
     # Reuse the C/C_aux registers for B.  They are set in init pointers.
-    packb._init_vars2(gepb.p_C + gepb.p_C_aux, gepb.c[0][0])
+    packb._init_vars2(gepb.p_C, gepb.c[0][0], gepb.r_tB_addr)
     
     gepb._load_params()
     packb._load_params(pvB = 7)
 
     # kN = k * N * 8
     # for j in range(0, N * 8, nc * 8):
-    for j in syn_iter(code, 0, N*8, nc*8):    
+    for j in syn_iter(code, N, nc):
       # # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
       # pack_params.p1 = B_addr + kN + j # (k * N + j) * 8      
-      packb.vB.v = packb.vB + j
-      packb.vtB.v = synppc.array_address(tB)
+
       packb.vN.v = N
 
       # proc.execute(cpackb, params = pack_params)
       packb._pack_b(code)
-      
+
       # proc.execute(cgepb, params = pm)
       gepb._init_pointers()
       gepb._gepb(code)
 
-      # pm.p3 += nc8
+      # pm.p3 += nc8      
       gepb.r_C_addr.v = gepb.r_C_addr + nc * 8
+
+      # !!! STOPPED HERE --> Something silly is going based on nc (seems to be vB is not updating) !!!      
+      packb.vB.v = packb.vB + nc * 8      
+
     # /end for j
 
     ppc.set_active_code(old_code)
@@ -688,17 +796,18 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
 
     pm.p3 = C_addr
 
-    kN = k * N * 8
-    for j in range(0, N * 8, nc * 8):
+    # kN = B_addr + k * N * 8
+    pack_params.p1 =  B_addr + k * N * 8
+    for j in range(0, N, nc):
       # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
-      pack_params.p1 = B_addr + kN + j # (k * N + j) * 8
       proc.execute(cpackb, params = pack_params)
 
       # start1 = time.time()
       proc.execute(cgepb, params = pm)
       # stop1  = time.time()
       # total += stop1 - start1
-      
+
+      pack_params.p1 +=  nc8
       pm.p3 += nc8 
 
   end = time.time()
@@ -722,12 +831,12 @@ def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1):
 
   tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
   tB = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
-  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float) 
 
   cgepp.set_debug(True)
   gepp.synthesize(cgepp, tB, M, K, N, kc, nc, mr, nr)
   cgepp.cache_code()
-  # cgepb.print_code()
+  # cgepp.print_code()
 
   B_addr = synppc.array_address(B)
   C_addr = synppc.array_address(C)
@@ -751,7 +860,7 @@ def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1):
     tA[:,:] = A[:,k:k+kc]
 
     pm.p3 = C_addr
-    pm.p4 = B_addr + k * N * 8
+    pm.p5 = B_addr + k * N * 8
     proc.execute(cgepp, params = pm)
 
   end = time.time()
@@ -811,11 +920,11 @@ def _validate(name, m, n, k, C, C_valid):
       # or i == 3 or i == 4
       # (i == 0 or i == 1 or i == 2 ) and 
       if Numeric.product(row) == 0:
-        if (0 <= i <= 3): # (i == 99999):
+        if True or (0 <= i <= 3): # (i == 99999):
           print 'row', i, 'failed'
           print C[i,:4]
           print C_valid[i,:4]
-          print row[:4]
+          print row#[:4]
       else:
         print 'row', i, 'succeeded'
     raise Exception("Algorithm '%s' failed validation for %d x %d x %d matrices" %
@@ -1012,8 +1121,10 @@ def test_syn_gemm_pp():
 
   syn_gemm_pp(A, B, C, mc, kc, nc, mr = mr, nr = nr)
 
+  print A[0, :4]
+  print B[0, :4]  
   C_valid = Numeric.matrixmultiply(A, B)
-  
+
   _validate('syn_gemm_pp', m,n,k, C, C_valid)
   return
 
@@ -1085,7 +1196,7 @@ def test(algs, niters = 2, validate = False):
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
   tests = [128, 256, 512] # , 1024, 2048] #, 4096]
   tests = [1024]
-  # tests = [512] 
+  tests = [512] 
   for size in tests: 
     m,n,k = (size, size, size)
     A, B, C = create_matrices(m, k, n)
@@ -1128,7 +1239,7 @@ def main():
   colors = 'rgbko'
 
   # algs = [numeric_mm, numeric_gemm_var1_flat, numeric_gemm_var1_row, syn_gemm]
-  algs = [syn_gemm]  
+  algs = [syn_gemm, syn_gemm_pp]  
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
 
@@ -1168,9 +1279,9 @@ if __name__=='__main__':
   # test_numeric_gemm_var1_row()
   # test_syn_gepb()
   # test_syn_gemm()
-  test_syn_gemm_pp()
+  # test_syn_gemm_pp()
   # test_syn_pack_b()
-  # main()
+  main()
   # proto_reg_mm_4x4()
   
   
