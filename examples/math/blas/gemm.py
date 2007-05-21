@@ -1,4 +1,11 @@
 # Matrix-Matrix Multiplication Examples
+# NOTE: This is a work in progress
+
+# Work-in-progress copyright:
+# 
+#   Copyright (c) 2007 Christopher Mueller
+#   The contents of this file may not be used for any purposes without 
+#   written permission from the author.
 
 import Numeric
 import time
@@ -282,9 +289,15 @@ class _block:
   def __init__(self):
     # empty -- use appropriate property names (e.g, mr/nr
     return
-    
+
+gepb_simple, gepb_prefetch, gepb_prefetch_hand = range(3)
+
 class SynGEPB:
 
+  def __init__(self, mode = gepb_simple):
+    self.mode = mode
+    return
+  
   def reg_loop_4x4(self, a, b, c, mr, nr, p_tA, p_tB, A_row_stride, B_col_stride):
     a[0].load(p_tA, 0 * A_row_stride)
     b[0].load(p_tB, 0 * B_col_stride)
@@ -585,7 +598,64 @@ class SynGEPB:
       
       # /end for k
     return
-  
+
+  def k_loop_prefetch_simple(self, code):
+    kc, mr, nr = self.block.kc, self.block.mr, self.block.nr
+    a, b, c = self.a, self.b, self.c
+    a_pre, b_pre = self.a_pre, self.b_pre
+    p_tA, p_tB = self.p_tA, self.p_tB
+
+    # Load the next values from tA and tB 
+    for ai in range(mr):
+      a[ai].load(p_tA, ai * self.A_strides.row)
+      
+    for bj in range(nr):
+      b[bj].load(p_tB, bj * self.B_strides.col)
+
+    p_tA.v = p_tA + self.A_strides.col
+    p_tB.v = p_tB + self.B_strides.row
+        
+
+    # Inner loop over k
+    for k in syn_iter(code, kc / 2, mode = CTR): # syn_range(code, 0, kc * 8, 8):
+
+      # Iteration 1 -- load [a,b]_pre, compute [a,b]
+      # Load the prefetch values from tA and tB 
+      for ai in range(mr):
+        a_pre[ai].load(p_tA, ai * self.A_strides.row)
+    
+      for bj in range(nr):
+        b_pre[bj].load(p_tB, bj * self.B_strides.col)
+
+      p_tA.v = p_tA + self.A_strides.col
+      p_tB.v = p_tB + self.B_strides.row
+
+      # Update c
+      for ci in range(mr):
+        for cj in range(nr):
+          c[ci][cj].v = ppcvar.fmadd(a[ci], b[cj], c[ci][cj])
+
+      # Iteration 2l -- oad [a,b], compute [a,b]_pre
+      # Load the prefetch values from tA and tB 
+      for ai in range(mr):
+        a_pre[ai].load(p_tA, ai * self.A_strides.row)
+    
+      for bj in range(nr):
+        b_pre[bj].load(p_tB, bj * self.B_strides.col)
+
+      p_tA.v = p_tA + self.A_strides.col
+      p_tB.v = p_tB + self.B_strides.row
+
+      # Update c
+      for ci in range(mr):
+        for cj in range(nr):
+          c[ci][cj].v = ppcvar.fmadd(a_pre[ci], b_pre[cj], c[ci][cj])
+          
+    # /end for k
+
+    return
+
+
   def k_loop_simple(self, code):
     kc, mr, nr = self.block.kc, self.block.mr, self.block.nr
     a, b, c = self.a, self.b, self.c
@@ -639,7 +709,14 @@ class SynGEPB:
             c[ci][cj].copy_register(c[0][0])
 
         # self.k_loop_simple(code)
-        self.k_loop_prefetch(code)
+        if self.mode == gepb_simple:
+          self.k_loop_simple(code)                        
+        elif self.mode == gepb_prefetch:
+          self.k_loop_prefetch_simple(code)              
+        elif self.mode == gepb_prefetch_hand:
+          self.k_loop_prefetch(code)              
+        else:
+          raise Exception("Unknown inner loop mode: %s" % (str(self.mode)))
         
         # Save c_current to c_aux -- generating loop
         # (this is OK performance-wise)
@@ -693,14 +770,15 @@ class SynGEPB:
 
 
 class SynGEPP:
-  def __init__(self):
+  def __init__(self, gepb_mode = gepb_simple):
+    self.gepb_mode = gepb_mode
     return
 
   def synthesize(self, code, tB, M, K, N, kc, nc, mr = 1, nr = 1):
     old_code = ppc.get_active_code()
     ppc.set_active_code(code)
 
-    gepb  = SynGEPB()
+    gepb  = SynGEPB(self.gepb_mode)
     packb = SynPackB()
 
     gepb._init_constants(M, K, N, kc, nc, mr, nr, True)
@@ -741,14 +819,14 @@ class SynGEPP:
     return 
 
 
-def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
+def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   """
   """
   cgepb = synppc.InstructionStream()
   cpackb = synppc.InstructionStream()  
   proc = synppc.Processor()
 
-  gepb = SynGEPB()  
+  gepb = SynGEPB(gepb_mode)  
 
   packb = SynPackB()
   
@@ -814,13 +892,20 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1):
 
   return end - start
 
-def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1):
+def syn_gemm_prefetch(A, B, C, mc, kc, nc, mr=1, nr=1):
+  return syn_gemm(A, B, C, mc, kc, nc, mr, nr, gepb_mode = gepb_prefetch)
+
+def syn_gemm_hand(A, B, C, mc, kc, nc, mr=1, nr=1):
+  return syn_gemm(A, B, C, mc, kc, nc, mr, nr, gepb_mode = gepb_prefetch_hand)
+    
+   
+def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   """
   """
   cgepp = synppc.InstructionStream()
   proc = synppc.Processor()
 
-  gepp = SynGEPP()  
+  gepp = SynGEPP(gepb_mode)  
   
   M, N = C.shape
   K = A.shape[0]
@@ -866,6 +951,12 @@ def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1):
   end = time.time()
 
   return end - start
+
+def syn_gemm_pp_prefetch(A, B, C, mc, kc, nc, mr=1, nr=1):
+  return syn_gemm_pp(A, B, C, mc, kc, nc, mr, nr, gepb_mode = gepb_prefetch)
+
+def syn_gemm_pp_hand(A, B, C, mc, kc, nc, mr=1, nr=1):
+  return syn_gemm_pp(A, B, C, mc, kc, nc, mr, nr, gepb_mode = gepb_prefetch_hand)
 
 
 # ------------------------------------------------------------
@@ -1213,20 +1304,24 @@ def test(algs, niters = 2, validate = False):
 
       KC = [32, 64, 128, 256] # , 512]
       KC = [32, 64, 128, 256] # , 256] # , 512]      
-      # KC = [64]
-      # KC = [128]
+      KC = [64]
       # KC = [128, 128, 128]      
-      NC = [32, 64, 128, 256] # , 512]
+      # NC = [32, 64, 128, 256] # , 512]
       # NC = [32, 32, 32] 
       # NC = [256, 256, 256]
-
+      NC = [128]
+      
       for mc in [32]: # , 64, 128, 256]:
         for kc in KC:
           for nc in NC:
             print '  ', mc, kc, nc
-            times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
-            result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
-            results.append(result)
+            # try:
+            if True:
+              times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
+              result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
+              results.append(result)
+            # except:
+            #   print 'Failed: ', alg.func_name, m, k, n, mc, kc, nc, times
 
   return results
 
@@ -1239,7 +1334,10 @@ def main():
   colors = 'rgbko'
 
   # algs = [numeric_mm, numeric_gemm_var1_flat, numeric_gemm_var1_row, syn_gemm]
-  algs = [syn_gemm, syn_gemm_pp]  
+  algs = [numeric_gemm_var1_row,
+          syn_gemm, syn_gemm_prefetch, syn_gemm_hand,
+          syn_gemm_pp, syn_gemm_pp_prefetch, syn_gemm_pp_hand]
+  
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
 
