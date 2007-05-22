@@ -388,7 +388,7 @@ class SynGEPB:
     # ~620 MFlops
     nc, mr, a, b, p_C, p_C_aux, C_col_stride = (
       self.block.nc, self.block.mr, self.a, self.b, self.p_C, self.p_C_aux, self.C_strides.col)
-    
+
     for jj in syn_range(code, 0, nc * C_col_stride, C_col_stride):
       for ci in range(mr):
     
@@ -402,6 +402,56 @@ class SynGEPB:
     # /end for jj
     return
 
+  def c_aux_save_hand(self, code):
+    mr = self.block.mr
+    nc = self.block.nc
+    p_C = self.p_C
+    p_C_aux = self.p_C_aux
+    
+    c_mem = self.a + self.b
+    if mr > 1:  c_aux = self.c[0] + self.c[1]
+    else:       c_aux = self.c[0]
+    
+    for jj in syn_range(code, 0, nc * self.C_strides.col, self.C_strides.col):
+      JJ = jj
+      
+      # ~ 650 Mflops (one extra unroll does not affect result)
+      if mr >= 1:
+        c_mem[0].load(p_C[0], JJ)
+        c_aux[0].load(p_C_aux[0], JJ)
+        
+      if mr >= 2:
+        c_mem[1].load(p_C[1], JJ)
+        c_aux[1].load(p_C_aux[1], JJ)
+        
+      if mr >= 1:
+        c_mem[0].v = c_mem[0] + c_aux[0]
+        
+      if mr >= 2:
+        c_mem[1].v = c_mem[1] + c_aux[1]
+        
+      if mr >= 3:
+        c_mem[2].load(p_C[2], JJ)
+        c_aux[2].load(p_C_aux[2], JJ)
+        
+      if mr >= 4:
+        c_mem[3].load(p_C[3], JJ)
+        c_aux[3].load(p_C_aux[3], JJ)
+        
+      if mr >= 3:
+        c_mem[2].v = c_mem[2] + c_aux[2]
+        
+      if mr >= 4:
+        c_mem[3].v = c_mem[3] + c_aux[3]
+        
+      if mr >= 1: c_mem[0].store(p_C[0], JJ)
+      if mr >= 2: c_mem[1].store(p_C[1], JJ)
+      if mr >= 3: c_mem[2].store(p_C[2], JJ)
+      if mr >= 4: c_mem[3].store(p_C[3], JJ)
+
+    # /end for jj
+    return
+    
   def prefetch_load(self, A, B):  return ppc.dcbt(A, B)
   def prefetch_store(self, A, B): return ppc.dcbtst(A, B)
 
@@ -436,7 +486,7 @@ class SynGEPB:
     self.B_strides = _stride(B_row_stride, B_col_stride)
     self.C_strides = _stride(C_row_stride, C_col_stride)
     
-    self.dims = _dim(M, N, K)
+    self.dims = _dim(M, K, N)
 
     self.block = _block()
     self.block.kc = kc
@@ -458,7 +508,7 @@ class SynGEPB:
     self.p_C  = [ppcvar.UnsignedWord() for i in range(self.block.mr)]
     self.p_C_aux = [ppcvar.UnsignedWord() for i in range(self.block.mr)]
 
-    self.JJ = ppcvar.UnsignedWord()
+    self.vC_row_stride = ppcvar.UnsignedWord(self.C_strides.row)
 
     mr, nr = self.block.mr, self.block.nr
     
@@ -493,7 +543,7 @@ class SynGEPB:
     self.p_tB.v = self.r_tB_addr
 
     for ci in range(self.block.mr):
-      self.p_C[ci].v     = self.r_C_addr     + ci * self.C_strides.row
+      self.p_C[ci].v     = self.r_C_addr + ci * self.vC_row_stride # self.C_strides.row
       self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (self.block.nc * self.C_strides.col)
 
     return
@@ -534,9 +584,9 @@ class SynGEPB:
       a_pre[1].load(p_tA, 1 * A_row_stride)
       
       b_pre[2].load(p_tB, 2 * B_col_stride)
-      b_pre[3].load(p_tB, 3 * B_col_stride)          
-      
       a_pre[2].load(p_tA, 2 * A_row_stride)
+
+      b_pre[3].load(p_tB, 3 * B_col_stride)          
       a_pre[3].load(p_tA, 3 * A_row_stride)
       
       p_tA.v = p_tA + A_col_stride
@@ -686,7 +736,7 @@ class SynGEPB:
     p_tA, p_tB = self.p_tA, self.p_tB
     M = self.dims.M
     mr, nr, nc = self.block.mr, self.block.nr, self.block.nc
-    
+
     # For each row in C
     for ii in syn_range(code, 0, M, mr):
 
@@ -718,7 +768,7 @@ class SynGEPB:
         else:
           raise Exception("Unknown inner loop mode: %s" % (str(self.mode)))
         
-        # Save c_current to c_aux -- generating loop
+        # Save c_current to c_aux 
         # (this is OK performance-wise)
         for ci in range(mr):
           for cj in range(nr):
@@ -735,12 +785,13 @@ class SynGEPB:
         self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (nc * self.C_strides.col)
 
       # Copy C_aux to C
-      self.c_aux_save_simple(code)
+      # self.c_aux_save_simple(code)
+      self.c_aux_save_hand(code)
 
-      # Increment p_C 
+      # Increment p_C
       for ci in range(mr):
-        self.p_C[ci].v = self.p_C[ci] + self.C_strides.row * mr
-            
+        self.p_C[ci].v = self.p_C[ci] + self.vC_row_stride * mr
+
     # /end for ii
 
     return
@@ -810,7 +861,6 @@ class SynGEPP:
       # pm.p3 += nc8      
       gepb.r_C_addr.v = gepb.r_C_addr + nc * 8
 
-      # !!! STOPPED HERE --> Something silly is going based on nc (seems to be vB is not updating) !!!      
       packb.vB.v = packb.vB + nc * 8      
 
     # /end for j
@@ -866,7 +916,8 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   total = 0.0
 
   start = time.time()
-
+  
+  # print hex(pm.p3), hex(pm.p4)
   k = 0
   for k in range(0, K, kc):
     # Pack A into tA
@@ -877,6 +928,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
     # kN = B_addr + k * N * 8
     pack_params.p1 =  B_addr + k * N * 8
     for j in range(0, N, nc):
+      # print k, j, M, K, N, kc, nc, mr, nr
       # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
       proc.execute(cpackb, params = pack_params)
 
@@ -884,7 +936,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
       proc.execute(cgepb, params = pm)
       # stop1  = time.time()
       # total += stop1 - start1
-
+      # print 'ping'
       pack_params.p1 +=  nc8
       pm.p3 += nc8 
 
@@ -1029,6 +1081,7 @@ def run_alg(alg, A, B, C, mc, kc, nc, mr, nr, niters):
   """
   times = []
   for i in range(niters):
+    Numeric.multiply(C, 0.0, C)
     start = time.time()
     t = alg(A, B, C, mc, kc, nc, mr, nr)
     end   = time.time()
@@ -1041,9 +1094,11 @@ def run_alg(alg, A, B, C, mc, kc, nc, mr, nr, niters):
   return times
 
 def create_matrices(m, k, n):
-  A = Numeric.arange(m*k, typecode = Numeric.Float)
-  B = Numeric.arange(k*n, typecode = Numeric.Float)
-  C = Numeric.zeros(m*n, typecode = Numeric.Float)
+  # A = Numeric.arange(m*k, typecode = Numeric.Float)
+  A = Numeric.zeros((m,k), typecode = Numeric.Float) + 1.0
+  # B = Numeric.arange(k*n, typecode = Numeric.Float)
+  B = Numeric.zeros((k,n), typecode = Numeric.Float) + 1.0
+  C = Numeric.zeros((m,n), typecode = Numeric.Float)
 
   A.shape = (m, k)
   B.shape = (k, n)
@@ -1181,13 +1236,15 @@ def test_syn_gemm():
   A, B, C = create_matrices(m, k, n)
 
   mc = 32
-  kc = 32
-  nc = 64
+  kc = 64
+  nc = 32
   
   mr = 4
   nr = 4
 
   syn_gemm(A, B, C, mc, kc, nc, mr = mr, nr = nr)
+  C[:,:] = C * 0
+  syn_gemm(A, B, C, mc, kc, nc, mr = mr, nr = nr)  
 
   C_valid = Numeric.matrixmultiply(A, B)
   
@@ -1272,7 +1329,7 @@ def test_syn_pack_b():
 
   return
 
-def test(algs, niters = 2, validate = False):
+def test(algs, niters = 5, validate = False):
   """
   Test a numcer of algorithms and return the results.
   """
@@ -1285,9 +1342,10 @@ def test(algs, niters = 2, validate = False):
 
   # Cache effects show up between 2048 and 4096 on a G4
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
-  tests = [128, 256, 512] # , 1024, 2048] #, 4096]
-  tests = [1024]
-  tests = [512] 
+  tests = [128, 256, 512, 1024, 2048, 4096]
+  # tests = [4096]
+  tests = [2048]
+  # tests = [512] 
   for size in tests: 
     m,n,k = (size, size, size)
     A, B, C = create_matrices(m, k, n)
@@ -1296,30 +1354,33 @@ def test(algs, niters = 2, validate = False):
       C_valid = Numeric.matrixmultiply(A, B)
 
     for alg in algs:
-      Numeric.multiply(C, 0, C)
       print alg.func_name, size
       if validate:
         alg(A, B, C)
         _validate(alg.func_name, m, n, k, C, C_valid)
 
-      KC = [32, 64, 128, 256] # , 512]
+      # KC = [32, 64, 128, 256] # , 512]
       KC = [32, 64, 128, 256] # , 256] # , 512]      
-      KC = [64]
-      # KC = [128, 128, 128]      
-      # NC = [32, 64, 128, 256] # , 512]
+      # KC = [64]
+      KC = [128, 256]
+      KC = [256]
+      NC = [32, 64, 128, 256] # , 512]
       # NC = [32, 32, 32] 
       # NC = [256, 256, 256]
+      # NC = [128, 128, 128]
+      NC = [128, 256]
       NC = [128]
-      
+
       for mc in [32]: # , 64, 128, 256]:
         for kc in KC:
           for nc in NC:
-            print '  ', mc, kc, nc
+            # print '  ', mc, kc, nc
             # try:
             if True:
               times = run_alg(alg, A, B, C, mc, kc, nc, 4, 4, niters)
               result = _result(alg.func_name, m, k, n, mc, kc, nc, times)
               results.append(result)
+              print result
             # except:
             #   print 'Failed: ', alg.func_name, m, k, n, mc, kc, nc, times
 
@@ -1334,9 +1395,10 @@ def main():
   colors = 'rgbko'
 
   # algs = [numeric_mm, numeric_gemm_var1_flat, numeric_gemm_var1_row, syn_gemm]
-  algs = [numeric_gemm_var1_row,
+  algs = [# numeric_gemm_var1_row,
           syn_gemm, syn_gemm_prefetch, syn_gemm_hand,
           syn_gemm_pp, syn_gemm_pp_prefetch, syn_gemm_pp_hand]
+  algs = [syn_gemm_hand, syn_gemm_pp_hand]
   
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
