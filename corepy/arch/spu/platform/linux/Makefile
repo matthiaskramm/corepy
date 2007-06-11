@@ -56,6 +56,9 @@ _spu_execmodule.so: spu_exec_wrap.o
 spu_bootstrap.o: spu_bootstrap.c spu_constants.h
 	spu-gcc spu_bootstrap.c -o spu_bootstrap.o
 
+spu_native_test.o: spu_native.c spu_constants.h
+	spu-gcc spu_native.c -o spu_native_test.o
+
 # other stuff
 synbuffer.o: synbuffer.c
 	 g++ -fpic $(INC) -c synbuffer.c

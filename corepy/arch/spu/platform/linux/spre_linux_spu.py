@@ -351,6 +351,15 @@ class ParallelInstructionStream(InstructionStream):
     return
 
 
+class NativeInstructionStream(object):
+
+  def __init__(self, path):
+    object.__init__(self)
+    self._path = path
+    return
+
+  def get_native_path(self): return self._path
+  
 
 def _copy_params(params, rank, size):
   """
@@ -379,6 +388,12 @@ def _copy_params(params, rank, size):
 class Processor(spe.Processor):
   exec_module = spu_exec
 
+  def _exec_native(self, code, params, mode):
+    if mode == 'async':
+      return spu_exec.execute_param_async_native(code.get_native_path(), params)
+    else:
+      return spu_exec.execute_int_native(code.get_native_path())
+    
   def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
     """
     Execute the instruction stream in the code object.
@@ -416,16 +431,20 @@ class Processor(spe.Processor):
     
     """
 
+    # Setup the parameter structure
+    if params is None:
+      params = spu_exec.ExecParams()
+
+    # TODO: factor native execution into main path
+    if type(code) is NativeInstructionStream:
+      return self._exec_native(code, params, mode)
+    
     if len(code._code) == 0:
       return None
 
     # Cache the code here
     if not code._cached:
       code.cache_code()
-
-    # Setup the parameter structure
-    if params is None:
-      params = spu_exec.ExecParams()
 
     addr = code._prologue.inst_addr()
     params.addr = addr
@@ -465,6 +484,7 @@ class Processor(spe.Processor):
 
 
 DEBUG_STOP = 0xD
+DEBUG_STOP_TARGET = 0xB
 
 class DebugProcessor(spe.Processor):
   """
@@ -485,11 +505,14 @@ class DebugProcessor(spe.Processor):
     self.inst_size = None
 
     self.last_pc = None
+    self.last_stop = None
+    self.stop_code = None
     
     self.instructions = {} # key: inst, backup copy of we've replaced
 
     return
   
+
   def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
 
     if type(code) is ParallelInstructionStream:
@@ -500,12 +523,18 @@ class DebugProcessor(spe.Processor):
     if len(code._code) == 0:
       return None
 
-    # Add the two debug instructions
+    # Add the debug instructions - two each for normal instructions and branch targets
     self.debug_idx = self.code.size()
     self.code.add(spu.stop(DEBUG_STOP))
 
     self.debug_branch = self.code.size()    
     self.code.add(spu.stop(DEBUG_STOP))    
+
+    self.debug_target_idx = self.code.size()
+    self.code.add(spu.stop(DEBUG_STOP_TARGET))
+
+    self.debug_target_branch = self.code.size()    
+    self.code.add(spu.stop(DEBUG_STOP_TARGET))    
 
     # Cache the code here
     if not code._cached:
@@ -524,13 +553,15 @@ class DebugProcessor(spe.Processor):
     self.lsa  = (0x3FFFF - params.size) & 0xFFF80;
     self.size = params.size + (16 - params.size % 16);
     self.last_pc   = self.lsa
-    self.last_stop = 1 
+    self.last_stop = (1,)
 
     self.debug_lsa = (self.lsa + self.code.code_offset * 4 + self.debug_idx * 4) >> 2
+    self.debug_target_lsa = (self.lsa + self.code.code_offset * 4 + self.debug_target_idx * 4) >> 2    
 
     mode = 'async'
 
-    self.replace(self.last_stop, spu.bra(self.debug_lsa, ignore_active = True))
+    # TODO: Factor replacing into one function in case the first one is a branch
+    self.replace(self.last_stop[0], spu.bra(self.debug_lsa, ignore_active = True))
 
     self.spe_id = spe.Processor.execute(self, code, mode, debug, params)
     code.print_code()
@@ -539,17 +570,21 @@ class DebugProcessor(spe.Processor):
     
     return retval
 
+
   def replace(self, idx, inst):
-    print 'replacing:', idx
-    self.instructions[idx] = self.code.get_inst(idx) # self.code._prologue._code[idx]
+    self.instructions[idx] =  self.code.get_inst(idx)
     self.code.debug_set(idx, inst)
-    return
+    return 
+
 
   def restore(self, idx):
+    """
+    Restore the function at idx and return a reference to the instruction
+    """
     # self.code._prologue._code[idx] = self.instructions[idx]
-    print 'restore:', len(self.instructions), self.instructions.keys()
     self.code.debug_set(idx, self.instructions[idx])
-    return
+    return self.code.get_inst(idx)
+
 
   def get_instructions(self):
     # return spe_mfc_getb(speid, ls, (void *)ea, size, tag, tid, rid);
@@ -559,25 +594,70 @@ class DebugProcessor(spe.Processor):
     spu_exec.read_tag_status_all(self.spe_id, 1 << tag);
     return
 
+
   def wait_debug(self):
     r = spu_exec.wait_stop_event(self.spe_id)
-    if r != DEBUG_STOP:
+    if r not in (DEBUG_STOP, DEBUG_STOP_TARGET):
       print 'Warning: SPU stopped for unknown reason:', r
     else:
-      print 'Debug stop'
+      print 'Debug stop: 0x%X' % r
     return r
 
+
   def nexti(self):
-    self.restore(self.last_stop)
-    next_stop = self.last_stop + 1
+    
+    if len(self.last_stop) == 1:
+      # Restore a single instruction
+      current_inst = self.restore(self.last_stop[0])
+      last_idx = self.last_stop[0]
+    else:
+      # Restore two branch targets and determine which branch was taken
+      # based on the stop code 
+      i1 = self.restore(self.last_stop[0])
+      i2 = self.restore(self.last_stop[1])
+      if self.stop_code == DEBUG_STOP:
+        current_inst = i1
+        last_idx = self.last_stop[0]
+      else:
+        current_inst = i2
+        last_idx = self.last_stop[1]
+        
+    # If the current instruction is a branch, get the location
+    # of all possible next instructions
+    if isinstance(current_inst, (spu.br, spu.brsl)):
+      next_stop = (self.last_stop[0] + current_inst.I16,)
+      print 'next br:', next_stop
+    elif isinstance(current_inst, (spu.bra, spu.brasl)):
+      next_stop = (current_inst.I16 - (self.lsa >> 2),)
+    elif isinstance(current_inst, (spu.brnz, spu.brz, spu.brhnz, spu.brhz)):
+      next_stop = (self.last_stop[0] + 1,
+                   self.last_stop[0] + current_inst.I16)
+      
+    elif isinstance(current_inst, (spu.bi, spu.bisled, spu.bisl)):
+      raise Exception("DebugProcessor does not support branch indirect (bi) instructions")
+    else:
+      next_stop = (self.last_stop[0] + 1,)
+          
 
-    last_instruction = (next_stop == (self.debug_idx - 1))
+    # TODO: Get rid of last instruction.  Do something smarter.
+    last_instruction = (next_stop[0] == (self.debug_idx - 1))
 
+
+    # !!! STOPPED HERE !!!
+    # !!! STILL WRONG !!!
     if not last_instruction:
-      self.replace(next_stop,    spu.bra(self.debug_lsa, ignore_active = True))
-      print 'target:', -(self.debug_lsa - ((self.lsa >> 2) + self.last_stop)), self.debug_lsa, self.last_stop, self.lsa
-      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - ((self.lsa >> 2) + self.last_stop)),
+      # Normal instructions and single target branches
+      self.replace(next_stop[0],    spu.bra(self.debug_lsa, ignore_active = True))
+      print 'target (1):', -(self.debug_lsa - ((self.lsa >> 2) + next_stop[0])), self.debug_lsa, last_idx, self.lsa
+      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - ((self.lsa >> 2) + next_stop[0])),
                                              ignore_active = True))
+      # Branch target for test-based branch instructions
+      if len(next_stop) == 2:
+        self.replace(next_stop[1],    spu.bra(self.debug_target_lsa, ignore_active = True))
+        print 'target (2):', -(self.debug_target_lsa - ((self.lsa >> 2) + next_stop[1])), self.debug_target_lsa
+        self.replace(self.debug_target_branch,
+                     spu.br(-(self.debug_target_lsa - ((self.lsa >> 2) + next_stop[1])), ignore_active = True))
+        
       # self.replace(next_stop, self.debug_stop)
       
     self.get_instructions()
@@ -588,13 +668,14 @@ class DebugProcessor(spe.Processor):
       r = self.join(self.spe_id)
       r = None
     else:
-      r = self.wait_debug()      
+      r = self.wait_debug()
       self.last_stop = next_stop
+      self.stop_code = r
+      
     return r
 
+
   def dump_regs(self):
-    current_pc = self.lsa + self.code.code_offset * 4 + self.last_stop * 4 
-    next_inst = self.last_stop + 1    
     mbox   = 28 # write out mbox channel
 
     # Pseudo-code:
@@ -806,24 +887,34 @@ def TestDebug():
   rd = code.acquire_register()
   re = code.acquire_register()
   rf = code.acquire_register()
+  rg = code.acquire_register()
+  rh = code.acquire_register()  
   
   spu.ai(ra, 0, 14)
   spu.ai(rb, 0, 13)
   spu.ai(rc, 0, 14)
+  spu.brnz(14, 3)
   spu.ai(rd, 0, 15)
   spu.ai(re, 0, 16)
   spu.ai(rf, 0, 17)
+  spu.ai(rg, 0, 18)
+  spu.ai(rh, 0, 19)    
   spu.nop(0)
   
   spu.stop(0x200A)
   
   r = proc.execute(code) # , debug = True)
 
+  r = proc.nexti()
+  r = proc.nexti()
+  r = proc.nexti()
+  r = proc.nexti()
+    
   while r != None:
     r = proc.nexti()
     if r is not None:
       regs = proc.dump_regs()
-      print regs[122:]
+      print '******', regs[122:]
     
   assert(r == None)
   print 'int result:', r
@@ -832,6 +923,14 @@ def TestDebug():
   return
 
 
+def TestNative():
+  code = NativeInstructionStream('spu_native_test.o')
+  proc = Processor()
+
+  r = proc.execute(code)
+
+  print 'native:', r
+  return
 
 
 def TestOptimization():
@@ -919,8 +1018,9 @@ def TestInt2(i0 = 0, i1 = 1):
 
 if __name__ == '__main__':
   # TestDebug()
-  TestInt()
-  TestParams()
+  # TestInt()
+  # TestParams()
   # TestParallel()
   # TestOptimization()
   # TestAlignedMemory()
+  TestNative()

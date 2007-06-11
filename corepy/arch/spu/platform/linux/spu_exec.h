@@ -332,10 +332,66 @@ speid_t execute_param_async(unsigned int addr, ExecParams params) {
   return spe_id;
 }
 
+
+speid_t execute_param_async_native(char *path, ExecParams params) {
+  speid_t   spe_id = 0;
+  spe_gid_t grp_id = 0;
+  int err = 0;
+  struct spe_event ready_event;
+
+  // This is set in Python
+  assert(path != NULL);
+
+  printf("Executing native code: %s\n", path);
+
+  // Create a thread group 
+  grp_id = spe_create_group(SCHED_OTHER, 0, 1);
+
+  if (grp_id == 0) {
+    perror("spu_create_group");
+  }
+
+  spe_program_handle_t *bootstrap = spe_open_image(path);
+  
+  if(bootstrap == NULL) {
+    perror("spu_open_image");
+  }
+
+  // Create the spe thread
+  spe_id = spe_create_thread(grp_id, bootstrap , (void*)&params, 
+                             NULL, -1, SPE_USER_REGS); // | SPE_MAP_PS);
+  if (spe_id == 0) {
+    perror("spu_create_thread");
+  }
+
+  // Setup the event handler and wait for the ready event
+  ready_event.gid    = grp_id;
+  ready_event.events = SPE_EVENT_STOP;
+  err = spe_get_event(&ready_event, 1, -1);
+  
+  if(err == -1) {
+    perror("spu_get_event (ready)");
+  } 
+  // else {
+  // printf("Ready event: %d %ld\n", ready_event.revents, ready_event.data);
+  // }
+
+  // Restart the spu
+  spe_kill(spe_id, SIGCONT);
+  
+  return spe_id;
+}
+
+
 speid_t execute_async(unsigned int addr) {
   ExecParams params;
   params.addr = addr;
   return execute_param_async(addr, params);
+}
+
+speid_t execute_async_native(char *path) {
+  ExecParams params;
+  return execute_param_async_native(path, params);
 }
 
 
@@ -349,6 +405,21 @@ int execute_int(unsigned int addr) {
   wait_async(spe_id, &result);
 
   printf("execute_int: %X (%d)\n", result, result);
+
+  // Shift the return value to extract the 8-bit user value
+  return (result >> 8);
+}
+
+int execute_int_native(char *path) {
+  speid_t spe_id = 0;
+  int result = 0;
+
+  spe_id = execute_async_native(path);
+
+  // Wait for the thread to finish
+  wait_async(spe_id, &result);
+
+  printf("execute_int_native: %X (%d)\n", result, result);
 
   // Shift the return value to extract the 8-bit user value
   return (result >> 8);
