@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #define LOG2EA 0.44269504088896340735992
 #define SQRTH 0.70710678118654752440
 
@@ -15,7 +17,7 @@ c_log2x( float xx )
 
   *(unsigned int*)&x &= 0x807fffff;
   *(unsigned int*)&x |= 0x3f000000;
-
+  
   /* normalize */
   if (x < SQRTHF) {
     e -= 1;
@@ -23,7 +25,7 @@ c_log2x( float xx )
   } else {
     x = x - 1.0;
   }
-  
+
   /* compute polynomial */
   z = x * x;
   y = (((((((( 7.0376836292E-2 * x
@@ -44,6 +46,8 @@ c_log2x( float xx )
   z += x;
   z += (float) e;
 
+  printf("Debug: 0x%08X\n", *(unsigned int*)&z);
+
   return z ;
 }
 
@@ -56,9 +60,9 @@ int main(void)
   float f = 1.0;
   int i = 0;
   for(i; i < 10; i++) {
-    f *= 10.0;
-
     printf("%.9f %.9f\n", log2f(f), c_log2x(f));
+    f *= 10.0;
+    
   }
   return 0;
 }

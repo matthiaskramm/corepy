@@ -67,113 +67,113 @@ def lyapunov_point(pattern, r1, r2, max_init, max_n, x0 = 0.5):
 # AltiVec
 # ------------------------------------------------------------
 
-import corepy.arch.ppc.isa as ppc
-import corepy.arch.ppc.platform as synppc
-import corepy.arch.ppc.lib.iterators as ppc_iter
-import corepy.arch.ppc.types.ppc_types as ppc_types
+# import corepy.arch.ppc.isa as ppc
+# import corepy.arch.ppc.platform as synppc
+# import corepy.arch.ppc.lib.iterators as ppc_iter
+# import corepy.arch.ppc.types.ppc_types as ppc_types
 
-import corepy.arch.vmx.isa as vmx
-import corepy.arch.vmx.types.vmx_types as vmx_types
+# import corepy.arch.vmx.isa as vmx
+# import corepy.arch.vmx.types.vmx_types as vmx_types
 
-def synthesize_lyapunov_point_vmx(code, r_vecs, r1, r2, x0, result, max_init, max_n):
-  x = vmx_types.SingleFloat()
-  r = vmx_types.SingleFloat()  
-  t1 = vmx_types.SingleFloat()  
-  t2 = vmx_types.SingleFloat()  
+# def synthesize_lyapunov_point_vmx(code, r_vecs, r1, r2, x0, result, max_init, max_n):
+#   x = vmx_types.SingleFloat()
+#   r = vmx_types.SingleFloat()  
+#   t1 = vmx_types.SingleFloat()  
+#   t2 = vmx_types.SingleFloat()  
 
-  # Init
-  x.v = x0
+#   # Init
+#   x.v = x0
   
-  for i in ppc_iter.syn_ite(code, max_init, mode = ppc_iter.CTR):
-    x.v = r * x * (1.0 - x)
+#   for i in ppc_iter.syn_ite(code, max_init, mode = ppc_iter.CTR):
+#     x.v = r * x * (1.0 - x)
 
-  # if x == float('-infinity'):
-  #   return -10.0
+#   # if x == float('-infinity'):
+#   #   return -10.0
 
-  # Derive Exponent
-  total = vmx_types.SingleFloat()
-  total = total * 0.0
+#   # Derive Exponent
+#   total = vmx_types.SingleFloat()
+#   total = total * 0.0
   
-  for i in ppc_iter.syn_ite(code, max_n, mode = ppc_iter.CTR):
-    r.v = load_r()
-    x.v = r * x * (1.0 - x)
+#   for i in ppc_iter.syn_ite(code, max_n, mode = ppc_iter.CTR):
+#     r.v = load_r()
+#     x.v = r * x * (1.0 - x)
 
-    t1.v = r - 2.0 * r * x
-    t2.v = t1 * -1.0
+#     t1.v = r - 2.0 * r * x
+#     t2.v = t1 * -1.0
     
-    total.v = total + vmx.log.ex(vmx.vmaxfp.ex(t1, t2))
+#     total.v = total + vmx.log.ex(vmx.vmaxfp.ex(t1, t2))
 
-  result.v = total / max_n
+#   result.v = total / max_n
 
-  return result
+#   return result
 
-def synthesize_lyapunov_vmx(code, pattern, rx_range, ry_range, max_init, max_n, size = SIZE):
-  old_code = ppc.get_active_code()
-  ppc.set_active_code(code)
+# def synthesize_lyapunov_vmx(code, pattern, rx_range, ry_range, max_init, max_n, size = SIZE):
+#   old_code = ppc.get_active_code()
+#   ppc.set_active_code(code)
   
-  # Create Numeric arrays for the results, r values, and pattern
-  results = Numeric.zeros(size, typecode = Numeric.Float32)
+#   # Create Numeric arrays for the results, r values, and pattern
+#   results = Numeric.zeros(size, typecode = Numeric.Float32)
 
-  rx_inc = (rx_range[1] - rx_range[0]) / size[0]
-  ry_inc = (ry_range[1] - ry_range[0]) / size[1]
-  r_inc  =  Numeric.array((rx_inc, rx_inc, rx_inc, rx_inc,
-                           ry_inc, ry_inc, ry_inc, ry_inc),
-                          typecode = Numeric.Float32)
+#   rx_inc = (rx_range[1] - rx_range[0]) / size[0]
+#   ry_inc = (ry_range[1] - ry_range[0]) / size[1]
+#   r_inc  =  Numeric.array((rx_inc, rx_inc, rx_inc, rx_inc,
+#                            ry_inc, ry_inc, ry_inc, ry_inc),
+#                           typecode = Numeric.Float32)
 
-  rx = rx_range[0] + rx_inc
-  ry = ry_range[0] + ry_inc
-  r_init =  Numeric.array((rx, rx + rx_inc, rx + rx_inc * 2, rx + rx_inc * 3,
-                           ry, ry, ry, ry),
-                          typecode = Numeric.Float32)
+#   rx = rx_range[0] + rx_inc
+#   ry = ry_range[0] + ry_inc
+#   r_init =  Numeric.array((rx, rx + rx_inc, rx + rx_inc * 2, rx + rx_inc * 3,
+#                            ry, ry, ry, ry),
+#                           typecode = Numeric.Float32)
                           
-  rs = (rx, ry)
-  r_vecs = [[rs[i]] * 4 for i in pattern]
-  r_vecs = reduce(lambda a, b: a + b, r_vecs, [])
-  r_vecs = Numeric.array(r_vecs, typecode = Numeric.Float32)
+#   rs = (rx, ry)
+#   r_vecs = [[rs[i]] * 4 for i in pattern]
+#   r_vecs = reduce(lambda a, b: a + b, r_vecs, [])
+#   r_vecs = Numeric.array(r_vecs, typecode = Numeric.Float32)
 
-  x0_array = Numeric.array((.5, .5, .5, .5), typecode = Numeric.Float32)
+#   x0_array = Numeric.array((.5, .5, .5, .5), typecode = Numeric.Float32)
   
-  # Synthetic Variables
-  temp  = ppc_types.UnsigedWord(0)
-  results_addr = ppc_types.UnsigedWord(synppc.array_address(results))
-  r_inc_addr   = ppc_types.UnsigedWord(synppc.array_address(r_inc))
-  r_init_addr  = ppc_types.UnsigedWord(synppc.array_address(r_init))
-  r_vecs_addr  = ppc_types.UnsigedWord(synppc.array_address(r_vecs))
-  x0_addr      = ppc_types.UnsigedWord(synppc.array_address(x0_array))  
+#   # Synthetic Variables
+#   temp  = ppc_types.UnsigedWord(0)
+#   results_addr = ppc_types.UnsigedWord(synppc.array_address(results))
+#   r_inc_addr   = ppc_types.UnsigedWord(synppc.array_address(r_inc))
+#   r_init_addr  = ppc_types.UnsigedWord(synppc.array_address(r_init))
+#   r_vecs_addr  = ppc_types.UnsigedWord(synppc.array_address(r_vecs))
+#   x0_addr      = ppc_types.UnsigedWord(synppc.array_address(x0_array))  
   
-  rx = vmx_types.SingleFloat()
-  ry = vmx_types.SingleFloat()
-  x0 = vmx_types.SingleFloat()  
-  result = vmx_types.SingleFloat()
+#   rx = vmx_types.SingleFloat()
+#   ry = vmx_types.SingleFloat()
+#   x0 = vmx_types.SingleFloat()  
+#   result = vmx_types.SingleFloat()
 
-  rx_init = vmx_types.SingleFloat()
-  ry_init = vmx_types.SingleFloat()
+#   rx_init = vmx_types.SingleFloat()
+#   ry_init = vmx_types.SingleFloat()
 
-  rx_inc = vmx_types.SingleFloat()
-  ry_inc = vmx_types.SingleFloat()
+#   rx_inc = vmx_types.SingleFloat()
+#   ry_inc = vmx_types.SingleFloat()
 
-  # Load the values values for r into registers
-  ppc.lvx(rx_init, 0, r_init_addr)
-  ppc.lvx(rx_inc,  0, r_inc_addr)
+#   # Load the values values for r into registers
+#   ppc.lvx(rx_init, 0, r_init_addr)
+#   ppc.lvx(rx_inc,  0, r_inc_addr)
 
-  temp.v = 16
-  ppc.lvx(ry_init, temp, r_init_addr)
-  ppc.lvx(ry_inc,  temp, r_inc_addr)
+#   temp.v = 16
+#   ppc.lvx(ry_init, temp, r_init_addr)
+#   ppc.lvx(ry_inc,  temp, r_inc_addr)
 
-  ppc.lvx(x0,  0, x0_addr)
+#   ppc.lvx(x0,  0, x0_addr)
   
-  # Main loop
-  for y in ppc_iter.syn_range(size[1]):
-    rx.v = rx_init
-    for x in ppc_iter.syn_range(size[0] / 4, 4):
-      synthesize_lyapunov_point_vmx(code, r_vecs, r1, r2, x0, result, max_init, max_n):
-      rx.v = rx + rx_inc
+#   # Main loop
+#   for y in ppc_iter.syn_range(size[1]):
+#     rx.v = rx_init
+#     for x in ppc_iter.syn_range(size[0] / 4, 4):
+#       synthesize_lyapunov_point_vmx(code, r_vecs, r1, r2, x0, result, max_init, max_n):
+#       rx.v = rx + rx_inc
 
-      # TODO: STORE RESULT
-      # results[y, x] = lyapunov_point(pattern, rx, ry, max_init, max_n)
-    ry.v = ry + ry_inc
+#       # TODO: STORE RESULT
+#       # results[y, x] = lyapunov_point(pattern, rx, ry, max_init, max_n)
+#     ry.v = ry + ry_inc
     
-  return 
+#   return 
 
 import wx
 
