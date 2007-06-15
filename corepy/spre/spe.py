@@ -103,6 +103,7 @@ class RegisterFile(object):
     # Get a register and mark that it's been used
     if reg is not None:
       if reg in self._pool:
+        reg = self._pool[reg]
         del self._pool[self._pool.index(reg)]
       else:
         raise Exception('Register ' + str(reg) + ' is not available!')
@@ -231,7 +232,7 @@ class Variable(object):
     if code is None and self.active_code is not None:
       code = self.active_code
     
-    if reg is not None and not isinstance(reg, Register):
+    if reg is not None and not isinstance(reg, (Register, Variable)):
       raise Exception('reg must be a Register')
     if code is not None and not isinstance(code, InstructionStream):
       raise Exception('code must be an InstructionStream')
@@ -244,7 +245,10 @@ class Variable(object):
     self.value = value
     self.acquired_register = False
     if reg is not None:
-      self.reg = reg
+      if isinstance(reg, Variable):
+        self.reg = reg.reg
+      else:
+        self.reg = reg
     else:
       self.reg = code.acquire_register(self.register_type_id)
       self.acquired_register = True
@@ -285,7 +289,6 @@ class Variable(object):
     Assignment method.  This method is called when a value is assigned
     to the .v property.
     """
-
     if isinstance(value, Variable):
       self.copy_register(value)
     elif isinstance(value, Expression):
@@ -491,6 +494,12 @@ class Instruction(object):
 
     return
 
+  def __getattr__(self, name):
+    if self._operands.has_key(name):
+      return self._operands[name]
+    else:
+      raise AttributeError, name
+    
   def __str__(self):
     if self.asm_order is None:
       order = self.machine_inst._machine_order
@@ -751,8 +760,16 @@ class InstructionStream(object):
     self._register_files[type(reg)].release_register(reg)
     # print 'release', str(self._register_files[type])
     return 
+  
 
+  def acquire_registers(self, n, type = None, reg = None):
+    return [self.acquire_register(type, reg) for i in range(n)]
 
+  def release_registers(self, regs):
+    for reg in regs:
+      self.release_register(reg)
+    return
+    
   # ------------------------------
   # Instruction management
   # ------------------------------

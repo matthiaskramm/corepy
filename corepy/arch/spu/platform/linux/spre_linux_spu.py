@@ -18,6 +18,7 @@ import math
 
 import corepy.spre.spe as spe
 import spu_exec
+import cell_fb
 import synbuffer
 
 # Set the path to the spu bootstrap object file
@@ -162,6 +163,7 @@ class InstructionStream(spe.InstructionStream):
 
     self._optimize = optimize
     self.code_offset = 0
+    self.r_zero = SPURegister(0, self)
     return
 
   # ------------------------------
@@ -392,8 +394,11 @@ class Processor(spe.Processor):
     if mode == 'async':
       return spu_exec.execute_param_async_native(code.get_native_path(), params)
     else:
-      return spu_exec.execute_int_native(code.get_native_path())
-    
+      if params is None:
+        return spu_exec.execute_int_native(code.get_native_path())
+      else:
+        return spu_exec.execute_param_int_native(code.get_native_path(), params)
+      
   def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
     """
     Execute the instruction stream in the code object.
@@ -926,9 +931,7 @@ def TestDebug():
 def TestNative():
   code = NativeInstructionStream('spu_native_test.o')
   proc = Processor()
-
   r = proc.execute(code)
-
   print 'native:', r
   return
 

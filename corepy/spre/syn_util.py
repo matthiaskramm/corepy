@@ -74,10 +74,10 @@ def make_user_type(name, type_cls, g = None):
   type_cls.expr_cls = expr_cls
 
   # Add the Variable class to the global namespace
-  if g is None: g = globals()
-  g[name] = var_cls
+  # if g is None: g = globals()
+  # g[name] = var_cls
 
-  return
+  return var_cls
 
 
 

@@ -13,8 +13,8 @@ import corepy.corepy_conf as conf
 
 platform_imports = [
   'Processor', 'InstructionStream', 'ParallelInstructionStream', 'aligned_memory',
-  'WORD_SIZE', 'WORD_TYPE', 'spu_exec',
-  'SPURegister']
+  'WORD_SIZE', 'WORD_TYPE', 'spu_exec', 'synbuffer', 'NativeInstructionStream',
+  'SPURegister', 'cell_fb']
 
 
 if conf.OS == 'linux':
@@ -31,7 +31,6 @@ platform_module = __import__(platform_string, globals(), locals(), platform_impo
 for cls in platform_imports:
   locals()[cls] = getattr(platform_module, cls)
   
-class _Empty: pass
-
-synbuffer = _Empty()
+# class _Empty: pass
+# synbuffer = _Empty()
 

@@ -132,8 +132,7 @@ class memory_desc(object):
     old_code = spu.get_active_code()
     spu.set_active_code(code)
 
-    # Acquire registers for address and size, if they were not
-    # supplied by the user
+    # Acquire registers for address and size, if they were not supplied by the user
     if self.r_addr is None: r_ea_data = code.acquire_register()
     else:                   r_ea_data = self.r_addr
       

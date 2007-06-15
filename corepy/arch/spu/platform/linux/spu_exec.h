@@ -440,6 +440,21 @@ int execute_param_int(unsigned int addr, ExecParams params) {
   return (result >> 8);
 }
 
+int execute_param_int_native(char* path, ExecParams params) {
+  speid_t spe_id = 0;
+  int result = 0;
+
+  spe_id = execute_param_async_native(path, params);
+
+  // Wait for the thread to finish
+  wait_async(spe_id, &result);
+
+  // printf("execute_int: %X (%d)\n", result, result);
+
+  // Shift the return value to extract the 8-bit user value
+  return (result >> 8);
+}
+
 void execute_void(unsigned int addr) {
   speid_t spe_id = 0;
 

@@ -23,6 +23,67 @@ INT_ARRAY_TYPES = ('b', 'h', 'i', 'B', 'H', 'I')
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
 INT_SIZES       = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
+
+def _upcast(a, b, inst):
+  return inst.ex(a, b, type_cls = most_specific(a, b))
+
+def _firstcast(a, b, inst):
+  return inst.ex(a, b, type_cls = a.var_cls)
+
+def _reversecast(a, b, inst):
+  return inst.ex(b, a, type_cls = a.var_cls)
+
+class operator(object):
+  """
+  Dispatch to an instruction based on the type of other.
+
+  Type map is a list of pairs containing a type or tuples of types and
+  the instruction to call when type(other) is a subclass of a type in
+  the list.
+
+  This class is used to form the operators for the Type classes.
+
+  See the following link for a description of how __get__ works:
+
+  http://users.rcn.com/python/download/Descriptor.htm#functions-and-methods
+  """
+
+  def __init__(self, default, type_map = [], cast = _firstcast):
+    object.__init__(self)
+    self.default = default
+    self.type_map = type_map
+    self.cast = cast
+    return
+
+  def __get__(self, obj, objtype = None):
+    """
+    Get is called with the bound object as obj.
+    """
+    def invoke(other):
+      t = type(other)
+
+      # If obj and other are the same type, use the default instruction 
+      if isinstance(obj, t): return self.cast(obj, other, self.default)
+
+      # Otherwise, search the type map for a match
+      for types, inst in self.type_map:
+        if issubclass(t, types):
+          return self.cast(obj, other, inst)
+
+      # If there is no match, see if other is a subclass of obj
+      # (do this after the search in case the subclass overrides the behavior)
+      if issubclass(t, type(obj)):
+        return self.cast(obj, other, self.default)
+
+      raise Exception('Unable to determine proper type cast')
+      return
+
+    return invoke
+
+
+# !!! STOPPED HERE !!!
+# !!! TODO: MAKE SURE OPERATOR IS WORKING PROPERLY !!!
+
 class SPUType(spe.Type):
   def __init__(self, *args, **kargs):
     super(SPUType, self).__init__(*args, **kargs)
@@ -37,30 +98,22 @@ class SPUType(spe.Type):
   active_code = property(_get_active_code, _set_active_code)
 
 
-def _upcast(a, b, inst):
-    return inst.ex(a, b, type_cls = most_specific(a, b))
-
-
 class BitType(SPUType):
   register_type_id = 'gp'
   array_typecodes = ('c', 'b', 'B', 'h', 'H', 'i', 'I', 'f') # all valid typecodes
   array_typecode  = None # typecode for this class
   literal_types = (int,long, list, tuple, _array_type)
 
-  def __or__(self, other):
-    if isinstance(other, BitType):
-      return _upcast(self, other, spu.or_)
+  # Operators
+  __or__ = operator(spu.or_, cast = _upcast)
   or_ = staticmethod(__or__)
 
-  def __and__(self, other):
-    if isinstance(other, BitType):
-      return _upcast(self, other, spu.and_)
+  __and__ = operator(spu.and_, cast = _upcast)
   and_ = staticmethod(__and__)
 
-  def __xor__(self, other):
-    if isinstance(other, BitType):
-      return _upcast(self, other, spu.xor)
+  __xor__ = operator(spu.xor, cast = _upcast)
   xor = staticmethod(__xor__)
+
 
   def copy_register(self, other):
     return self.code.add(spu.ai(self, other, 0))
@@ -79,7 +132,7 @@ class BitType(SPUType):
       # elif type(self.value) is _numeric_type:
       #   raise Exception('Numeric types not yet supported')
 
-    elif type(self.value) is int:
+    elif type(value) in (int, long):
 
       if self.array_typecode not in INT_ARRAY_TYPES:
         print "Warning: int does not match variable type - I hope you know what you're doing!"
@@ -99,14 +152,6 @@ class BitType(SPUType):
 
 class HalfwordType(BitType):
   array_typecode  = 'H'
-  
-  def __lshift__(self, amount):
-    if isinstance(amount, (HalfwordType, WordType)):
-      return spu.shlh.ex(self, amount, type_cls = self.var_cls)
-    elif isinstance(amount, self.literal_types):
-      return spu.shlhi.ex(self, amount, type_cls = self.var_cls)
-  lshift = staticmethod(__lshift__)
-
 
 class SignedHalfwordType(HalfwordType):
   array_typecode  = 'h' 
@@ -115,67 +160,70 @@ class SignedHalfwordType(HalfwordType):
 class WordType(BitType):
   array_typecode  = 'I' 
 
-  def __add__(self, other):
-    if isinstance(other, SignedWord):
-      return spu.a.ex(self, other, type_cls = self.var_cls)
-    elif isinstance(other, int) and (-512 < other < 512):
-      return spu.ai.ex(self, other, type_cls = self.var_cls)
+  __add__ = operator(spu.a, (
+    (int, spuex.a_immediate),
+    ))
   add = staticmethod(__add__)
 
-  def __lshift__(self, amount):
-    if issubclass(type(amount), (HalfwordType, WordType)):
-      return spu.shl.ex(self, amount, type_cls = self.var_cls)
-    elif isinstance(amount, self.literal_types):
-      return spu.shli.ex(self, amount, type_cls = self.var_cls)
+  __lshift__ = operator(spu.shl, (
+    (HalfwordType, spu.shl),
+    ((int, long),  spu.shli)
+    ))
   lshift = staticmethod(__lshift__)
 
-  def __rshift__(self, amount):
-    if isinstance(amount, (HalfwordType, WordType)):
-      return spuex.shr.ex(self, amount, type_cls = self.var_cls)
-    # elif isinstance(amount, int):
-    #  return spu.shli.ex(self, amount, type_cls = self.var_cls)
-  lshift = staticmethod(__lshift__)
+  __rshift__ = operator(spuex.shr, (
+    (HalfwordType, spuex.shr),
+    ))
+  rshift = staticmethod(__rshift__)
 
-  def __gt__(self, other):
-    if isinstance(other, (WordType)):
-      return spu.cgt.ex(self, other, type_cls = Bits)
-    elif isinstance(other, self.literal_types):
-      return spu.cgti.ex(self, other, type_cls = Bits)
+  __gt__ = operator(spu.cgt, (
+    ((int, long), spuex.cgt_immediate),
+    ))
   gt = staticmethod(__gt__)
 
-  def __lt__(self, other):
-    if isinstance(other, WordType):
-      return spuex.lt.ex(self, other, type_cls = Bits)
-    elif isinstance(other, self.literal_types):
-      return spuex.lti.ex(self, other, type_cls = Bits)
+  __lt__ = operator(spuex.lt, (
+    ((int, long), spuex.lti),
+    ))
   lt = staticmethod(__lt__)
 
-  def eq(self, d, a, b):
-    if isinstance(other, (WordType)):
-      return spu.ceq.ex(self, other, type_cls = Bits)
-    elif isinstance(other, self.literal_types):
-      return spu.ceqi.ex(self, other, type_cls = Bits)
-  eq = staticmethod(eq)
-
+  __eq__ = operator(spu.ceq, (
+    ((int, long), spuex.ceq_immediate),
+    ))
+  eq = staticmethod(__eq__)
 
 
 class SignedWordType(WordType):
   array_typecode  = 'i'   
 
-  def __add__(self, other):
-    if isinstance(other, SignedWordType):
-      return spu.a.ex(self, other, type_cls = self.var_cls)
-    elif isinstance(other, int) and (-512 < other < 512):
-      return spu.ai.ex(self, other, type_cls = self.var_cls)
+  __add__ = operator(spu.a, (
+    ((int, long), spuex.a_immediate),
+    ))
   add = staticmethod(__add__)
 
-  def __sub__(self, other): 
-    # RD = RB - RA
-    if isinstance(other, SignedWordType):
-      return spu.sf.ex(other, self, type_cls = self.var_cls)
-    elif isinstance(other, int):
-      return spu.ai.ex(self, -other, type_cls = self.var_cls)
+
+  __radd__ = operator(spu.a, (
+    ((int, long), spuex.a_immediate),
+    ), cast = _reversecast)
+  radd = staticmethod(__radd__)
+
+  __sub__ = operator(spuex.sub, (
+    ((int, long), spuex.subi)
+    ))
   sub = staticmethod(__sub__)
+
+  __rsub__ = operator(spu.sf, (
+    ((int, long), spu.sfi)
+    ), cast = _reversecast)
+  rsub = staticmethod(__rsub__)
+
+
+# Extra Operators
+HalfwordType.__lshift__ = operator(spu.shlh, (
+  (WordType,    spu.shlh),
+  ((int, long), spu.shlhi)
+  ))
+HalfwordType.lshift = staticmethod(HalfwordType.__lshift__)
+
 
 
 class SingleFloatType(SPUType):
@@ -211,9 +259,18 @@ _user_types = ( # name, type class
 
 array_spu_lu = {} # array_typecode: type
 
-for t in _user_types:
-  make_user_type(*(t + (globals(),)))
-  array_spu_lu[globals()[t[0]].array_typecode] = globals()[t[0]]
+for name, type_cls in _user_types:
+  # Expanded make_user_type to get namespaces correct
+  # make_user_type(*(t + (globals(),)))
+  
+  var_cls = type(name, (spe.Variable, type_cls), {'type_cls': type_cls})
+  expr_cls = type(name + 'Ex', (spe.Expression, type_cls), {'type_cls': type_cls})
+
+  type_cls.var_cls = var_cls
+  type_cls.expr_cls = expr_cls
+  
+  globals()[name] = var_cls
+  array_spu_lu[globals()[name].array_typecode] = locals()[name]
 
 
 # ------------------------------------------------------------

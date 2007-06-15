@@ -66,5 +66,19 @@ synbuffer.o: synbuffer.c
 synbuffermodule.so: synbuffer.o
 	g++ -shared synbuffer.o -o synbuffermodule.so 
 
+# Framebuffer support
+cell_fb_wrap.cxx: cell_fb.i cell_fb.h
+	swig -c++ -python $(INC) cell_fb.i
+
+cell_fb_wrap.o: cell_fb_wrap.cxx 
+	g++ -fpic -std=c99 $(INC) -c cell_fb_wrap.cxx
+
+_cell_fbmodule.so: cell_fb_wrap.o 
+	g++  -shared cell_fb_wrap.o -o _cell_fbmodule.so $(CPP_LINK_POST)
+
+
+
 clean:
 	rm -f *.pyc *_wrap.cxx *_wrap.o _*module.so
+
+

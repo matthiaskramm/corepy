@@ -368,12 +368,15 @@ def TestMbox():
   
   proc = synspu.Processor()
 
+  code.print_code()
   spe_id = proc.execute(code, mode='async')
   synspu.spu_exec.write_in_mbox(spe_id, 0x88CAFE)
 
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
-
   print 'spe said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
+  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+  print 'spe said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
+
   proc.join(spe_id)
   
   return

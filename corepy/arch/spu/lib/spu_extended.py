@@ -12,6 +12,8 @@
 import corepy.arch.spu.isa as spu
 import corepy.spre.spe as spe
 
+from corepy.arch.spu.lib.util import load_word
+
 __doc__="""
 SPU Extended Instructions
 """
@@ -91,6 +93,7 @@ class lti(SPUExt):
   """
 
   def block(self, d, a, b):
+    code = self.get_active_code()    
     temp = code.acquire_register()
     spu.cgti(temp, a, b)
     spu.ceqi(d, a, b)
@@ -99,6 +102,155 @@ class lti(SPUExt):
     
     return
 
+class sub(SPUExt):
+  """
+  Subtract
+  """
+
+  def block(self, d, a, b):
+    spu.sf(d, b, a)
+    return
+
+class subi(SPUExt):
+  """
+  Subtract immediate
+  """
+
+  def block(self, d, a, value):
+    code = self.get_active_code()    
+    temp = code.acquire_register()
+
+    load_word(code, temp, value)
+    # RD = RB - RA    
+    spu.sf(d, temp, a)
+    code.release_register(temp)
+
+    return
+
+class extended_I10(SPUExt):
+  """
+  Take an instruction and its immediate form and dispatch to the
+  immediate form if the value fits into the I10 range.  Otherwise,
+  load the value into a temporary register and use the original form.
+
+  The instruction and the immediate form are set using the inst and
+  insti class variables.  For example, the add instruction is formed
+  using:
+  
+    inst  = spu.a
+    insti = spu.ai
+  
+  """
+
+  inst  = None
+  insti = None
+
+  def block(self, d, a, value):
+    """
+    Dispatch to the proper form of the instruction.
+    """
+
+    if (-512 < value < 512):
+      self.insti(d, a, value)
+    else:
+      code = self.get_active_code()      
+      temp = code.acquire_register()
+
+      load_word(code, temp, value)
+      self.inst(d, a, temp)
+
+      code.release_register(temp)
+    return
+
+class ah_immediate(extended_I10):
+  inst  = spu.ah
+  insti = spu.ahi
+  
+class a_immediate(extended_I10):
+  inst  = spu.a
+  insti = spu.ai
+  
+class sfh_immediate(extended_I10):
+  inst  = spu.sfh
+  insti = spu.sfhi
+  
+class sf_immediate(extended_I10):
+  inst  = spu.sf
+  insti = spu.sfi
+  
+class mpy_immediate(extended_I10):
+  inst  = spu.mpy
+  insti = spu.mpyi
+  
+class mpyu_immediate(extended_I10):
+  inst  = spu.mpyu
+  insti = spu.mpyui
+  
+class and_immediate(extended_I10):
+  inst  = spu.and_
+  insti = spu.andi
+  
+class or_immediate(extended_I10):
+  inst  = spu.or_
+  insti = spu.ori
+  
+class xor_immediate(extended_I10):
+  inst  = spu.xor
+  insti = spu.xori
+  
+class heq_immediate(extended_I10):
+  inst  = spu.heq
+  insti = spu.heqi
+  
+class hgt_immediate(extended_I10):
+  inst  = spu.hgt
+  insti = spu.hgti
+  
+class hlgt_immediate(extended_I10):
+  inst  = spu.hlgt
+  insti = spu.hlgti
+  
+class ceqb_immediate(extended_I10):
+  inst  = spu.ceqb
+  insti = spu.ceqbi
+  
+class ceqh_immediate(extended_I10):
+  inst  = spu.ceqh
+  insti = spu.ceqhi
+  
+class ceq_immediate(extended_I10):
+  inst  = spu.ceq
+  insti = spu.ceqi
+  
+class cgtb_immediate(extended_I10):
+  inst  = spu.cgtb
+  insti = spu.cgtbi
+  
+class cgth_immediate(extended_I10):
+  inst  = spu.cgth
+  insti = spu.cgthi
+  
+class cgt_immediate(extended_I10):
+  inst  = spu.cgt
+  insti = spu.cgti
+  
+class clgtb_immediate(extended_I10):
+  inst  = spu.clgtb
+  insti = spu.clgtbi
+  
+class clgth_immediate(extended_I10):
+  inst  = spu.clgth
+  insti = spu.clgthi
+  
+class clgt_immediate(extended_I10):
+  inst  = spu.clgt
+  insti = spu.clgti
+  
+
+# !!! STOPPED HERE !!!
+# !!! TODO: Do the other immediate versions !!!
+
+    
 # ------------------------------------------------------------
 # Unit Tests
 # ------------------------------------------------------------
@@ -113,9 +265,17 @@ def TestAll():
   b = code.acquire_register()
   c = code.acquire_register()
   
-  srw(c, a, b)
+  shr(c, a, b)
   cneq(c, a, b)
+  cge(c, a, b)
+  cgei(c, a, 10)
+  lt(c, a, b)
+  lti(c, a, 10)  
 
+  add_immediate(c, a, 10)
+  add_immediate(c, a, 10000)  
+  sf_immediate(c, a, 10000)
+  
   code.print_code()
   proc = env.Processor()
   proc.execute(code)
