@@ -393,6 +393,13 @@ class Processor(spe.Processor):
   def _exec_native(self, code, params, mode):
     if mode == 'async':
       return spu_exec.execute_param_async_native(code.get_native_path(), params)
+    elif mode == 'mbox':
+      spe_id = spu_exec.execute_param_async_native(code.get_native_path(), params)
+      while spu_exec.stat_out_mbox(spe_id) == 0: pass
+      retVal = spu_exec.read_out_mbox(spe_id)
+      self.join(spe_id)
+      return retVal
+    
     else:
       if params is None:
         return spu_exec.execute_int_native(code.get_native_path())
@@ -481,9 +488,15 @@ class Processor(spe.Processor):
         retval = reterrs
       else:
         retval = speids
+    elif mode == 'mbox':
+      spe_id = spe.Processor.execute(self, code, 'async', debug, params)
+      while spu_exec.stat_out_mbox(spe_id) == 0: pass
+      retval = spu_exec.read_out_mbox(spe_id)
+      self.join(spe_id)
     else:
       # Single SPU execution
       retval = spe.Processor.execute(self, code, mode, debug, params)
+
 
     return retval
 

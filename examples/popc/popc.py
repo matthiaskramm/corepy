@@ -127,6 +127,7 @@ class syn_popc_stream:
     self.stream_addr = None
     self.stream_size = None
 
+    self.lsa = 0
     self.buffer_size = 256
     self.double_buffer = False
     return
@@ -135,10 +136,32 @@ class syn_popc_stream:
   def set_stream_size(self, size): self.stream_size = size  
 
   def set_buffer_size(self, size): self.buffer_size = size
-  def set_double_buffer(self, size): self.buffer_size = size
+  def set_double_buffer(self, b):  self.double_buffer = b
 
   def synthesize(self, code):
-    # TODO: Fill in
+    old_code = spu.get_active_code()
+    spu.set_active_code(code)
+
+
+    stream = spuiter.stream_buffer(code, self.stream_addr, self.stream_size * 4,
+                                   self.buffer_size, self.lsa)
+    ls_data = spuiter.memory_desc('I', self.lsa, self.buffer_size / 4)
+    popc = syn_popc_var()
+
+    x = var.Word(0)
+    count = var.Word(0)
+    total = var.Word(0)
+
+    for buffer in stream:
+      for x in spuiter.spu_vec_iter(code, ls_data, addr_reg = buffer):
+        popc.popc(count, x)
+
+    popc.reduce_word(total, count)
+
+    # Send the result to the caller
+    spu.wrch(total, dma.SPU_WrOutMbox)    
+
+    spu.set_active_code(old_code)
     return
 
 def test_c_popc():
@@ -151,11 +174,7 @@ def test_c_popc():
   params.p9  = 0x10101010 # 4 bits
   params.p10 = 0xFF0FF0F0 # 20 bits = 60 bits total
   
-  spe_id = proc.execute(code, mode='async', params = params)
-
-  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
-  count = synspu.spu_exec.read_out_mbox(spe_id)
-  proc.join(spe_id)
+  count = proc.execute(code, mode='mbox', params = params)
 
   assert(count == 60)
   print 'test_syn_c passed'
@@ -175,12 +194,7 @@ def test_syn(kernel):
   params.p9  = 0x10101010 # 4 bits
   params.p10 = 0xFF0FF0F0 # 20 bits = 60 bits total
   
-  spe_id = proc.execute(code, mode='async', params = params)
-
-  while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
-  count = synspu.spu_exec.read_out_mbox(spe_id)
-  proc.join(spe_id)
-
+  count = proc.execute(code, mode='mbox', params = params)
   assert(count == 60)
 
   return
@@ -195,8 +209,40 @@ def test_syn_popc_var():
   print 'test_syn_popc_var passed'  
   return
 
+def test_stream_popc():
+  code = synspu.InstructionStream()
+  proc = synspu.Processor()
+
+  bits = array.array('I', range(1024))
+  for i in range(0, 1024, 4):
+    bits[i]   = 0x01010101 # 4 bits
+    bits[i+1] = 0xFFFFFFFF # 32 bits
+    bits[i+2] = 0x10101010 # 4 bits
+    bits[i+3] = 0xFF0FF0F0 # 20 bits = 60 bits total
+#    bits[i]   = 1
+#    bits[i+1] = 2
+#    bits[i+2] = 3
+#    bits[i+3] = 4
+
+    
+  abits = synspu.aligned_memory(len(bits), typecode = 'I')
+  abits.copy_to(bits.buffer_info()[0], len(bits))
+
+  popc = syn_popc_stream()
+  popc.set_stream_addr(abits.buffer_info()[0])
+  popc.set_stream_size(len(bits))
+
+  popc.synthesize(code)
+
+  count = proc.execute(code, mode='mbox')
+  print '-->', count
+  assert(count == 60 * 1024 / 4)
+
+  return
+
 
 if __name__=='__main__':
   test_c_popc()  
   test_syn_popc()
   test_syn_popc_var()
+  test_stream_popc()
