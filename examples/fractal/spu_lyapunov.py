@@ -161,8 +161,8 @@ class LyapunovPoint:
       # abs(logx)
       x_neg.v = spu.fs.ex(zero, logx)
       cmp.v = spu.fcgt.ex(logx, zero)
-      # logx.v = spu.selb.ex(x_neg, logx, cmp)
-      logx.v = spu.selb.ex(logx, x_neg, cmp)
+      logx.v = spu.selb.ex(x_neg, logx, cmp)
+      # logx.v = spu.selb.ex(logx, x_neg, cmp)
 
       # log(logx)
       self.log.set_result(logx)
