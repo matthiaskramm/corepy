@@ -1,4 +1,3 @@
-
 import corepy.arch.spu.platform as synspu
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
@@ -22,14 +21,14 @@ def fdiv(code, d, x, y, one = None):
   t = code.acquire_register()
   regs = Y[:]
   regs.append(t)
-  
+
   if one is None:
     one = code.acquire_register()
     spu.xor(one, one, one)
     spu.ai(one, one, 1)
     spu.cuflt(one, one, 155)
     regs.append(one)
-    
+
   # Compute 1/y (from SPU ISA 1.1, p208, Normal case)
   spu.frest(Y[0], y)
   spu.fi(Y[1], y, Y[0])
@@ -38,9 +37,9 @@ def fdiv(code, d, x, y, one = None):
 
   # Compute x * (1/y)
   spu.fm(d, x, Y[2])
-  
+
   code.release_registers(regs)
-    
+
   return
 
 class LyapunovPoint:
@@ -53,14 +52,14 @@ class LyapunovPoint:
     self.max_init = None
     self.max_n    = None
     self.x0       = 0x3F000000 # 0.5
-    
+
     self.log = None
     self.consts = {}
     return
 
   def set_pattern_reg(self, p): self.pattern = p
   def set_result_reg(self, r):  self.result = r
-  
+
   def set_max_init(self, n): self.max_init = n
   def set_max_n(self, n):    self.max_n = n
   def set_x0(self, x):       self.x0 = x
@@ -71,7 +70,7 @@ class LyapunovPoint:
     return
 
   def set_log(self, l): self.log = l
-  
+
   def setup(self, code):
     for const in constants.keys():
       self.consts[const] = var.Word(constants[const])
@@ -99,7 +98,7 @@ class LyapunovPoint:
 
     # Rotate the pattern by one
     self.pattern.v = spu.rotqbii.ex(self.pattern, 1)
-    
+
     return
 
 
@@ -112,22 +111,23 @@ class LyapunovPoint:
     if self.max_n is None: raise Exception('Please set max_n')
     if self.log is None: raise Exception('Please set log')
     return
-  
+
   def synthesize(self, code):
     self._check_inputs()
-    
+
     old_code = spu.get_active_code()
     spu.set_active_code(code)
 
     zero = var.Word(reg = code.r_zero)
     one = self.log.consts['ONE']
     two = self.consts['TWO']
-    
+
     x   = var.Word(self.x0)
     r   = var.Word(0)
     cmp = var.Word(0)
     x_neg = var.Word(0)
     fmax  = var.Word(self.max_init)
+    temp = var.SingleFloat()
 
     fmax.v = spu.cuflt.ex(fmax, 155)
 
@@ -135,13 +135,13 @@ class LyapunovPoint:
     for i in spuiter.syn_iter(code, self.max_init):
       # x = r[i % r_max] * x * (1.0 - x)      
       self._next_r(r)
-      x.v = spu.fs.ex(one, x)
-      x.v = spu.fm.ex(x, x)
+      temp.v = spu.fs.ex(one, x)
+      x.v = spu.fm.ex(x, temp)
       x.v = spu.fm.ex(r, x)
 
     #  if x == float('-infinity'):
     #    return -10.0
-    
+
     # Derive Exponent
     total = var.Word(0)
     logx  = var.SingleFloat()
@@ -149,10 +149,10 @@ class LyapunovPoint:
     for i in spuiter.syn_iter(code, self.max_n):    
       # x = ri * x * (1.0 - x)
       self._next_r(r)
-      x.v = spu.fs.ex(one, x)
-      x.v = spu.fm.ex(x, x)
+      temp.v = spu.fs.ex(one, x)
+      x.v = spu.fm.ex(x, temp)
       x.v = spu.fm.ex(r, x)
-      
+
       # logx = ri - 2.0 * ri * x
       logx.v = spu.fm.ex(two, x)
       logx.v = spu.fm.ex(r, logx)
@@ -161,7 +161,8 @@ class LyapunovPoint:
       # abs(logx)
       x_neg.v = spu.fs.ex(zero, logx)
       cmp.v = spu.fcgt.ex(logx, zero)
-      logx.v = spu.selb.ex(x_neg, logx, cmp)
+      # logx.v = spu.selb.ex(x_neg, logx, cmp)
+      logx.v = spu.selb.ex(logx, x_neg, cmp)
 
       # log(logx)
       self.log.set_result(logx)
@@ -173,7 +174,7 @@ class LyapunovPoint:
 
     # return total / float(max_n)    
     fdiv(code, self.result, total, fmax, one)
-    
+
     spu.set_active_code(code)
     return
 
@@ -187,7 +188,7 @@ class LyapunovBlock:
 
     self.renderer = None
     self.ly_point = LyapunovPoint()
-    
+
     return
 
   def set_size(self, w, h): self.w, self.h = (w, h)
@@ -198,7 +199,7 @@ class LyapunovBlock:
   def set_max_n(self, n):    self.ly_point.set_max_n(n)  
 
   def set_renderer(self, r): self.renderer = r
-  
+
   def _load_parameters(self, code):
     range_md = spuiter.memory_desc('I') # use 'I' for sizeof(float)
     range_md.from_array(self.range)
@@ -211,7 +212,7 @@ class LyapunovBlock:
 
     # Pattern is at address 64
     pattern_md.get(code, 64)
-    
+
     return
 
   def synthesize(self, code):
@@ -261,9 +262,9 @@ class LyapunovBlock:
       if self.renderer is not None:
         self.renderer.row_complete(code)
       r2.v = spu.fa.ex(r2, r2_inc)
-      
+
     # return Numeric.where(Numeric.less(results, 0), results, 0)
-    
+
     spu.set_active_code(old_code)
     return 
 
@@ -307,7 +308,7 @@ class FBRenderer:
 
     self.uint2rgb = None
     self.ff = None    
-    
+
     self.x_offset = None
     self.y_offset = None    
     self.stride = None
@@ -321,7 +322,7 @@ class FBRenderer:
   def set_result_reg(self, r): self.result = r
 
   def set_one(self, one): self.one = one
-  
+
   def setup(self, code):
     if self.addr is None: raise Exception('Please set addr')
     if self._stride is None: raise Exception('Please set stride')        
@@ -461,7 +462,7 @@ class MailboxLyapunov:
     #   for x in range(size[0]):
     #     r2 = r2_range[0] + r2_inc
     #     print 'col:', x, r1, r2
-    
+
     #     for y in range(size[1]):
     #       results[y, x] = lyapunov_point(pattern, r1, r2, max_init, max_n)
     #       r2 += r2_inc      
@@ -495,7 +496,7 @@ class FramebufferLyapunov:
 
     # Setup the pattern vector
     bits = _pattern2vector(pattern)
-    
+
     # Copy the paramters to aligned buffers
     a_ranges = synspu.aligned_memory(len(ranges), typecode='I')
     a_ranges.copy_to(ranges.buffer_info()[0], len(ranges))
@@ -508,7 +509,7 @@ class FramebufferLyapunov:
     renderer.set_addr(cell_fb.fb_addr(fb, 0))
     renderer.set_width(size[0])
     renderer.set_stride(fb.stride)
-    
+
     ly_block = LyapunovBlock()
 
     ly_block.set_size(size[0], size[1])
