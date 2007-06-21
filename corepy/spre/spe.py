@@ -998,11 +998,19 @@ class InstructionStream(object):
           sdetails += ' ' * (35 - len(sdetails))
           ssource = '%s %s' % (sdetails, user_frame[3][0][:-1]) # .strip())
 
+        pipeline = ''
+        if hasattr(inst, 'cycles'):
+          if inst.cycles[0] == 0:
+            pipeline = 'X '
+          else:
+            pipeline = ' X'
+          pipeline += '  %2d' % inst.cycles[1]
+            
         saddr   = '0x%08X' % (addr + i * 4)
         sinst   = '%4d %s' % (i, str(inst))
         sinst += ' ' * (40 - len(sinst))
         last = [user_frame, file]
-        print saddr, sinst,  ssource
+        print saddr, pipeline, sinst,  ssource
         if binary:
           print DecToBin(dec)
     else:

@@ -3,8 +3,8 @@ import corepy.arch.spu.platform as synspu
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
 import corepy.arch.spu.lib.dma as dma
+from corepy.arch.spu.lib.iterators import syn_iter
 
-# Constants
 constants = {
   'LOG2EA':  0x3EE2A8ED,  # 4.4269505143E-01
   'SQRTH':   0x3F3504F3,  # 7.0710676908E-01
@@ -84,6 +84,7 @@ class SPULog:
     e.v = x >> self.consts['_23']
     e.v = spu.andi.ex(e, 0xff)
     e.v = spu.ai.ex(e, 0x382) # 0x382 == (- 0x7E) using 10 bits
+    # 0b 111 1110
 
     # Extract the mantissa
     x.v = x & self.consts['M1'] # *(unsigned int*)&x &= 0x807fffff;
@@ -107,7 +108,7 @@ class SPULog:
     e.v = spu.selb.ex(e,  e1, cmp)
     x.v = spu.selb.ex(x2, x1, cmp)
 
-    # Compute polynomial 
+    # Compute polynomial
     z.v = spu.fm.ex(x, x)                      #  z = x * x;
     
     y.v = spu.fms.ex(self.consts['C1'], x,     #  y = (((((((( 7.0376836292E-2 * x  
@@ -129,9 +130,9 @@ class SPULog:
     z.v = spu.fma.ex(x, self.consts['LOG2EA'], z)  # z += x * LOG2EA;
     z.v = spu.fa.ex(z, y)                          # z += y;
     z.v = spu.fa.ex(z, x)                          # z += x;
-    e.v = spu.cuflt.ex(e, 155)                     # z += (float) e;
+    e.v = spu.csflt.ex(e, 155)                     # z += (float) e;
     z.v = spu.fa.ex(z, e)                          #  ""  ""
-
+    
     spu.ai(self.result, z, 0)       # return z
 
     spu.set_active_code(old_code)
@@ -189,7 +190,95 @@ def TestLog():
   return
 
 
+def _sp_to_float(x):
+  """
+  Convert a binary single precision floating point number to a Python float
+  """
+  # Extract the exponent
+  # int e = (((*(unsigned int *) &x) >> 23) & 0xff) - 0x7e;
+  
+  # Extract the mantissa
+  # x.v = x & self.consts['M1'] # *(unsigned int*)&x &= 0x807fffff;
+  # x.v = x | self.consts['M2'] # *(unsigned int*)&x |= 0x3f000000;
+  
+  sign = (x >> 31) & 1
+  # exp  = (x >> 23) & 0xFF - 126
+  exp  = ((x >> 23) & 0xFF) - 127
+  # print hex(x), ((x >> 23) & 0xFF) - 127
+  m    = x & 0x7ffffff
+
+  # print sign, exp, m, 1.0 + (1.0 / m)
+
+  mv = 1.0
+  p = 2.0
+  for i in range(23):
+    if (m >> (22 - i)) & 1:
+      mv += (1.0 / p)
+    p *= 2.0
+    
+  value = (2 ** (exp)) * mv # (1.0 + (1.0 / m))
+  
+  if sign == 1: 
+    value = value * -1
+
+  # print '%.12f' % value
+  return value
+
+# _sp_to_float(0x41200000)
+# _sp_to_float(0xBEF0A3D7)
+
+def TestFloats():
+  import math
+  
+  code = synspu.InstructionStream()
+  proc = synspu.Processor()
+
+  spu.set_active_code(code)
+
+  code.set_debug(True)
+  
+  # Create a simple SPU program that computes log for all values bettween
+  # .01 and 10.0 with .01 increments
+
+  start = .65
+  stop  = .75
+  inc   = .01
+
+  sp_step = 0x3C23D70A
+  # r_current = var.Word(0x3C23D70A) # .01 in single precision
+  r_current = var.Word(0x3F266666)
+  r_step  = var.Word(sp_step)    # .01 in single precision
+  result  = var.Word(0)
+  log = SPULog()
+
+  log.setup(code)
+  log.set_result(result)
+  log.set_x(r_current)
+  
+  log_iter = syn_iter(code, int((stop - start) / inc))
+
+  for i in log_iter:
+    
+    log.synthesize(code)
+    spu.fa(r_current, r_current, r_step)
+    spu.wrch(result, dma.SPU_WrOutMbox)
+
+  # code.print_code()
+  spe_id = proc.execute(code, mode = 'async')
+
+  x = start
+  for i in range(int((stop - start) / inc)):
+    while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+    slog = synspu.spu_exec.read_out_mbox(spe_id)
+    print '%.3f 0x%08X  %.08f %.08f ' % (x, slog, _sp_to_float(slog), math.log(x, 2))
+    x += inc
+
+  proc.join(spe_id)
+
+  return
+
+
 if __name__=='__main__':
-  TestLog()
-  
-  
+  # TestLog()
+  TestFloats()
+  pass

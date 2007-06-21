@@ -384,6 +384,7 @@ class syn_iter(object):
     if self.hint == True:
       next = self.code.size() + 1
       # self.code.add(spu.hbrr(0, -(next-self.start_label) * env.WORD_SIZE, (self.code.size() + 2) * env.WORD_SIZE, order = _mi(spu.hbrr)))
+      self.code.add(spu.hbrr(0, -(((next - self.start_label) * env.WORD_SIZE) >> 2), 8 >> 2, order = _mi(spu.hbrr)))
 
     if self.mode == DEC:
       # branch if r_count is not zero (CR)
