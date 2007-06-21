@@ -482,7 +482,7 @@ class FramebufferLyapunov:
   def __init__(self):
     return
 
-  def generate(self, results, pattern, r1_range, r2_range, max_init, max_n, size):
+  def generate(self, results, patterns, r1_range, r2_range, max_init, max_n, size, n_spus = 6):
     # Connect to the framebuffer
     fb = cell_fb.framebuffer()
     cell_fb.fb_open(fb)
@@ -491,57 +491,93 @@ class FramebufferLyapunov:
     r1_inc = (r1_range[1] - r1_range[0]) / size[0]
     r2_inc = (r2_range[1] - r2_range[0]) / size[1]
 
-    ranges = array.array('f', [0.0] * 16)
-    for i in range(4):
-      ranges[i]      = r1_range[0] + float(i) * r1_inc # horizontal is simd
-      ranges[4 + i]  = r2_range[0]
-      ranges[8 + i]  = r1_inc * 4.0
-      ranges[12 + i] = r2_inc
-    print ranges
+    ranges = [0 for i in range(n_spus)]
+    a_ranges = [0 for i in range(n_spus)]             
 
-    # Setup the pattern vector
-    bits = _pattern2vector(pattern)
-    
-    # Copy the paramters to aligned buffers
-    a_ranges = synspu.aligned_memory(len(ranges), typecode='I')
-    a_ranges.copy_to(ranges.buffer_info()[0], len(ranges))
+    # Slice and dice for parallel execution
+    spu_slices = [[size[0], size[1] / n_spus] for ispu in range(n_spus)]
+    spu_slices[-1][1] += size[1] % n_spus
 
-    a_pattern = synspu.aligned_memory(len(bits), typecode='I')
-    a_pattern.copy_to(bits.buffer_info()[0], len(bits))
-
-    renderer = FBRenderer()
-    renderer.set_lsa(0x100)
-    renderer.set_addr(cell_fb.fb_addr(fb, 0))
-    renderer.set_width(size[0])
-    renderer.set_stride(fb.stride)
-    
-    ly_block = LyapunovBlock()
-
-    ly_block.set_size(size[0], size[1])
-    ly_block.set_range(a_ranges)
-    ly_block.set_pattern(a_pattern)
-    ly_block.set_max_init(max_init)
-    ly_block.set_max_n(max_n)
-    ly_block.set_renderer(renderer)
-
-    code = synspu.InstructionStream()
-    code.set_debug(True)
-
-    n = 2
-    # for i in spuiter.syn_range(code, n):
-    ly_block.synthesize(code)
+    offset = 0.0
+    for ispu in range(n_spus):
+      ranges[ispu] = array.array('f', [0.0] * 16)
       
-    code.print_code()
+      for i in range(4):
+        ranges[ispu][i]      = r1_range[0] + float(i) * r1_inc # horizontal is simd
+        ranges[ispu][4 + i]  = r2_range[0] + offset
+        ranges[ispu][8 + i]  = r1_inc * 4.0
+        ranges[ispu][12 + i] = r2_inc
+      # print ranges
+
+      # Copy the paramters to aligned buffers
+      a_ranges[ispu] = synspu.aligned_memory(len(ranges[ispu]), typecode='I')
+      a_ranges[ispu].copy_to(ranges[ispu].buffer_info()[0], len(ranges[ispu]))
+
+      offset += r2_inc * spu_slices[ispu][1]
+      
+    # Setup the pattern vector
+    for pattern in patterns:
+      if len(pattern) != len(patterns[0]):
+        raise Exception('All patterns must be the same length')
+      
+    bits = [_pattern2vector(pattern) for pattern in patterns]
+    a_pattern = synspu.aligned_memory(len(bits[0]), typecode='I')
+
+    # Create the instruction streams
+    codes  = []
+
+    n = 10
+    offset = 0
+    for ispu in range(n_spus):
+      renderer = FBRenderer()
+      renderer.set_lsa(0x100)
+      renderer.set_addr(cell_fb.fb_addr(fb, 0) + offset)
+      renderer.set_width(size[0])
+      renderer.set_stride(fb.stride)
+      
+      ly_block = LyapunovBlock()
+      
+      ly_block.set_size(*spu_slices[i])
+      ly_block.set_range(a_ranges[ispu])
+      ly_block.set_pattern(a_pattern)
+      ly_block.set_max_init(max_init)
+      ly_block.set_max_n(max_n)
+      ly_block.set_renderer(renderer)
+      
+      code = synspu.InstructionStream()
+      # code.set_debug(True)
+      codes.append(code)
+      offset += spu_slices[i][1] * fb.stride * 4
+
+      # for i in spuiter.syn_range(code, n):
+      ly_block.synthesize(code)
+      
+    # code.print_code()
     proc = synspu.Processor()
 
     cell_fb.fb_clear(fb, 0)
 
     import time
+    ids = [0 for i in range(n_spus)]
     start = time.time()    
+
+    ipattern = 0
+    n_patterns = len(patterns)
+    len_bits = len(bits[0])
+
     for i in range(n):
-      spe_id = proc.execute(code)
+      a_pattern.copy_to(bits[ipattern % n_patterns].buffer_info()[0], len_bits)
+
+      for ispu in range(n_spus):
+        ids[ispu] = proc.execute(codes[ispu], mode='async')
+
+      for ispu in range(n_spus):
+        proc.join(ids[ispu])
+
       cell_fb.fb_wait_vsync(fb)
       cell_fb.fb_flip(fb, 0)
+      ipattern += 1
+      
     stop= time.time()
 
     print '%.2f fps (%.6f)' % (float(n) / (stop - start), (stop - start))
@@ -574,7 +610,7 @@ def TestMailboxLyapunov():
 def TestFramebufferLyapunov():
 
   ml = FramebufferLyapunov()
-  ml.generate(None, '0111', [2.0, 4.0], [2.0, 4.0], 200, 400, [256, 256])
+  ml.generate(None, ['0000000000000000', '0000000000000001', '0000000000000011', '0000000000000101'], [2.0, 4.0], [2.0, 4.0], 200, 400, [256, 252])
 
   return
 
