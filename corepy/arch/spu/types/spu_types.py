@@ -81,9 +81,6 @@ class operator(object):
     return invoke
 
 
-# !!! STOPPED HERE !!!
-# !!! TODO: MAKE SURE OPERATOR IS WORKING PROPERLY !!!
-
 class SPUType(spe.Type):
   def __init__(self, *args, **kargs):
     super(SPUType, self).__init__(*args, **kargs)
@@ -207,12 +204,12 @@ class SignedWordType(WordType):
   radd = staticmethod(__radd__)
 
   __sub__ = operator(spuex.sub, (
-    ((int, long), spuex.subi)
+    ((int, long), spuex.subi),
     ))
   sub = staticmethod(__sub__)
 
   __rsub__ = operator(spu.sf, (
-    ((int, long), spu.sfi)
+    ((int, long), spu.sfi),
     ), cast = _reversecast)
   rsub = staticmethod(__rsub__)
 
