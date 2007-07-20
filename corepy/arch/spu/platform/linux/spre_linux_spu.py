@@ -20,6 +20,11 @@ import corepy.spre.spe as spe
 import spu_exec
 import synbuffer
 
+try:
+  import cell_fb
+except:
+  cell_fb = None
+
 # Set the path to the spu bootstrap object file
 import os.path
 spu_exec.set_bootstrap_path(os.path.join(os.path.split(__file__)[0], 'spu_bootstrap.o'))
