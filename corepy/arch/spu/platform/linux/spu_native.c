@@ -43,5 +43,5 @@ int main(unsigned long long id) {
   printf("Hello, CorePy\n");
 
   // Return 12
-  return retVal;
+  return 0x200C;
 }

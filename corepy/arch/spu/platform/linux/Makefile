@@ -25,7 +25,7 @@ INC=-I$(PYTHON) -I$(PYTHON)/Include
 
 # CPP_LINK_POST=-libmc++ -lstdc++ -lm 
 
-all:  _spu_execmodule.so spu_bootstrap.o synbuffermodule.so
+all:  _spu_execmodule.so spu_bootstrap.o synbuffermodule.so spu_native_test.o
 cell: _spu_execmodule.so synbuffermodule.so
 numeric: synnumeric.so
 
