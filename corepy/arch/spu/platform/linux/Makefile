@@ -76,6 +76,7 @@ cell_fb_wrap.o: cell_fb_wrap.cxx
 _cell_fbmodule.so: cell_fb_wrap.o 
 	g++  -shared cell_fb_wrap.o -o _cell_fbmodule.so $(CPP_LINK_POST)
 
+cell_fb: _cell_fbmodule.so
 
 
 clean:

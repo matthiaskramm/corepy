@@ -18,7 +18,6 @@ import math
 
 import corepy.spre.spe as spe
 import spu_exec
-import cell_fb
 import synbuffer
 
 # Set the path to the spu bootstrap object file
@@ -496,7 +495,6 @@ class Processor(spe.Processor):
     else:
       # Single SPU execution
       retval = spe.Processor.execute(self, code, mode, debug, params)
-
 
     return retval
 
