@@ -47,8 +47,11 @@ numeric: synnumeric.so
 spu_exec_wrap.cxx: spu_exec.i spu_exec.h
 	swig -c++ -python $(INC) spu_exec.i
 
+# SWIG_PYTHON_SILENT_MEMLEAK is defined to suppress the error message
+# on speid_t * deletion.  This is the only error and it is a result of 
+# changes made to swig and (most likely) not a real memory leak.
 spu_exec_wrap.o: spu_exec_wrap.cxx 
-	 g++ -fpic $(INC) -c spu_exec_wrap.cxx
+	 g++ -DSWIG_PYTHON_SILENT_MEMLEAK -fpic $(INC) -c spu_exec_wrap.cxx
 
 _spu_execmodule.so: spu_exec_wrap.o
 	g++  -shared spu_exec_wrap.o -o _spu_execmodule.so $(CPP_LINK_POST) -lspe
