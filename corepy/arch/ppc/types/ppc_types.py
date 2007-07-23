@@ -137,7 +137,7 @@ class BitType(PPCType):
   
     # Addis r-temp with the upper 16 bits (shifted add immediate) and
     # put the result in r-target
-    if (value & 0xFFFF) != value:
+    if (value & 0x7FFF) != value:
       self.code.add(ppc.addis(self.reg, self.reg, ((value + 32768) >> 16)))
       
     return
