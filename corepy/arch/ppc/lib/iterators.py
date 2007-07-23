@@ -110,7 +110,7 @@ class syn_iter(object):
     
     self.current_count = None
     self.start_label = None
-    
+
     return
 
   def set_external_stop(self, r):
@@ -135,6 +135,7 @@ class syn_iter(object):
     return self.step
   
   def start(self, align = True, branch = True):
+
     if self.r_count is None:
       self.r_count = self.code.acquire_register()
       
@@ -164,16 +165,16 @@ class syn_iter(object):
         util.load_word(self.code, self.r_stop, self.get_count())
 
     # /end mode if
-    
+
     if self.r_count is not None:
       # self.current_count = metavar.int_var(self.code, reg = self.r_count)
       self.current_count = vars.UnsignedWord(reg = self.r_count)
-      
+
     if align and branch:
       # Align the start of the loop on a 16 byte boundary
       while (self.code.size()) % 4 != 0:
         self.code.add(ppc.noop())
-      
+
     # Label
     self.start_label = self.code.size() + 1
 
