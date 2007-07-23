@@ -850,8 +850,6 @@ class SynGEPP:
       # pack_params.p1 = B_addr + kN + j # (k * N + j) * 8      
 
       packb.vN.v = N
-
-      # proc.execute(cpackb, params = pack_params)
       packb._pack_b(code)
 
       # proc.execute(cgepb, params = pm)
@@ -929,7 +927,8 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
     pack_params.p1 =  B_addr + k * N * 8
     for j in range(0, N, nc):
       # print k, j, M, K, N, kc, nc, mr, nr
-      # Pack B into tB -- tB1.transpose(B[k:k+kc, j:j+nc])
+      # Pack B into tB --
+      # tB[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
       proc.execute(cpackb, params = pack_params)
 
       # start1 = time.time()
@@ -1344,7 +1343,7 @@ def test(algs, niters = 5, validate = False):
   tests = [8, 16, 32, 64] # , 128, 256, 512, 768, 1024, 2048, 4096]: [2048, 4096]: #
   tests = [128, 256, 512, 1024, 2048, 4096]
   # tests = [4096]
-  tests = [2048]
+  # tests = [2048]
   # tests = [512] 
   for size in tests: 
     m,n,k = (size, size, size)
@@ -1398,7 +1397,7 @@ def main():
   algs = [# numeric_gemm_var1_row,
           syn_gemm, syn_gemm_prefetch, syn_gemm_hand,
           syn_gemm_pp, syn_gemm_pp_prefetch, syn_gemm_pp_hand]
-  algs = [syn_gemm_hand, syn_gemm_pp_hand]
+  # algs = [syn_gemm_hand, syn_gemm_pp_hand]
   
   # algs = [numeric_gemm_var1_flat, numeric_gemm_var1_row]
   results = test(algs)
