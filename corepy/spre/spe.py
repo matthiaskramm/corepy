@@ -1001,16 +1001,16 @@ class InstructionStream(object):
         pipeline = ''
         if hasattr(inst, 'cycles'):
           if inst.cycles[0] == 0:
-            pipeline = 'X '
+            pipeline = 'X ;'
           else:
-            pipeline = ' X'
+            pipeline = ' X;'
           pipeline += '  %2d' % inst.cycles[1]
             
         saddr   = '0x%08X' % (addr + i * 4)
-        sinst   = '%4d %s' % (i, str(inst))
+        sinst   = '%4d; %s' % (i, str(inst))
         sinst += ' ' * (40 - len(sinst))
         last = [user_frame, file]
-        print saddr, pipeline, sinst,  ssource
+        print saddr,';', pipeline, ';',  sinst, ';',  ssource
         if binary:
           print DecToBin(dec)
     else:

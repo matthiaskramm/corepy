@@ -51,12 +51,14 @@ typedef double (*Stream_func_double)();
 // ------------------------------------------------------------
 
 int make_executable(int addr, int size) {
-//   //  MakeDataExecutable((void *)addr, size * 4);
-//   if(mprotect((void *)(addr & 0xFFFFF000), size * 4 + (addr & 0xFFF), 
-//   	      PROT_READ | PROT_EXEC) == -1)
-//     perror("make_executeable");
-//   else
-//     printf("Memory protection changed: %d\n", size * 4 + (addr & 0xFFF));
+  // -- Note: For SELinux installations, the ifdef'd code may be necessary
+  //          It hasn't been tested, but is kept for reference in case
+  //          it's needed in the future.
+#ifdef COREPY_SE_LINUX
+  if(mprotect((void *)(addr & 0xFFFFF000), size * 4 + (addr & 0xFFF), 
+              PROT_READ | PROT_EXEC) == -1)
+    perror("make_executeable");
+#endif // COREPY_SE_LINUX
   return 0;
 }
 
@@ -117,10 +119,7 @@ int cancel_async(pthread_t t) {
 //   t - thread id to cancle
 // Return: 0 on success, -1 on failure
 // Description:
-//   The native interface for suspending execution of a thread.
-//   Becuase there is no pthread interface for thread 
-//   susped/resume, this suspends the underlying OS X mach 
-//   thread.
+//   Not currently implemented for PPC cores on Cell
 // ------------------------------------------------------------
 
 int suspend_async(pthread_t t) {
@@ -133,10 +132,7 @@ int suspend_async(pthread_t t) {
 //   t - thread id to resume
 // Return: 0 on success, -1 on failure
 // Description:
-//   The native interface for resuming execution of a thread.
-//   Becuase there is no pthread interface for thread 
-//   susped/resume, this suspends the underlying OS X mach 
-//   thread.
+//   Not currently implemented for PPC cores on Cell
 // ------------------------------------------------------------
 
 int resume_async(pthread_t t) {
@@ -202,41 +198,44 @@ double execute_fp(int addr) {
 // Parameter passing execute functions
 // ------------------------------------------------------------
 
-struct ThreadParams {
-  int addr;
-  int p1;
-  int p2;
-  int p3;
+struct ExecParams {
+  unsigned int p1;  // r3
+  unsigned int p2;  // r4
+  unsigned int p3;  // r5
+  unsigned int p4;  // r6
+  unsigned int p5;  // r7
+  unsigned int p6;  // r8
+  unsigned int p7;  // r9
+  unsigned int p8;  // r10
 };
 
-typedef int  (*Stream_param_func_int)(int, int, int);
+struct ThreadParams {
+  int addr;
+  ExecParams params;
+};
+
+typedef int  (*Stream_param_func_int)(ExecParams);
 
 void *run_param_stream(void *params) {
   ThreadParams *p = (ThreadParams*)params;
 
-  int addr = p->addr;
-  int p1 = p->p1;
-  int p2 = p->p2;
-  int p3 = p->p3;
+  unsigned int addr = p->addr;
   int r = 0;
 
-  r = ((Stream_param_func_int)(addr))(p1, p2, p3);
+  r = ((Stream_param_func_int)(addr))(p->params);
 
   pthread_exit(NULL);
-  return NULL;
 }
 
-pthread_t execute_param_async(int addr, int p1, int p2, int p3) {
+pthread_t execute_param_async(int addr, ExecParams params) {
   pthread_t t;
   int rc;
-  
-  ThreadParams *params = new ThreadParams();
-  params->addr = addr;
-  params->p1 = p1;
-  params->p2 = p2;
-  params->p3 = p3;
 
-  rc = pthread_create(&t, NULL, run_param_stream, (void *)params);
+  ThreadParams *tparams = new ThreadParams();
+  tparams->addr = addr;
+  tparams->params = params;
+
+  rc = pthread_create(&t, NULL, run_param_stream, (void *)tparams);
   if(rc) {
     printf("Error creating async stream: %d\n", rc);
   }
@@ -248,10 +247,9 @@ int join_async(pthread_t t) {
   return pthread_join(t, NULL);
 }
 
-
-int execute_param_int(int addr, int p1, int p2, int p3) {
+int execute_param_int(int addr, ExecParams params) {
   int result = 0;
-  result = ((Stream_param_func_int)addr)(p1, p2, p3);
+  result = ((Stream_param_func_int)addr)(params);
 
   return result;
 }

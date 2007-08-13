@@ -1,0 +1,87 @@
+CorePy Examples
+---------------
+
+The CorePy examples demonstrate CorePy and different synthetic
+programming techniques on OS X/PowerPC and Linux/Cell B.E. platforms.
+Note that some of the examples are works in progress and some examples
+only work on specific platforms.  
+
+The examples are (system/library requirements in brackets):
+
+
+./basics.py [OS X, Linux]
+
+  Basic PowerPC synthetic programming examples. Output is specfic to
+  the different examples in the file and includes code printouts and 
+  results. 
+
+
+./fbdemo.py: [PS3, cell_fb]
+
+  Simple example of drawing to the framebuffer using a SPE synthetic 
+  program and using a Python manager to swap between buffers.   
+
+  To run this example, boot the PS3 into text mode (e.g. ydltext) and
+  execute the demo directly from the console.
+
+  This examples requires the cell_fb package.  To build cell_fb:
+
+    % cd $COREPY_ROOT/corepy/arch/spu/platform/linux/
+    % make cell_fb
+
+
+./idemo.py: [Cell/B.E.]
+
+  Simple demonstration of the command line interface to the
+  interactive SPU class (ISPU).
+
+
+./ispu.py: [Cell/B.E., wxPython]
+
+  Interactive SPU.  Execute commands directly from Python on a live
+  SPU.  If you have wxPython installed, the graphical interface
+  provides a view of the SPE registers.
+
+
+./spu_basics.py: [Cell/B.E.]
+
+  Examples of synthetic programming on the SPU.
+
+
+./chem/tanimoto.py: [Cell/B.E.]
+
+  Work in progress of the Tanimoto (Jaccard) similarity metric
+  implemented using the SPU population count instruction.
+
+
+./fractal/spu_lyapunov.py: [PS3, cell_fb]
+
+  SPE-optimized Lyapunov fractal generator for the PS3. Each SPE
+  renders a portion of the fractal to the framebuffer.
+
+  Also of note are the assembly log and division synthetic functions
+  in ./fractal/spu_log.py and ./fractal/spu_lyapunov.py:fdiv().
+
+  Build cell_fb and execute from the console as for fb_demo.py.
+
+
+./math/blas/gemm.py: [OS X/PowerPC]
+
+  Highly optimized dgemm implementation for OS X/PowerPC that is
+  competitive with Goto's dgemm.  
+
+
+./math/fft.py: [Python only]
+
+  Work in progress.  FFT implementation, currently Python-only
+  prototype.  Look for PPC and SPU synthetic versions in the future. 
+
+
+./popc/*:  [Cell/B.E.]
+
+  Population count example using C and CorePy kernels.
+
+
+./proto/*: [various]
+
+  Scratch directory.  Nothing to see here...

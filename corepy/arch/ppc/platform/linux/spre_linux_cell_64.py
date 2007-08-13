@@ -21,6 +21,7 @@ import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
 from   corepy.arch.ppc.lib.util import load_word
 
+ExecParams = cell_exec.ExecParams
 
 # ------------------------------
 # Registers
