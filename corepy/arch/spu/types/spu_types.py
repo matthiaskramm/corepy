@@ -23,6 +23,10 @@ INT_ARRAY_TYPES = ('b', 'h', 'i', 'B', 'H', 'I')
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
 INT_SIZES       = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
+FLOAT_ARRAY_TYPES = ('f', 'd')
+FLOAT_ARRAY_SIZES = {'f':4, 'd':2}
+FLOAT_SIZES       = {'f':4,  'd':8}
+
 
 def _upcast(a, b, inst):
   return inst.ex(a, b, type_cls = most_specific(a, b))
@@ -222,7 +226,6 @@ HalfwordType.__lshift__ = operator(spu.shlh, (
 HalfwordType.lshift = staticmethod(HalfwordType.__lshift__)
 
 
-
 class SingleFloatType(SPUType):
   register_type_id = 'gp'
   array_typecodes = ('f')
@@ -230,7 +233,48 @@ class SingleFloatType(SPUType):
   literal_types = (float, list, tuple, array)
 
   def _set_literal_value(self, value):
-    print 'TODO: SingleFloatType: set_literal_value'
+
+    # Convert lists and tuples to 'f' arrays
+    if isinstance(value, (list, tuple)):
+      value = array.array(self.array_typecode, value)
+    
+    if type(value) is _array_type:
+
+      if self.array_typecode != value.typecode:
+        print "Warning: array typecode does not match variable type - I hope you know what you're doing!"
+
+      # Convert the float array to an integer array to prevent Python from
+      # improperly casting floats to ints
+      int_value = array.array('I')
+      int_value.fromstring(value.tostring())
+      
+      util.vector_from_array(self.code, self, int_value)
+
+      self.code.add_storage(value)
+      self.code.add_storage(int_value)
+      self.storage = self.value
+      
+      # elif type(self.value) is _numeric_type:
+      #   raise Exception('Numeric types not yet supported')
+
+    elif type(value) in (float,):
+
+      if self.array_typecode not in FLOAT_ARRAY_TYPES:
+        print "Warning: int does not match variable type - I hope you know what you're doing!"
+
+      # Convert to bits
+      af = array.array('f', (value,))
+      int_value = array.array('I')
+      int_value.fromstring(af.tostring())
+      
+      util.load_word(self.code, self, int_value[0])
+    else:
+      # print "Warning: unknown type for %s -> %s, defaulting to 'I'" % (str(self.value), str(type(self.value)))
+      # self.typecode = 'I'
+      raise Exception("Warning: unknown type for %s -> %s, defaulting to 'I'" % (str(self.value), str(type(self.value))))
+
+    return
+
 
 class DoubleFloatType(SPUType):
   register_type_id = 'gp'
@@ -306,6 +350,68 @@ def TestWord():
   z.v = x
   return
 
+def _bits_to_float(bits):
+  ab = array.array('I', (bits,))
+  af = array.array('f')
+  af.fromstring(ab.tostring())
+  return  af[0]
+
+def TestFloatScalar():
+  from corepy.arch.spu.platform import InstructionStream, Processor
+  import corepy.arch.spu.lib.dma as dma
+
+  code = InstructionStream()
+  spu.set_active_code(code)
+
+  x = SingleFloat(1.0)
+  y = SingleFloat(2.0)
+  r = SingleFloat(0.0)
+
+  r.v = spu.fa.ex(x, y)
+  
+  spu.wrch(r, dma.SPU_WrOutMbox)    
+
+  proc = Processor()
+  result = proc.execute(code, mode='mbox')
+  assert(_bits_to_float(result) == (1.0 + 2.0))
+  
+  return
+
+
+def TestFloatArray():
+  from corepy.arch.spu.platform import InstructionStream, Processor
+  import corepy.arch.spu.lib.dma as dma
+
+  code = InstructionStream()
+  spu.set_active_code(code)
+
+  x = SingleFloat([1.0, 2.0, 3.0, 4.0])
+  y = SingleFloat([0.5, 1.5, 2.5, 3.5])
+  sum = SingleFloat(0.0)
+
+  sum.v = spu.fa.ex(x, y)
+
+  r = SingleFloat([0.0, 0.0, 0.0, 0.0])
+
+  for i in range(4):
+    r.v = spu.fa.ex(sum, r)
+    spu.rotqbyi(sum, sum, 4)
+  
+  spu.wrch(r, dma.SPU_WrOutMbox)    
+
+  proc = Processor()
+  result = proc.execute(code, mode='mbox')
+
+  x_test = array.array('f', [1.0, 2.0, 3.0, 4.0])
+  y_test = array.array('f', [0.5, 1.5, 2.5, 3.5])
+  r_test = 0.0
+  for i in range(4):
+    r_test += x_test[i] + y_test[i]
+
+  assert(_bits_to_float(result) == r_test)
+  
+  return
+
 def RunTest(test):
   from corepy.arch.spu.platform import InstructionStream, Processor
 
@@ -321,6 +427,8 @@ def RunTest(test):
 
 
 if __name__=='__main__':
-  RunTest(TestBits)
-  RunTest(TestHalfword)
-  RunTest(TestWord)  
+#  RunTest(TestBits)
+#  RunTest(TestHalfword)
+#  RunTest(TestWord)  
+  TestFloatScalar()
+  TestFloatArray()

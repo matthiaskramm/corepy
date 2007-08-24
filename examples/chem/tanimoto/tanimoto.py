@@ -280,9 +280,33 @@ class TanimotoBlock:
   
 
 class SaveOp:
-  def setup(self, code): pass
-  def synthesize(self, code, x_off, y_off, result): pass  
-  def cleanup(self, code): pass
+  def __init__(self, md_results, total_size, threshold):
+    self._md = md_results
+    self._threshold = threshold
+    self._count = None
+    return
+
+  def setup(self, code):
+    self._count = SignedWord(0)
+    self._threshold = SingleFloat([threshold] * 4)
+    return
+
+  def synthesize(self, code, x_off, y_off, result):
+    # test result against the threshold
+    # if result > threshold:
+    #   save [x_off, y_off, result] to ls
+    #   inc count
+    #   if count > md_size:
+    #     flush md
+    #     resent ls_count
+    #     if total_count > available memory:
+    #       signal controller
+    #       stop
+    return
+
+  def cleanup(self, code):
+    # save any remaining results to main memory
+    return
 
 
 class CountOp:
