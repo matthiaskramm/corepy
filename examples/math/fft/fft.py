@@ -8,6 +8,20 @@ import Numeric
 import FFT
 import time
 
+
+def _rev_bits(bits, l=32):
+  """
+  Reverse bits
+  """
+  rev = 0
+  
+  for i in range(l):
+    if bits & (1 << i) != 0:
+      rev |= 1 << (l-i - 1)
+
+  return rev
+
+
 def complex_from_polar(r, theta):
   return complex(r * math.cos(theta), r * math.sin(theta))
 
@@ -46,10 +60,6 @@ def FFT_simple(x):
     X[0] = x[0]
     return X
 
-  if N == 16:
-    print 'PING!'
-    return DFT_naive_roots(x)
-  
   e = [0+0j for k in range(N/2)]
   d = [0+0j for k in range(N/2)]
   
@@ -67,6 +77,42 @@ def FFT_simple(x):
     X[k]       = E[k] + D[k]
     X[k + N/2] = E[k] - D[k]
 
+  return X
+
+def FFT_bit_reversal(x):
+  """
+  Based on table 12-4 in DSP guide.
+  """
+  
+  N = len(x)
+  log_N = math.log(N, 2)
+  X = [0+0j for k in range(N)]
+  
+  for i in range(0, N):
+    j = _rev_bits(i, int(log_N))
+    X[j] = x[i]
+
+  for l in range(int(log_N)):
+    le = 2**(l+1)
+    le2 = le / 2
+
+    ur = 1.0
+    ui = 0.0
+
+    sr = math.cos(math.pi / le2)
+    si = -math.sin(math.pi / le2)
+
+    for j in range(0, le2):
+      for i in range(j, N, le):
+        ip = i + le2
+        tr = X[ip].real * ur - X[ip].imag * ui
+        ti = X[ip].real * ui + X[ip].imag * ur
+        X[ip] = complex(X[i].real - tr, X[i].imag - ti)
+        X[i]  = complex(X[i].real + tr, X[i].imag + ti)
+      tr = ur
+      ur = tr * sr - ui * si
+      ui = tr * si + ui * sr
+      
   return X
 
 # ------------------------------------------------------------
@@ -114,11 +160,36 @@ def test_FFT_simple():
 
   XX = FFT.fft(x)
 
+  i = 0
   for x1, x2 in zip(X, XX):
-    print x1, x2
+    # Complex eq is too sensitive, compare string representations
+    s1, s2 = str(x1), str(x2)
+    assert(s1 == s2)
+  return
+
+def test_FFT_bit_reversal():
+  x = Numeric.arange(16, typecode=Numeric.Complex)
+
+  start = time.time()
+  for i in range(10):
+    X = FFT_bit_reversal(x)
+  stop = time.time()
+  print '%.6f' % ((stop - start) / 10.0)
+
+  # start = time.time()
+  XX = FFT.fft(x)
+  # stop = time.time()
+  # print '%.6f' % ((stop - start) / 1.0)
+
+  i = 0
+  for x1, x2 in zip(X, XX):
+    # Complex eq is too sensitive, compare string representations
+    s1, s2 = str(x1), str(x2)
+    assert(s1 == s2)
   return
 
 if __name__=='__main__':
   # test_DFT_native()
   # test_DFT_native_roots()
   test_FFT_simple()
+  test_FFT_bit_reversal()

@@ -14,7 +14,7 @@ float c6 = 1.6668057665E-1;
 float c7 = 2.0000714765E-1;
 float c8 = 2.4999993993E-1;
 float c9 = 3.3333331174E-1;
-float c10 = -0.5;
+float c10 = -0.5;          
 
 
 #include <stdio.h>
@@ -45,24 +45,27 @@ int main(void)
     "MINLOGF",
     "LOGE2F",
     "SQRTHF",
-    "c1",
-    "c2",
-    "c3",
-    "c4",
-    "c5",
-    "c6",
-    "c7",
-    "c8",
-    "c9",
-    "c10"
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "C8",
+    "C9",
+    "C10"
   };
   
   
   int i = 0;
   unsigned int *hex = (void*)f;
+  
+  int a = -126;
+  printf("a: %08X\n", a);
 
   for(i; i < 15; i++) {
-    printf("%s: 0x%08X\n", s[i], *hex);
+    printf("'%s': 0x%08X,  # %.10E\n", s[i], *hex, f[i]);
     hex++;
   }
   return 0;

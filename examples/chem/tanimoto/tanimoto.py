@@ -225,8 +225,8 @@ class TanimotoBlock:
     
     # Acquire a registers for the bit vectors and result
     n_vecs = self._n_bits / 128
-    x_regs = code.acquire_registers(n_vecs)
-    y_regs = code.acquire_registers(n_vecs)
+    x_regs = [code.acquire_register() for i in range(n_vecs)]
+    y_regs = [code.acquire_register() for i in range(n_vecs)]
     result = code.acquire_register()
 
     x_addr = var.Word()
@@ -361,6 +361,8 @@ def TestTanimotoBlock():
   tb = TanimotoBlock()
   op = CountOp()
 
+  code.set_debug(True)
+  
   m = 128
   n = 128
   n_vecs = 4
@@ -375,6 +377,9 @@ def TestTanimotoBlock():
   tb.set_save_op(op)
 
   tb.synthesize(code)
+
+  code.print_code()
+  return
 
   spe_id = proc.execute(code, mode = 'async')
 
