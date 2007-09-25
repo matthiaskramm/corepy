@@ -1037,9 +1037,9 @@ def TestInt2(i0 = 0, i1 = 1):
 
 if __name__ == '__main__':
   # TestDebug()
-  # TestInt()
-  # TestParams()
-  # TestParallel()
+  TestInt()
+  TestParams()
+  TestParallel()
   # TestOptimization()
   # TestAlignedMemory()
   TestNative()
