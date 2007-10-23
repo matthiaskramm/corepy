@@ -64,22 +64,30 @@ class operator(object):
     Get is called with the bound object as obj.
     """
     def invoke(other):
-      t = type(other)
+      # Operate on type classes?
+      t_other = type(other)
+      if hasattr(other, "type_cls"):
+        t_other = other.type_cls
 
-      # If obj and other are the same type, use the default instruction 
-      if isinstance(obj, t): return self.cast(obj, other, self.default)
-
+      t_obj   = type(obj)
+      if hasattr(obj, "type_cls"):
+        t_obj = obj.type_cls
+      
+      # If obj and other are the same type, use the default instruction
+      if t_obj == t_other: return self.cast(obj, other, self.default)
+      # if isinstance(obj, t_other): return self.cast(obj, other, self.default)
+                            
       # Otherwise, search the type map for a match
       for types, inst in self.type_map:
-        if issubclass(t, types):
+        if issubclass(t_other, types):
           return self.cast(obj, other, inst)
 
       # If there is no match, see if other is a subclass of obj
       # (do this after the search in case the subclass overrides the behavior)
-      if issubclass(t, type(obj)):
+      if issubclass(t_other, t_obj):
         return self.cast(obj, other, self.default)
 
-      raise Exception('Unable to determine proper type cast')
+      raise Exception('Unable to determine proper type cast from ' + str(t_other) + ' to ' + str(type(obj)))
       return
 
     return invoke
@@ -427,8 +435,8 @@ def RunTest(test):
 
 
 if __name__=='__main__':
-#  RunTest(TestBits)
-#  RunTest(TestHalfword)
-#  RunTest(TestWord)  
+  RunTest(TestBits)
+  RunTest(TestHalfword)
+  RunTest(TestWord)  
   TestFloatScalar()
   TestFloatArray()

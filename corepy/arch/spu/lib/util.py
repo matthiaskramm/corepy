@@ -8,7 +8,7 @@
 #   Christopher Mueller (chemuell@cs.indiana.edu)
 #   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
-
+import corepy.spre.spe as spe
 import corepy.arch.spu.isa as spu
 
 def load_word(code, r_target, word, clear = False, zero = True):
@@ -60,3 +60,68 @@ def vector_from_array(code, r_target, a):
   return
 
 
+def set_slot_value(code, reg, slot, value):
+  """
+  Set the value in reg[slot] with value.  If value is a register, use
+  the value from the preferred slot (value[0]).  If value is a
+  constant, load it into reg[slot], preserving the values in the other
+  slots. 
+  """
+  if slot not in [0,1,2,3]:
+    raise Exception("Invalid SIMD slot: " + slot)
+
+  mask = code.acquire_register()
+  vector_from_array(code, mask, [0xFFFFFFFF, 0, 0, 0])
+  
+  if not issubclass(type(value), (spe.Register, spe.Variable)):
+    r_value = code.acquire_register()
+    load_word(code, r_value, value)
+  else:
+    r_value = value
+
+  code.add(spu.rotqbyi(reg, reg, slot * 4))
+  code.add(spu.selb(reg, reg, r_value, mask))
+  code.add(spu.rotqbyi(reg, reg, (4 - slot) * 4))
+  
+  code.release_register(mask)
+  if not issubclass(type(value), (spe.Register, spe.Variable)):
+    code.release_register(r_value)
+  return
+
+
+def TestSetSlotValue():
+  import corepy.arch.spu.platform as synspu
+  import corepy.arch.spu.isa as spu
+  import corepy.arch.spu.types.spu_types as var
+  import corepy.arch.spu.lib.dma as dma
+
+  code = synspu.InstructionStream()
+  proc = synspu.Processor()
+  spu.set_active_code(code)
+  a = var.SignedWord(0x11)
+  b = var.SignedWord(0x13)
+  r = var.SignedWord(0xFFFFFFFF)
+
+  set_slot_value(code, r, 0, 0x10)
+  set_slot_value(code, r, 1, a)
+  set_slot_value(code, r, 2, 0x12)
+  set_slot_value(code, r, 3, b)      
+
+  for i in range(4):
+    spu.wrch(r, dma.SPU_WrOutMbox)
+    spu.rotqbyi(r, r, 4)
+  
+  spe_id = proc.execute(code, mode = 'async')
+
+  for i in range(4):
+    while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
+    result = synspu.spu_exec.read_out_mbox(spe_id)
+    assert(result == (i + 0x10))
+
+  proc.join(spe_id)
+
+  return
+  
+
+if __name__=='__main__':
+  TestSetSlotValue()

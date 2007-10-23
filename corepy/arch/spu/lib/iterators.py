@@ -124,10 +124,8 @@ class memory_desc(object):
     # Check the types
     if not isinstance(code, spe.InstructionStream):
       raise Exception('Code must be an InstructionStream')
-    if not isinstance(lsa, int):
-      raise Exception('lsa must be an integer')
-    if not isinstance(tag, int):
-      raise Exception('tag must be an integer')
+    if not (isinstance(lsa, int) or issubclass(type(lsa), (spe.Register, spe.Variable))):
+      raise Exception('lsa must be an integer, Register, or Variable')
     
     old_code = spu.get_active_code()
     spu.set_active_code(code)
@@ -148,9 +146,9 @@ class memory_desc(object):
     if isinstance(lsa, int):
       # From a constant
       ls_addr   = var.SignedWord(lsa)
-    elif isinstance(lsa, (spe.Register, spe.Variable)):
+    elif issubclass(type(lsa), (spe.Register, spe.Variable)):
       # From a variable
-      ls_addr   = var.SignedWord(lsa)      
+      ls_addr   = var.SignedWord()      
       ls_addr.v = lsa
       
       
@@ -173,11 +171,14 @@ class memory_desc(object):
         rnd_size += (16 - (rnd_size % 16))
       util.load_word(code, aligned_size, rnd_size)
     else:
+      # TODO: !!! UNIT TEST THIS !!!
       # Same as above, but using SPU arithemtic to round
       size  = var.SignedWord(reg = r_size)
+      sixteen  = var.SignedWord(16)
       cmp.v = ((size & mod_16) == size)
-      aligned_size.v = size + (16 - (size & mod_16))
+      aligned_size.v = size + (sixteen - (size & mod_16))
       spu.selb(aligned_size.reg, size.reg, aligned_size.reg, cmp.reg, order = _mi(spu.selb))
+      code.release_register(sixteen.reg)
 
     # Use an auxillary register for the moving ea value if the
     # caller supplied the address register

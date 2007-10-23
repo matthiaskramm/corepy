@@ -9,14 +9,15 @@
 #   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
 import array
+import time
 
 import corepy.arch.spu.isa as spu
-from corepy.arch.spu.types.spu_types import SignedWord
+from corepy.arch.spu.types.spu_types import SignedWord, SingleFloat
 from corepy.arch.spu.lib.iterators import memory_desc, spu_vec_iter, \
      stream_buffer, syn_iter, parallel
 import corepy.arch.spu.lib.dma as dma
 from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     Processor, aligned_memory, spu_exec
+     NativeInstructionStream, Processor, aligned_memory, spu_exec
 
   
 def SimpleSPU():
@@ -182,6 +183,79 @@ def DoubleBufferExample(n_spus = 6):
   
   return
 
+def SpeedTest(n_spus = 6, n_floats = 6):
+  """
+  Get a rough estimate of the maximum flop count.
+  On a PS3 using all 6 spus, this is 152 GFlops.
+  """
+
+  if n_spus > 1:  code = ParallelInstructionStream()
+  else:           code = InstructionStream()
+
+  spu.set_active_code(code)
+  
+  f_range = range(n_floats)
+  a = [SingleFloat(0.0) for i in f_range]
+  b = [SingleFloat(0.0) for i in f_range]
+  c = [SingleFloat(0.0) for i in f_range]  
+  t = [SingleFloat(0.0) for i in f_range]
+
+  outer = 2**12
+  inner = 2**16
+  unroll = 128
+  fuse = 2
+  simd = 4
+  for x in syn_iter(code, outer):
+    for y in syn_iter(code, inner):
+      for u in range(unroll):
+        for i in f_range:
+          t[i].v = spu.fma.ex(a[i], b[i], c[i])
+    
+
+  # Run the synthetic program and copy the results back to the array 
+  proc = Processor()
+  start = time.time()
+  r = proc.execute(code, n_spus = n_spus)
+  stop = time.time()
+  total = stop - start
+  n_ops = long(outer) * inner * long(unroll) * long(n_floats) * long(fuse) * long(simd) * long(n_spus)
+  print '%.6f sec, %.2f GFlops' % (total, n_ops / total / 1e9)
+
+#   # Run the native program and copy the results back to the array
+#   outer = 2**14
+#   inner = 2**16
+#   unroll = 1
+#   fuse = 1
+#   simd = 1
+
+#   proc = Processor()
+#   # ncode = NativeInstructionStream("a.out")
+#   start = time.time()
+#   r = proc.execute(ncode, n_spus = n_spus)
+#   stop = time.time()
+#   total = stop - start
+#   n_ops = long(outer) * inner * long(unroll) * long(n_floats) * long(fuse) * long(simd) * long(n_spus)
+#   print '%.6f sec, %.2f GFlops' % (total, n_ops / total / 1e9)
+
+  results = """
+  --> No optimizations
+  Executing native code: a.out
+  14.805322 sec, 20.89 GFlops
+
+  --> Synthetic
+  Platform: linux.spre_linux_spu
+  no raw data
+  65.023350 sec, 152.19 GFlops
+
+  --> -O3 (fuse: 2, simd: 4)
+  Executing native code: a.out
+  7.407939 sec, 41.74 GFlops
+
+  --> -O3 (fuse: 1, simd: 1)
+  Executing native code: a.out
+  7.403702 sec, 5.22 GFlops
+  """
+  return
 
 if __name__=='__main__':
   SimpleSPU()
@@ -190,3 +264,5 @@ if __name__=='__main__':
     MemoryDescExample(i)
 
   DoubleBufferExample()
+  SpeedTest()
+

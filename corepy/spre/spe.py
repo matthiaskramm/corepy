@@ -815,7 +815,7 @@ class InstructionStream(object):
     return len(self._code)
 
   def size(self): return len(self._code)
-
+  def __len__(self): return self.size()
 
   # ------------------------------
   # Execute/ABI support

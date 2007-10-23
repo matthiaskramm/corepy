@@ -53,7 +53,8 @@ gp_return = 3
 # Callee save registers
 gp_save = [GPRegister(i, None) for i in range(13, 32)]
 fp_save = [FPRegister(i, None) for i in range(13, 32)]
-vx_save = [VMXRegister(i, None) for i in range(20, 32)]  # !!! NOT SURE ABOUT VMX !!!
+# vx_save = [VMXRegister(i, None) for i in range(20, 32)]  # !!! NOT SURE ABOUT VMX !!!
+vx_save = [VMXRegister(i, None) for i in range(0, 32)]  # !!! NOT SURE ABOUT VMX !!!
 
 # ------------------------------------------------------------
 # Helpers
@@ -139,6 +140,7 @@ class InstructionStream(spe.InstructionStream):
     #  r1 is the stackpointer, -4(r1) is in the red zone
 
     r_addr = GPRegister(3, None) # use r2 - not on PPC Linux!!!  Use a volitile register for this, say R3
+    r_idx = GPRegister(4, None) # use r2 - not on PPC Linux!!!  Use a volitile register for this, say R3    
     # self._prologue.add(ppc.stwu(r_addr, r_addr, -WORD_SIZE))
     
     load_word(self._prologue, r_addr, self._saved_gp_registers.buffer_info()[0])
@@ -156,8 +158,9 @@ class InstructionStream(spe.InstructionStream):
     load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
     
     for i, reg in enumerate(save_vx):
-      # print 'saving vx:', reg, r_addr, i * WORD_SIZE
-      self._prologue.add(vmx.stvx(reg, i * WORD_SIZE * 4, r_addr))
+      # print 'saving vx:', reg, r_addr, i * WORD_SIZE * 4
+      load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
+      self._prologue.add(vmx.stvx(reg, r_idx, r_addr))
 
     # Restore r2
     # self._prologue.add(ppc.lwz(r_addr, 1, -4))
@@ -196,11 +199,14 @@ class InstructionStream(spe.InstructionStream):
     save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
 
     r_addr = 4
-    load_word(self._epilogue, r_addr, self._saved_gp_registers.buffer_info()[0])    
-    
-    for i, reg in enumerate(save_gp):
-      # print 'restoring gp:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.add(ppc.lwz(reg, r_addr, i * WORD_SIZE))
+    r_idx = 5
+
+    load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
+
+    for i, reg in enumerate(save_vx):
+      # print 'restoring vx:', reg, r_addr, i * WORD_SIZE
+      load_word(self._epilogue, r_idx, i * WORD_SIZE * 4)
+      self._epilogue.add(vmx.lvx(reg, r_idx, r_addr))
 
     load_word(self._epilogue, r_addr, self._saved_fp_registers.buffer_info()[0])    
     
@@ -208,11 +214,14 @@ class InstructionStream(spe.InstructionStream):
       # print 'restoring fp:', reg, r_addr, i * WORD_SIZE
       self._epilogue.add(ppc.lfd(reg, r_addr, i * WORD_SIZE * 2))
 
-    load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
 
-    for i, reg in enumerate(save_vx):
-      # print 'saving vx:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.add(vmx.lvx(reg, i * WORD_SIZE * 4, r_addr))
+    load_word(self._epilogue, r_addr, self._saved_gp_registers.buffer_info()[0])    
+
+    for i, reg in enumerate(save_gp):
+      # print 'restoring gp:', reg, r_addr, i * WORD_SIZE
+      self._epilogue.add(ppc.lwz(reg, r_addr, i * WORD_SIZE))
+
+    # self._epilogue.add(ppc.lwz(r_addr, r_addr, 3 * WORD_SIZE))
 
     return
 

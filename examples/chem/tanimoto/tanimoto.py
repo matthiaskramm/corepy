@@ -1,6 +1,7 @@
 # Jaccard/Tanimoto SPU Bit Vector Comparison Kernel
 
 import array
+import time
 
 import corepy.arch.spu.platform as synspu
 import corepy.arch.spu.isa as spu
@@ -189,6 +190,7 @@ class TanimotoBlock:
     self._n_bits = None
     self._m = None
     self._n = None
+    self._threshold = None
 
     self._save_op = None
     return
@@ -202,6 +204,7 @@ class TanimotoBlock:
     self._n = n
     return
 
+  def set_threshold(self, threshold): self._threshold = threshold
   def set_save_op(self, op): self._save_op = op
 
   def _load_bit_vector(self, addr, regs):
@@ -231,6 +234,13 @@ class TanimotoBlock:
 
     x_addr = var.Word()
     y_addr = var.Word()
+
+    if self._save_op is not None:
+      if self._threshold is not None:
+        threshold = var.SingleFloat(self._threshold)
+      else:
+        threshold = var.SingleFloat(0.0)
+      bcmp = var.Word(0)
     
     # Setup the Tanimito kernel
     tan = Tanimoto()
@@ -245,7 +255,7 @@ class TanimotoBlock:
     # Setup the save op
     save_op = self._save_op
     if save_op is not None:
-      save_op.setup(code)
+      save_op.setup()
       
     # Create the iterators
     xiter = spuiter.syn_iter(code, self._m)
@@ -267,17 +277,135 @@ class TanimotoBlock:
         tan.synthesize(code)
 
         if save_op is not None:
-          save_op.synthesize(code, x_off, y_off, result)
+          # save_op.synthesize(code, x_off, y_off, result)
+          spu.fcgt(bcmp, result, threshold)
+          save_op.test(bcmp, result, x_off, y_off)
+
     # /x_off
 
-    if save_op is not None:
-      save_op.cleanup(code)
-
+    # if save_op is not None:
+    #   save_op.cleanup(code)
+    #   save_op.block()
+      
     if old_code is not None:
       spu.set_active_code(old_code)
     
     return
+
+
+# ------------------------------------------------------------
+# Buffer save operations
+# ------------------------------------------------------------
+
+
+class LocalSave:
+  def __init__(self):
+    self._md_results = None
+
+    self._branch_idx = None
+    self._block_idx  = None
+    self._count = None
+    self._save_value = None
+    self._word_mask = None
+    
+    # Save parameters
+    self._cmp = None
+    self._score = None
+    self._x_off = None
+    self._y_off = None
+
+    return
+
+  def set_md_results(self, md): self._md_results = md
   
+  def setup(self):
+    self._count = var.SignedWord(0)
+    self._save_value = var.SignedWord(0)
+    self._word_mask = var.SignedWord(array.array('I', [0xFFFFFFFF, 0, 0, 0]))
+    
+    return
+  
+  def test(self, cmp, score, x_off, y_off):
+    code = spu.get_active_code()
+    self._branch_idx = len(code)
+    spu.stop(0xB)
+    # spu.nop(0)
+    self._cmp = cmp
+    self._score = score
+    self._x_off = x_off
+    self._y_off = y_off
+    return
+
+  def block(self):
+    code = spu.get_active_code()
+    self._block_idx = len(code)
+
+    # --> add the branch instruction
+    # code[self._branch_idx] = spu.nop(0, ignore_active = True)
+    code[self._branch_idx] = spu.brnz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
+
+    # Pack result into vector
+    #   [x][y][score][--]
+
+    # Zero the save value
+    spu.xor(self._save_value, self._save_value, self._save_value)
+
+    # Copy the score
+    spu.selb(self._save_value, self._save_value, self._score, self._word_mask)    
+    spu.rotqbyi(self._save_value, self._save_value, 12)
+
+    # Copy the y value
+    spu.selb(self._save_value, self._save_value, self._y_off, self._word_mask)
+    spu.rotqbyi(self._save_value, self._save_value, 12)        
+
+    # Copy the x value
+    spu.selb(self._save_value, self._save_value, self._x_off, self._word_mask)
+    
+    # Save value to local store
+    spu.stqx(self._save_value, self._count, self._md_results.r_addr)
+    
+    self._count.v = self._count.v + 16
+
+    # --> MemorySave test
+    cmp = self._save_value # reuse the save register
+    spu.ceq.ex(cmp, self._count, self._md_results.r_size)
+
+    # Just reset for now
+    spu.selb(self._count, self._count, 0, cmp)
+
+    # Return to the loop
+    idx = len(code)
+    spu.br(- (idx - self._branch_idx - 1))
+    
+    return
+
+class MemorySave:
+  def __init__(self):
+    return
+
+  def save_test(self):
+    # test
+    # branch
+    return
+
+  def save_block(self):
+    # save buffer to main memory
+    return
+
+
+class MemoryFull:
+  def __init__(self):
+    return
+
+  def save_test(self):
+    # test
+    # branch
+    return
+
+  def save_block(self):
+    # signal PPU that the main memory buffer is full
+    return
+
 
 class SaveOp:
   def __init__(self, md_results, total_size, threshold):
@@ -326,6 +454,29 @@ class CountOp:
     spu.wrch(self._count, dma.SPU_WrOutMbox)
     return
 
+class CountOp2:
+  def __init__(self):
+    self._count = None
+    return
+
+  def pre_setup(self, code):
+    self._count = var.Word(0)
+    return
+
+  def setup(self, code):
+    return
+
+  def synthesize(self, code, x_off, y_off, result):
+    self._count.v = self._count + 1
+    return
+
+  def cleanup(self, code):
+    return
+
+  def post_cleanup(self, code):
+    spu.wrch(self._count, dma.SPU_WrOutMbox)
+    return
+
 
 
 def TestTanimoto():
@@ -358,16 +509,29 @@ def TestTanimotoBlock():
   code = synspu.InstructionStream()
   proc = synspu.Processor()
 
-  tb = TanimotoBlock()
-  op = CountOp()
-
   code.set_debug(True)
+  spu.set_active_code(code)
   
+  tb = TanimotoBlock()
+  op = LocalSave()
+
+  # Input block
+  code.set_debug(True)
+
   m = 128
-  n = 128
+  n = 64
   n_vecs = 4
   n_bits = 128 * n_vecs
 
+  # Results buffer
+  buffer_size = var.SignedWord(16384)
+  buffer_addr = var.SignedWord(m * n * n_vecs * 4)
+  md_results = spuiter.memory_desc('B')
+  md_results.set_size_reg(buffer_size)
+  md_results.set_addr_reg(buffer_addr)
+
+  op.set_md_results(md_results)
+  
   tb.set_n_bits(n_bits)
   tb.set_block_size(m, n)
 
@@ -376,18 +540,36 @@ def TestTanimotoBlock():
 
   tb.set_save_op(op)
 
-  tb.synthesize(code)
+  # op.pre_setup(code)
 
-  code.print_code()
-  return
+<<<<<<< .mine
+  n_samples = 10000
+  for samples in spuiter.syn_iter(code, n_samples):
+    tb.synthesize(code)
 
+  spu.wrch(buffer_size, dma.SPU_WrOutMbox)
+  
+  spu.stop(0x2000) 
+
+  # "Function" Calls
+  op.block()
+
+  # code.print_code()
+  start = time.time()
   spe_id = proc.execute(code, mode = 'async')
-
+  
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
   print 'tb said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
-
+  stop = time.time()
+  
   proc.join(spe_id)
-
+  total = stop - start
+  bits_sec = (m * n * n_bits * n_samples) / total / 1e9
+  ops_per_compare = 48 * 4 + 8
+  insts_per_compare = 56
+  gops = (m * n * n_vecs * n_samples * ops_per_compare ) / total / 1e9
+  ginsts = (m * n * n_vecs * n_samples * insts_per_compare ) / total / 1e9  
+  print '%.6f sec, %.2f Gbits/sec, %.2f GOps, %.2f GInsts' % (total, bits_sec, gops, ginsts)
   return
 
 if __name__=='__main__':
