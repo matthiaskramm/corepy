@@ -277,16 +277,11 @@ class TanimotoBlock:
         tan.synthesize(code)
 
         if save_op is not None:
-          # save_op.synthesize(code, x_off, y_off, result)
           spu.fcgt(bcmp, result, threshold)
           save_op.test(bcmp, result, x_off, y_off)
 
     # /x_off
 
-    # if save_op is not None:
-    #   save_op.cleanup(code)
-    #   save_op.block()
-      
     if old_code is not None:
       spu.set_active_code(old_code)
     
@@ -314,14 +309,22 @@ class LocalSave:
     self._x_off = None
     self._y_off = None
 
+    # Main memory save
+    self._save_op = None
+    
     return
 
   def set_md_results(self, md): self._md_results = md
+  def set_mm_save_op(self, op): self._save_op = op
   
   def setup(self):
     self._count = var.SignedWord(0)
     self._save_value = var.SignedWord(0)
     self._word_mask = var.SignedWord(array.array('I', [0xFFFFFFFF, 0, 0, 0]))
+
+
+    if self._save_op is not None:
+      self._save_op.setup()
     
     return
   
@@ -341,8 +344,9 @@ class LocalSave:
     self._block_idx = len(code)
 
     # --> add the branch instruction
-    # code[self._branch_idx] = spu.nop(0, ignore_active = True)
-    code[self._branch_idx] = spu.brnz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
+    code[self._branch_idx] = spu.nop(0, ignore_active = True)
+    # code[self._branch_idx] = spu.brnz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
+    code[self._branch_idx] = spu.brz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
 
     # Pack result into vector
     #   [x][y][score][--]
@@ -370,6 +374,9 @@ class LocalSave:
     cmp = self._save_value # reuse the save register
     spu.ceq.ex(cmp, self._count, self._md_results.r_size)
 
+    if self._save_op is not None:
+      self._save_op.test(cmp, self._count)
+      
     # Just reset for now
     spu.selb(self._count, self._count, 0, cmp)
 
@@ -381,15 +388,44 @@ class LocalSave:
 
 class MemorySave:
   def __init__(self):
+    self._md_save = None # Main memory buffer
+
+    self._branch_idx = None
+    self._block_idx  = None
+    self._count = None
+    self._cmp = None
+    
     return
 
-  def save_test(self):
-    # test
-    # branch
+  def set_md_save_buffer(self, md): self._md_save = md
+  
+  def setup(self):
+    return
+  
+  def test(self, cmp, count_var):
+    code = spu.get_active_code()
+    self._branch_idx = len(code)
+    spu.stop(0xB)
+    # spu.nop(0)
+    self._cmp = cmp
+    self._count = count_var
     return
 
-  def save_block(self):
-    # save buffer to main memory
+  def block(self):
+    code = spu.get_active_code()
+    self._block_idx = len(code)
+
+    # --> add the branch instruction
+    code[self._branch_idx] = spu.nop(0, ignore_active = True)
+    code[self._branch_idx] = spu.brnz(self._cmp, self._block_idx - self._branch_idx,
+                                      ignore_active = True)
+    
+    # FILL IN HERE
+    
+    # Return to the loop
+    idx = len(code)
+    spu.br(- (idx - self._branch_idx - 1))
+    
     return
 
 
@@ -513,36 +549,50 @@ def TestTanimotoBlock():
   spu.set_active_code(code)
   
   tb = TanimotoBlock()
-  op = LocalSave()
+  ls_save = LocalSave()
+  mm_save = MemorySave()
 
-  # Input block
   code.set_debug(True)
 
+  # Input block parameters
   m = 128
   n = 64
   n_vecs = 4
   n_bits = 128 * n_vecs
 
-  # Results buffer
+  # Main memory results buffer
+  # max_results = 2**16
+  max_results = 16384
+  words_per_result = 4
+
+  mm_results_data = array.array('I', [12 for i in range(max_results * words_per_result)])
+  mm_results_buffer = synspu.aligned_memory(max_results * words_per_result, typecode = 'I')
+  # mm_results_buffer.copy_to(mm_results_data.buffer_info()[0], len(mm_results_data))
+
+  mm_results = spuiter.memory_desc('I')
+  mm_results.from_array(mm_results_buffer)
+
+  mm_save.set_md_save_buffer(mm_results)
+    
+  # Local Results buffer
   buffer_size = var.SignedWord(16384)
   buffer_addr = var.SignedWord(m * n * n_vecs * 4)
-  md_results = spuiter.memory_desc('B')
-  md_results.set_size_reg(buffer_size)
-  md_results.set_addr_reg(buffer_addr)
+  ls_results = spuiter.memory_desc('B')
+  ls_results.set_size_reg(buffer_size)
+  ls_results.set_addr_reg(buffer_addr)
 
-  op.set_md_results(md_results)
-  
+  ls_save.set_md_results(ls_results)
+  ls_save.set_mm_save_op(mm_save)
+
+  # Setup the TanimotoBlock class
   tb.set_n_bits(n_bits)
   tb.set_block_size(m, n)
 
   tb.set_x_addr(0)
   tb.set_y_addr(m * n_vecs * 16)
+  tb.set_save_op(ls_save)
 
-  tb.set_save_op(op)
-
-  # op.pre_setup(code)
-
-<<<<<<< .mine
+  # Main test loop
   n_samples = 10000
   for samples in spuiter.syn_iter(code, n_samples):
     tb.synthesize(code)
@@ -552,7 +602,8 @@ def TestTanimotoBlock():
   spu.stop(0x2000) 
 
   # "Function" Calls
-  op.block()
+  ls_save.block()
+  mm_save.block()
 
   # code.print_code()
   start = time.time()
@@ -561,11 +612,13 @@ def TestTanimotoBlock():
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
   print 'tb said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
   stop = time.time()
+
+  # mm_results_buffer.copy_from(mm_results_data.buffer_info()[0], len(mm_results_data))
   
   proc.join(spe_id)
   total = stop - start
   bits_sec = (m * n * n_bits * n_samples) / total / 1e9
-  ops_per_compare = 48 * 4 + 8
+  ops_per_compare = 48 * 4 + 8  # 48 SIMD instructions, 8 scalar
   insts_per_compare = 56
   gops = (m * n * n_vecs * n_samples * ops_per_compare ) / total / 1e9
   ginsts = (m * n * n_vecs * n_samples * insts_per_compare ) / total / 1e9  
