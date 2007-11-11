@@ -93,6 +93,25 @@ class Tanimoto:
     
     return
 
+
+  def _ab_c(self, x, y, ab, c, ab_temp, c_temp):
+    """
+    Interleave ab and c computations
+    """
+    spu.xor(ab_temp, x, y)
+    spu.and_(c_temp, x, y)
+    
+    spu.cntb(ab_temp, ab_temp)
+    spu.cntb(c_temp, c_temp)
+    
+    spu.sumb(ab_temp, ab_temp, 0)
+    spu.sumb(c_temp, c_temp, 0)
+    
+    spu.a(ab, ab, ab_temp)
+    spu.a(c, c, c_temp)
+    
+    return
+
   def _reduce_word(self, words, result):
     """
     Add-reduce a vector of words into the preferred
@@ -163,18 +182,20 @@ class Tanimoto:
     nregs = self._n_bits / 128
 
     for i in range(nregs):
-      self._ab(self._x_regs[i], self._y_regs[i], ab, ab_temp)
-      self._c( self._x_regs[i], self._y_regs[i],  c,  c_temp)
-    
+      # self._ab(self._x_regs[i], self._y_regs[i], ab, ab_temp)
+      # self._c( self._x_regs[i], self._y_regs[i],  c,  c_temp)
+      self._ab_c(self._x_regs[i], self._y_regs[i], ab, c, ab_temp, c_temp)
+      
     self._reduce_word(ab, ab_temp)
     self._reduce_word( c,  c_temp)
 
     self._compute_ratio(ab_temp, c_temp, result)
 
+    print '%d registers,' % (len(regs) + len(self._x_regs) + len(self._y_regs)),
     code.release_registers(regs)
     if old_code is not None:
       spu.set_active_code(old_code)
-
+      
     return
 
 
@@ -343,10 +364,10 @@ class LocalSave:
     code = spu.get_active_code()
     self._block_idx = len(code)
 
-    # --> add the branch instruction
+    # --> add the branch instruction (use brz (?) to always branch, nop to never branch)
     code[self._branch_idx] = spu.nop(0, ignore_active = True)
     # code[self._branch_idx] = spu.brnz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
-    code[self._branch_idx] = spu.brz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
+    # code[self._branch_idx] = spu.brz(self._cmp, self._block_idx - self._branch_idx, ignore_active = True)
 
     # Pack result into vector
     #   [x][y][score][--]
@@ -541,7 +562,7 @@ def TestTanimoto():
   # TODO: Do a real test, not just a synthesis test
   return
 
-def TestTanimotoBlock():
+def TestTanimotoBlock(n_vecs = 4):
   code = synspu.InstructionStream()
   proc = synspu.Processor()
 
@@ -557,7 +578,7 @@ def TestTanimotoBlock():
   # Input block parameters
   m = 128
   n = 64
-  n_vecs = 4
+  # n_vecs = 9
   n_bits = 128 * n_vecs
 
   # Main memory results buffer
@@ -610,7 +631,7 @@ def TestTanimotoBlock():
   spe_id = proc.execute(code, mode = 'async')
   
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
-  print 'tb said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
+  # print 'tb said: 0x%X' % (synspu.spu_exec.read_out_mbox(spe_id))
   stop = time.time()
 
   # mm_results_buffer.copy_from(mm_results_data.buffer_info()[0], len(mm_results_data))
@@ -622,9 +643,13 @@ def TestTanimotoBlock():
   insts_per_compare = 56
   gops = (m * n * n_vecs * n_samples * ops_per_compare ) / total / 1e9
   ginsts = (m * n * n_vecs * n_samples * insts_per_compare ) / total / 1e9  
-  print '%.6f sec, %.2f Gbits/sec, %.2f GOps, %.2f GInsts' % (total, bits_sec, gops, ginsts)
+  print '%.6f sec, %.2f Gbits/sec, %.2f GOps, %.2f GInsts, %d insts' % (
+    total, bits_sec, gops, ginsts, code.size())
   return
 
 if __name__=='__main__':
   # Test()
-  TestTanimotoBlock()
+
+  for n_vecs in range(24):
+    print '%d bits/vec,' %  (n_vecs * 128),
+    TestTanimotoBlock(n_vecs)
