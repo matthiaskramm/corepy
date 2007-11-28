@@ -260,6 +260,10 @@ class _MachineInstruction:
     self._fields = {} # name: Field
     self._inst = array.array(INSTRUCTION_TYPE, (0,))
     self._sFields = ''
+
+    self._defaultFields = []
+    self._nonDefaultFields = []
+
     self.sCode   = ''
     self.name = name
     self._code = None
@@ -302,12 +306,15 @@ class _MachineInstruction:
 
     self._fields[field.param] = field
     self._machine_order.append(field)
-      
+
+    if field.has_default:
+      self._defaultFields.append(field)
+    else:
+      self._nonDefaultFields.append(field)
+
     if len(self._sFields) == 0:
-      self._sFields += field.param
       self.sCode += ' | ' + field.sCode 
     else:
-      self._sFields += ', ' + field.param
       self.sCode += ' | ' + field.sCode
   
     return
@@ -316,6 +323,10 @@ class _MachineInstruction:
     """
     Create a new __call__ method from the parameters and statements.
     """
+    # Make sure the non-default fields show up first in the operand list for the call method.
+    allFields = [field.param for field in self._nonDefaultFields] + [field.param for field in self._defaultFields]
+    self._sFields = ','.join(allFields)
+
     self._sCode = self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':self.sCode}
 
     self._code = compile(self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':self.sCode},
