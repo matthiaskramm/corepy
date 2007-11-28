@@ -105,6 +105,7 @@ def RI18(op):
 ASM_RR = (RT, RA, RB)
 ASM_XR = (RT, RA) # Null RB
 ASM_XX = (RT, )   # Null RB, RA
+ASM_RA = (RA, )   # Null RT (used in bi)
 ASM_RR_Branch = (RT, RA)
 ASM_RR_Channel = (RT, CA)
 ASM_RRR = (RRR_RT, RA, RB, RC)
@@ -195,7 +196,7 @@ SPU_ISA = (
   ('clgtb', {'binary': (OPRR(BinToDec('01011010000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
   ('clgth', {'binary': (OPRR(BinToDec('01011001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
   ('clgt', {'binary': (OPRR(BinToDec('01011000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('bi', {'binary': (OPRR(BinToDec('00110101000')), '0', D, E, '0000', RA, R_RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
+  ('bi', {'binary': (OPRR(BinToDec('00110101000')), '0', D, E, '0000', RA, '0000000'), 'asm': ASM_RA, 'cycles': (1, 4, 0) }),
   ('iret', {'binary': (OPRR(BinToDec('00110101010')), '0', D, E, '0000', RA, R_RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
   ('bisled', {'binary': (OPRR(BinToDec('00110101011')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
   ('bisl', {'binary': (OPRR(BinToDec('00110101001')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
