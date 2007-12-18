@@ -25,5 +25,8 @@ print 'Platform:', platform_string
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 
 for cls in platform_imports:
-  locals()[cls] = getattr(platform_module, cls)
+  try:
+    locals()[cls] = getattr(platform_module, cls)
+  except:
+    print 'PPC Platform Warning: Unable to load osx.ppc_exec.%s.  Related features will not be available.' % (str(cls),)
   

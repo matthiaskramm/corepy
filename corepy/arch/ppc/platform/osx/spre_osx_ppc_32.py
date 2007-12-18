@@ -19,7 +19,7 @@ import sys
 
 import corepy.spre.spe as spe
 import ppc_exec
-from synnumeric import array_address
+# from synnumeric import array_address
 
 import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
