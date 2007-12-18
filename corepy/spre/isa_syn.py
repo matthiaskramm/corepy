@@ -264,7 +264,6 @@ class _MachineInstruction:
     self._defaultFields = []
     self._nonDefaultFields = []
 
-    self.sCode   = ''
     self.name = name
     self._code = None
     self._opcodes = [] # opcodes in the order they were added
@@ -289,11 +288,6 @@ class _MachineInstruction:
     """
     self.generalize()
     
-    if len(self._sFields) == 0:
-      self.sCode += str(opcode)
-    else:
-      self.sCode += ' | ' + str(opcode)
-
     self._opcodes.append(opcode)
     return
   
@@ -312,11 +306,6 @@ class _MachineInstruction:
     else:
       self._nonDefaultFields.append(field)
 
-    if len(self._sFields) == 0:
-      self.sCode += ' | ' + field.sCode 
-    else:
-      self.sCode += ' | ' + field.sCode
-  
     return
 
   def synthesize(self, *args, **kargs):
@@ -327,9 +316,14 @@ class _MachineInstruction:
     allFields = [field.param for field in self._nonDefaultFields] + [field.param for field in self._defaultFields]
     self._sFields = ','.join(allFields)
 
-    self._sCode = self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':self.sCode}
+    # Make the actual rendering expression
+    exprList = [field.sCode for field in self._nonDefaultFields] + [field.sCode for field in self._defaultFields] \
+               + [str(opcode) for opcode in self._opcodes]
+    exprCode = '|'.join(exprList)
 
-    self._code = compile(self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':self.sCode},
+    self._sCode = self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':exprCode}
+
+    self._code = compile(self.callTemplate % {'name':self.name, 'params':self._sFields, 'code':exprCode},
                          '<MachineInstruction %s>' % self.name, 'exec')
     exec self._code
     return self(*args, **kargs)
