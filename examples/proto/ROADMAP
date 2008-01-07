@@ -1,0 +1,63 @@
+CorePy Roadmap Notes
+--------------------
+
+CorePy Overview
+---------------
+
+CorePy is...
+
+
+CorePy Layers
+-------------
+
+ ___________________________________________
+|                                           |
+|    Library Compilers (NumPy, XML, etc)    |
+|___________________________________________|
+|                                           |
+|     Problem Specific Micro-compilers      |
+|___________________________________________|
+|                                           |
+| Low-level Semantic Libraries (Vars, Iters)|
+|___________________________________________|
+|                                           |
+| Synthetic Programming Runtime Environment |
+|___________________________________________|
+|                     |                     |
+| ISAs (ppc, x86, etc |  ABIs (OS X, Win32) |
+|_____________________|_____________________|
+
+
+Descriptions
+------------
+
+ISAs and ABI:
+
+Platform specific support code, ISA definitions, and object file
+generation. 
+
+SPRE:
+
+Platform independent code generation components.  Instruction,
+InstructionStream, and Processor abstractions.
+
+Library Defined Semantics:
+
+Component libraries for standard language primitives such as
+Variables, Iterators, ControlFlow graphs, etc.
+
+Problem Specific Purpose Micro-compilers:
+
+Component libraries for problem classes.  These could include linear
+algebra, regular expressions, XML, DSP/FFTs, image processing, etc.
+
+The goal is to transcend the limitations imposed by the semantics of
+general purpose languages to provide fully optimized compilers for
+narrowly defined problems.  
+
+Library Compilers:
+
+Using introspection, library proxies, or other fun dynamic language
+abilities, library compilers compile existing code using the
+appropraite problem specific compilers.
+
