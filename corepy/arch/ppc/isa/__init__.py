@@ -9,7 +9,8 @@
 #   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
 # import platform_conf
-import ppc_isa as machine
+# import ppc_isa as machine
+from ppc_isa2 import *
 import corepy.spre.spe as spe
 
 # Nothing to see here, move along... ;)
@@ -40,20 +41,25 @@ def get_active_code():
 # _ppc_active_code_prop = property(get_active_code)
 
 # Build the instructions
-for inst in ppc_isa.PPC_ISA:
-  name = inst[0]
-  machine_inst = getattr(machine, name)
+# for inst in ppc_isa.PPC_ISA:
+#   name = inst[0]
+#   machine_inst = getattr(machine, name)
   
-  # asm_order = inst[1]['asm']
-  members = {}
-  for key in inst[1].keys():
-    members[key] = inst[1][key]
+#   # asm_order = inst[1]['asm']
+#   members = {}
+#   for key in inst[1].keys():
+#     members[key] = inst[1][key]
 
-  members['asm_order'] =  members['asm']
-  members['machine_inst'] =  machine_inst
-  members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
-  globals()[inst[0]] = type(name, (spe.Instruction,), members)
-                                                       
+#   members['asm_order'] =  members['asm']
+#   members['machine_inst'] =  machine_inst
+#   members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
+#   globals()[inst[0]] = type(name, (spe.Instruction,), members)
+
+for l in locals().values():
+  if isinstance(l, type) and issubclass(l, PPCInstruction):
+    l.active_code = property(__get_active_code) 
+
+
 # ------------------------------
 # Mnemonics
 # ------------------------------
