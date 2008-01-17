@@ -174,6 +174,15 @@ def SynthesizeField(name, fieldtype, bits, default):
     
   shift = 31 - bits[1]
 
+  width = bits[1] - bits[0] + 1
+#   print 'class %s:' % name
+#   print '  def _render(value)'
+#   if shift == 0:
+#     print '    return (value & bit_mask[%d]) ' % (width,)
+#   else:
+#     print '    return (value & bit_mask[%d]) << %d ' % (width, shift)
+#   print '  render = staticmethod(_render)'
+  
   if fieldtype is MaskedField:
     return fieldtype(name, shift, bits, mask=default)
   else:
@@ -382,6 +391,8 @@ def SynthesizeMachineInstruction(name, format, opcodes):
   # keep track of how many bits are used to select the appropriate extended opcode
   ibits = 0 
 
+  sig = []
+  codes = []
   for elt in format:
     # print '  field:', elt
     if isinstance(elt, int):
@@ -389,15 +400,19 @@ def SynthesizeMachineInstruction(name, format, opcodes):
       if elt == 0:
         # '0' bits
         ibits += 1
+        sig.append('0')
       else:
         # Opcodes
 
         inst.AppendOpcode(opcodes[ibits](elt))
+        sig.append(opcodes[ibits].name)
         ibits += opcodes[ibits].width
+        codes.append(str(elt))
+        
     elif isinstance(elt, str):
       # Strings of '0' (reserved) bits
       ibits += len(elt)
-
+      sig.append(elt)
       # Right now this is only used for AltiVec and there is only ever on '_' in the bits
       if elt.find('_'):
         ibits -= 1
@@ -406,8 +421,12 @@ def SynthesizeMachineInstruction(name, format, opcodes):
       inst.AppendOpcode(elt)
     else:
       inst.AppendField(elt)
+      sig.append(elt.name)
       ibits += elt.width
-          
+
+  # print ','.join([name] + sig)
+  # print ','.join([name] + codes)
+
   return inst
 
 
