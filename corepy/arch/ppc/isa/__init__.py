@@ -9,8 +9,9 @@
 #   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
 # import platform_conf
-# import ppc_isa as machine
-from ppc_isa2 import *
+import ppc_isa as machine
+# from ppc_isa2 import *
+# import ppc_isa
 import corepy.spre.spe as spe
 
 # Nothing to see here, move along... ;)
@@ -41,30 +42,30 @@ def get_active_code():
 # _ppc_active_code_prop = property(get_active_code)
 
 # Build the instructions
-# for inst in ppc_isa.PPC_ISA:
-#   name = inst[0]
-#   machine_inst = getattr(machine, name)
-  
-#   # asm_order = inst[1]['asm']
-#   members = {}
-#   for key in inst[1].keys():
-#     members[key] = inst[1][key]
+for inst in ppc_isa.PPC_ISA:
+  name = inst[0]
+  machine_inst = getattr(machine, name)
 
-#   members['asm_order'] =  members['asm']
-#   members['machine_inst'] =  machine_inst
-#   members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
-#   globals()[inst[0]] = type(name, (spe.Instruction,), members)
+  # asm_order = inst[1]['asm']
+  members = {}
+  for key in inst[1].keys():
+    members[key] = inst[1][key]
 
-for l in locals().values():
-  if isinstance(l, type) and issubclass(l, PPCInstruction):
-    l.active_code = property(__get_active_code) 
+  members['asm_order'] =  members['asm']
+  members['machine_inst'] =  machine_inst
+  members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
+  globals()[inst[0]] = type(name, (spe.Instruction,), members)
+
+# for l in locals().values():
+#   if isinstance(l, type) and issubclass(l, PPCInstruction):
+#     l.active_code = property(__get_active_code) 
 
 
 # ------------------------------
 # Mnemonics
 # ------------------------------
 
-# TODO: Find a better place for these...
+# # TODO: Find a better place for these...
 def add(D, A, SIMM): return addx(D, A, SIMM, 0, 0)
 def b(LI):   return bx(LI, 0, 0)
 def ba(LI):   return bx(LI, 1, 0)
