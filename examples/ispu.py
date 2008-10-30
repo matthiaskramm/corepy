@@ -1,12 +1,30 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 # Playing around with debugging and interactive SPE development...
 
@@ -46,10 +64,27 @@ sure to call the stop() method to free the SPU when done.
 
 """
 
-import corepy.arch.spu.platform as synspu
+import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
-import array
-import sys
+import corepy.arch.spu.lib.util as util
+import corepy.lib.extarray as extarray
+
+
+# Feature TODO:
+#  Allow for an instruction stream to be passed in
+#   Breakpoints?
+#   Watch variables?
+#  Local store inspection
+#  Memory inspection
+#  Changing of register/local store/memory contents via GUI
+#   Insert the instructions to do this into the stream?
+#   Or just do it all behind the scenes?
+#  Stick with always executing one instruction at a time, or allow for executing
+#  more than once before stopping?
+#   Always doing one at a time is simpler, but slower
+#  What should the GUI look like?
+#   Separate windows for the instruction list, registers, local store, mem, etc
+
 
 class ISPU:
   """
@@ -59,8 +94,9 @@ class ISPU:
   def __init__(self):
     
     # Code and memory buffers
-    self.code = synspu.InstructionStream()
-    self.regs = synspu.aligned_memory(128 * 4, typecode='I')
+    self.code = env.InstructionStream()
+    self.regs = extarray.extarray('I', 128 * 4)
+    self.regs.clear()
     
     # Runtime parameters
     self.speid = None
@@ -72,87 +108,67 @@ class ISPU:
     return
 
   def synthesize(self):
+    # Okay.  This code is not going to exceed 256 instructions (1kb).  Knowing that,
+    # the register contents can be safely placed at 0x3F400 in localstore, 3kb from
+    # the top.  The SPRE will place the instruction stream as close to the top as
+    # possible.  But since it is not going to be more than 1kb worth of instructions,
+    # it will not overlap with the register contents.
+
     code = self.code
-    
     spu.set_active_code(code)
     
     # Reload the instructions
-    spu.sync(1)              
+    spu.sync(1)
 
     # Next instruction to execute
     lbl_op = code.size()
     spu.nop(0)    
 
     # Placeholders for register store instructions
-    lbl_store = code.size()
     for i in range(128):
-      spu.nop(0)
+       spu.stqa(i, 0xFD00 + (i * 4))
+    #  spu.stqa(i, 0xFE00 + (i * 4))
 
     # Stop for next command
-    lbl_stop = code.size()
-    spu.stop(0xC) 
-
-    # Loop back to the beginning - this is triggered by SIGCONT
-    lbl_br = code.size()
-    spu.br(- (lbl_br + 1))
-
-    # Error stop guard - this should never execute
-    spu.stop(0xE)
-
-    # Storage space for saved registers
-    # Align to a 16-byte boundary
-    while (code.size() % 4) != 0:
-      spu.nop(0)
+    spu.stop(0x0FFF) 
 
     lbl_regs = code.size()
     
     # Create space for the saved registers
-    for i in range(128):
-      # 16 bytes/register
-      spu.nop(0)
-      spu.nop(0)
-      spu.nop(0)
-      spu.nop(0)
+    #for i in range(128):
+    #  # 16 bytes/register
+    #  spu.nop(0)
+    #  spu.lnop()
+    #  spu.nop(0)
+    #  spu.lnop()
 
-    # Insert the store commands
-    for i in range(128):
-      st_offset = ((lbl_regs - lbl_store) - i) + i * 4
-      code[lbl_store + i] = spu.stqr(i, st_offset)
-
+    # Clearing active code here is important!
+    spu.set_active_code(None)
     code.cache_code()
-    # code.print_code()
+
     code_size = len(code._prologue._code) * 4
     self.xfer_size = code_size  + (16 - (code_size) % 16);
-    # print 'xfer_size:', self.xfer_size
-    self.code_lsa = (0x3FFFF - code_size) & 0xFFF80;
-    self.reg_lsa = self.code_lsa + lbl_regs * 4
+    print 'xfer_size:', self.xfer_size
 
+    self.code_lsa = (0x3FFFF - code_size) & 0xFFF80;
     self.lbl_op = lbl_op
     return
   
 
   def load_regs(self):
-    reg_bytes = 128 * 16
-    tag = 2
-    # print 'loading %d bytes from 0x%X-0x%X to 0x%X' % (reg_bytes, self.reg_lsa,
-    # self.reg_lsa + reg_bytes,
-    # self.regs.buffer_info()[0])
-
-    synspu.spu_exec.spu_putb(self.speid, self.reg_lsa, self.regs.buffer_info()[0],
-                             reg_bytes, tag, 0, 0)
-    # print 'waiting for regs...'
-    synspu.spu_exec.read_tag_status_all(self.speid, 1 << tag)
-    # print 'got regs.'
+    env.spu_exec.spu_putb(self.speid, 0x3F400, self.regs.buffer_info()[0],
+                          128 * 16, 2, 0, 0)
+    env.spu_exec.read_tag_status_all(self.speid, 1 << 2)
     return
 
   def get_regs(self):
     self.load_regs()
     regs = []
     for reg in range(128):
-      regs.append((self.regs.word_at(reg * 4),
-                   self.regs.word_at(reg * 4 + 1),
-                   self.regs.word_at(reg * 4 + 2),
-                   self.regs.word_at(reg * 4 + 3)))
+      regs.append((self.regs[reg * 4],
+                   self.regs[reg * 4 + 1],
+                   self.regs[reg * 4 + 2],
+                   self.regs[reg * 4 + 3]))
 
     return regs
 
@@ -162,50 +178,55 @@ class ISPU:
     for i in range(64):
       reg = i
       print 'r%03d: 0x%08X 0x%08X 0x%08X 0x%08X' % (
-        reg, self.regs.word_at(reg * 4),
-        self.regs.word_at(reg * 4 + 1),
-        self.regs.word_at(reg * 4 + 2),
-        self.regs.word_at(reg * 4 + 3)),
+        reg, self.regs[reg * 4],
+        self.regs[reg * 4 + 1],
+        self.regs[reg * 4 + 2],
+        self.regs[reg * 4 + 3]),
 
       reg = i + 64
       print 'r%03d: 0x%08X 0x%08X 0x%08X 0x%08X' % (
-        reg, self.regs.word_at(reg * 4),
-        self.regs.word_at(reg * 4 + 1),
-        self.regs.word_at(reg * 4 + 2),
-        self.regs.word_at(reg * 4 + 3))
+        reg, self.regs[reg * 4],
+        self.regs[reg * 4 + 1],
+        self.regs[reg * 4 + 2],
+        self.regs[reg * 4 + 3])
       
     return
 
+
   def start(self):
+    self.started = True
+    #self.proc = env.Processor()
 
-    self.proc = synspu.Processor()
-    self.speid = self.proc.execute(self.code, mode='async', debug = True)
+    #self.speid = self.proc.execute(self.code, async = True, debug = False)
+    #env.spu_exec.wait(self.speid)
 
-    r = synspu.spu_exec.wait_stop_event(self.speid)
+    self.code_len = len(self.code._code_array) * self.code._code_array.itemsize
+    if self.code_len % 16 != 0:
+      self.code_len += 16 - (self.code_len % 16)
+    self.code_lsa = 0x40000 - self.code_len
 
+    self.ctx = env.spu_exec.alloc_context()
+    self.code.cache_code()
+    env.spu_exec.run_stream(self.ctx, self.code.start_addr(), self.code_len, self.code_lsa, self.code_lsa)
     return
 
   def stop(self):
-    self.proc.cancel(self.speid)
+    env.spu_exec.free_context(self.ctx)
+    self.ctx = None
+    self.started = False
     return
 
   def execute(self, cmd):
-    self.code._prologue[self.lbl_op] = cmd
+    if self.started != True:
+      print "ERROR ISPU not started; do ISPU.start() first"
+      return
 
-    tag = 1
-    # print 'a', self.speid, self.code_lsa, '0x%X' % (self.code._prologue._code.buffer_info()[0]), \
-    #       self.xfer_size, tag
-    # print 'xfer_size:', self.xfer_size
-    synspu.spu_exec.spu_getb(self.speid, self.code_lsa,
-                             # self.code._prologue._code.buffer_info()[0],
-                             self.code._prologue.inst_addr(),
-                             self.xfer_size, tag, 0, 0)
-    # print 'b'
-    synspu.spu_exec.read_tag_status_all(self.speid, 1 << tag)
-    # print 'c'
-    self.proc.resume(self.speid)
-    synspu.spu_exec.wait_stop_event(self.speid)
+    self.code[self.lbl_op] = cmd
+    self.code.cache_code()
+
+    env.spu_exec.run_stream(self.ctx, self.code.start_addr(), self.code_len, self.code_lsa, self.code_lsa)
     return
+
 
 
 try:
@@ -396,7 +417,6 @@ class SPUApp(wx.App):
     return
 
   def _setCurrent(self, idx):
-
     if self.currentCmd != -1:
       self.lstHistory.SetItemBackgroundColour(self.currentCmd, wx.WHITE)
       self.lstHistory.SetItemTextColour(self.currentCmd, wx.BLACK)
@@ -414,7 +434,6 @@ class SPUApp(wx.App):
     return
   
   def OnChar(self, event):
-
     key = event.GetKeyCode()
 
     if len(self.history) == 0:
@@ -472,3 +491,4 @@ if __name__=='__main__':
   # cli.stop()
   app = SPUApp(0)
   app.MainLoop()
+

@@ -1,13 +1,30 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 import array
 
@@ -60,7 +77,7 @@ def _most_specific(a, b, default = None):
   hierarchies. If default is None, return type(a), or type(b) if a
   does not have a type_cls
   """
-  if (hasattr(a, 'type_cls') and hasattr(a, 'type_cls')):
+  if (hasattr(a, 'type_cls') and hasattr(b, 'type_cls')):
     if issubclass(b.type_cls, a.type_cls):
       return type(b)
     elif issubclass(a.type_cls, b.type_cls):
@@ -133,7 +150,7 @@ class BitType(PPCType):
 
   def _set_literal_value(self, value):
     # Put the lower 16 bits into r-temp
-    self.code.add(ppc.addi(self.reg, 0, value))
+    self.code.add(ppc.addi(self.reg, 0, value & 0xFFFF))
   
     # Addis r-temp with the upper 16 bits (shifted add immediate) and
     # put the result in r-target
@@ -249,18 +266,66 @@ class SingleFloatType(PPCType):
   sub = staticmethod(__sub__)
 
   def _set_literal_value(self, value):
-    storage = array.array('f', (float(self.value),))
+    storage = array.array('f', (float(value),))
     self.code.add_storage(storage)
+
+    self.load(storage.buffer_info()[0])
+
+    #storage = array.array('f', (float(self.value),))
+    #self.code.add_storage(storage)
     
-    r_storage = self.code.acquire_register()
-    addr = Bits(storage.buffer_info()[0], reg = r_storage)
-    self.code.add(ppc.lfs(self.reg, addr.reg, 0))
-    self.code.release_register(r_storage)
+    #r_storage = self.code.acquire_register()
+    #addr = Bits(storage.buffer_info()[0], reg = r_storage)
+    #self.code.add(ppc.lfs(self.reg, addr.reg, 0))
+    #self.code.release_register(r_storage)
 
     return
 
   def copy_register(self, other):
-    return self.code.add(ppc.fmr(self, other))
+    return self.code.add(ppc.fmrx(self, other))
+  
+  def load(self, addr, offset = 0):
+
+    # If addr is a constant, create a variable and store the value
+    if not issubclass(type(addr), spe.Type):
+      r_storage = self.code.acquire_register()
+      addr = Bits(addr, reg = r_storage)
+    else:
+      r_storage = None
+
+    # If offset is a constant, use lfd, otherwise use lfdx
+    if issubclass(type(offset), spe.Type):
+      self.code.add(ppc.lfsx(self, addr, offset))
+    else:
+      # TODO: Check size of offset to ensure it fits in the immediate field 
+      self.code.add(ppc.lfs(self, addr, offset))
+
+    if r_storage is not None:
+      self.code.release_register(r_storage)
+
+    return
+
+  def store(self, addr, offset = 0):
+
+    # If addr is a constant, create a variable and store the value
+    if not issubclass(type(addr), spe.Type):
+      r_storage = self.code.acquire_register()
+      addr = Bits(addr, reg = r_storage)
+    else:
+      r_storage = None
+
+    # If offset is a constant, use lfd, otherwise use lfdx
+    if issubclass(type(offset), spe.Type):
+      self.code.add(ppc.stfsx(self, addr, offset))
+    else:
+      # TODO: Check size of offset to ensure it fits in the immediate field 
+      self.code.add(ppc.stfs(self, addr, offset))
+
+    if r_storage is not None:
+      self.code.release_register(r_storage)
+
+    return
+
 
 class DoubleFloatType(PPCType):
   register_type_id = 'fp'
@@ -540,20 +605,28 @@ def TestFloatingPoint(float_type):
   b = float_type()
   c = float_type()
   d = float_type()
-  
+
+  # Set the size of the float based on whether its double or single
+  # Initialize a data array based on float type as well.
+  if float_type == SingleFloat:
+    float_size = 4
+    data = array.array('f', (1.0, 2.0, 3.0, 4.0))
+  else:
+    float_size = 8
+    data = array.array('d', (1.0, 2.0, 3.0, 4.0))
+
   # Create some data
-  data = array.array('d', (1.0, 2.0, 3.0, 4.0))
   addr = data.buffer_info()[0]
 
   # Load from addr
   a.load(addr) 
 
   # Load from addr with idx in register
-  offset = Bits(8)
+  offset = Bits(float_size)
   b.load(data.buffer_info()[0], offset)
 
   # Load from addr with constant idx 
-  c.load(data.buffer_info()[0], 8*2)
+  c.load(data.buffer_info()[0], float_size * 2)
   
   # Load from addr with addr as a register
   reg_addr = Bits(addr)
@@ -572,19 +645,20 @@ def TestFloatingPoint(float_type):
   a.store(addr) 
 
   # Store from addr with idx in register
-  offset = Bits(8)
+  offset = Bits(float_size)
   b.v = 12.0
   b.store(data.buffer_info()[0], offset)
 
   # Store from addr with constant idx
   c.v = 13.0
-  c.store(data.buffer_info()[0], 8*2)
+  c.store(data.buffer_info()[0], float_size * 2)
   
   # Store from addr with addr as a register
   d.v = 14.0
   reg_addr = UnsignedWord(addr)
-  reg_addr.v = reg_addr + 8 * 3
+  reg_addr.v = reg_addr + float_size * 3
   d.store(reg_addr)
+
   
   r = proc.execute(code, mode='fp')
   assert(r == 0.0)

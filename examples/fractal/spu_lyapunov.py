@@ -1,4 +1,32 @@
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
+import corepy.lib.extarray as extarray
 import corepy.arch.spu.platform as synspu
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
@@ -7,7 +35,7 @@ import corepy.arch.spu.lib.iterators as spuiter
 
 import spu_log
 
-import array
+#import array
 
 constants = {
   'BIT_0':   0x80000000,
@@ -203,17 +231,23 @@ class LyapunovBlock:
   def set_renderer(self, r): self.renderer = r
   
   def _load_parameters(self, code):
-    range_md = spuiter.memory_desc('I') # use 'I' for sizeof(float)
-    range_md.from_array(self.range)
+    #range_md = spuiter.memory_desc('I') # use 'I' for sizeof(float)
+    #range_md.from_array(self.range)
 
-    pattern_md = spuiter.memory_desc('I')
-    pattern_md.from_array(self.pattern)
+    #pattern_md = spuiter.memory_desc('I')
+    #pattern_md.from_array(self.pattern)
 
     # Range is in address 0-63
-    range_md.get(code, 0)
+    #range_md.get(code, 0)
+    size = len(self.range) * self.range.itemsize
+    dma.mem_get(code, 0, self.range.buffer_info()[0], size, 12)
+    #dma.mem_complete(code, 12)
 
     # Pattern is at address 64
-    pattern_md.get(code, 64)
+    #pattern_md.get(code, 64)
+    size = len(self.pattern) * self.pattern.itemsize
+    dma.mem_get(code, 64, self.pattern.buffer_info()[0], size, 12)
+    dma.mem_complete(code, 12)
     
     return
 
@@ -337,7 +371,7 @@ class FBRenderer:
 
     # Mask to extract the lowest 2 bytes from each word in the first vector
     # into RGB and the first byte from the second vector into A
-    self.uint2rgba = var.Word(array.array('I', [0x01030303, 0x10070707, 0x100B0B0B, 0x100F0F0F]))
+    self.uint2rgba = var.Word(extarray.extarray('I', [0x01030303, 0x10070707, 0x100B0B0B, 0x100F0F0F]))
     self.ff = var.Word(0xFF000000)
 
     return
@@ -401,7 +435,7 @@ def _pattern2vector(pattern):
   if 128 % len(pattern) != 0: raise Exception('Pattern length must be a factor of 128')
   pattern = pattern * (128 / len(pattern))
 
-  bv = array.array('I', [0,0,0,0])
+  bv = extarray.extarray('I', [0,0,0,0])
 
   size = 128 / 4
   for i in range(size):
@@ -424,7 +458,7 @@ class MailboxLyapunov:
     r1_inc = (r1_range[1] - r1_range[0]) / size[0]
     r2_inc = (r2_range[1] - r2_range[0]) / size[1]
 
-    ranges = array.array('f', [0.0] * 16)
+    ranges = extarray.extarray('f', [0.0] * 16)
     for i in range(4):
       ranges[i]      = r1_range[0]
       ranges[4 + i]  = r2_range[0]
@@ -435,18 +469,20 @@ class MailboxLyapunov:
     bits = _pattern2vector(pattern)
 
     # Copy the paramters to aligned buffers
-    a_ranges = synspu.aligned_memory(len(ranges), typecode='I')
-    a_ranges.copy_to(ranges.buffer_info()[0], len(ranges))
+    #a_ranges = synspu.aligned_memory(len(ranges), typecode='I')
+    #a_ranges.copy_to(ranges.buffer_info()[0], len(ranges))
 
-    a_pattern = synspu.aligned_memory(len(bits), typecode='I')
-    a_pattern.copy_to(bits.buffer_info()[0], len(bits))
+    #a_pattern = synspu.aligned_memory(len(bits), typecode='I')
+    #a_pattern.copy_to(bits.buffer_info()[0], len(bits))
 
     renderer = MailboxRenderer()
     ly_block = LyapunovBlock()
 
     ly_block.set_size(size[0], size[1])
-    ly_block.set_range(a_ranges)
-    ly_block.set_pattern(a_pattern)
+    #ly_block.set_range(a_ranges)
+    #ly_block.set_pattern(a_pattern)
+    ly_block.set_range(ranges)
+    ly_block.set_pattern(bits)
     ly_block.set_max_init(max_init)
     ly_block.set_max_n(max_n)
     ly_block.set_renderer(renderer)
@@ -456,7 +492,7 @@ class MailboxLyapunov:
 
     proc = synspu.Processor()
 
-    spe_id = proc.execute(code, mode = 'async')
+    spe_id = proc.execute(code, async=True)
 
     for i in range(size[0] * size[1]):
       while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
@@ -492,7 +528,7 @@ class FramebufferLyapunov:
     r2_inc = (r2_range[1] - r2_range[0]) / size[1]
 
     ranges = [0 for i in range(n_spus)]
-    a_ranges = [0 for i in range(n_spus)]             
+    #a_ranges = [0 for i in range(n_spus)]             
 
     # Slice and dice for parallel execution
     spu_slices = [[size[0], size[1] / n_spus] for ispu in range(n_spus)]
@@ -500,7 +536,7 @@ class FramebufferLyapunov:
 
     offset = 0.0
     for ispu in range(n_spus):
-      ranges[ispu] = array.array('f', [0.0] * 16)
+      ranges[ispu] = extarray.extarray('f', [0.0] * 16)
       
       for i in range(4):
         ranges[ispu][i]      = r1_range[0] + float(i) * r1_inc # horizontal is simd
@@ -510,8 +546,8 @@ class FramebufferLyapunov:
       # print ranges
 
       # Copy the paramters to aligned buffers
-      a_ranges[ispu] = synspu.aligned_memory(len(ranges[ispu]), typecode='I')
-      a_ranges[ispu].copy_to(ranges[ispu].buffer_info()[0], len(ranges[ispu]))
+      #a_ranges[ispu] = synspu.aligned_memory(len(ranges[ispu]), typecode='I')
+      #a_ranges[ispu].copy_to(ranges[ispu].buffer_info()[0], len(ranges[ispu]))
 
       offset += r2_inc * spu_slices[ispu][1]
       
@@ -521,7 +557,8 @@ class FramebufferLyapunov:
         raise Exception('All patterns must be the same length')
       
     bits = [_pattern2vector(pattern) for pattern in patterns]
-    a_pattern = synspu.aligned_memory(len(bits[0]), typecode='I')
+    #a_pattern = synspu.aligned_memory(len(bits[0]), typecode='I')
+    pattern = extarray.extarray('I', len(bits[0]))
 
     # Create the instruction streams
     codes  = []
@@ -538,8 +575,10 @@ class FramebufferLyapunov:
       ly_block = LyapunovBlock()
       
       ly_block.set_size(*spu_slices[i])
-      ly_block.set_range(a_ranges[ispu])
-      ly_block.set_pattern(a_pattern)
+      #ly_block.set_range(a_ranges[ispu])
+      ly_block.set_range(ranges[ispu])
+      #ly_block.set_pattern(a_pattern)
+      ly_block.set_pattern(pattern)
       ly_block.set_max_init(max_init)
       ly_block.set_max_n(max_n)
       ly_block.set_renderer(renderer)
@@ -567,10 +606,13 @@ class FramebufferLyapunov:
     pattern_inc = 1
     
     for i in range(n):
-      a_pattern.copy_to(bits[ipattern].buffer_info()[0], len_bits)
+      #a_pattern.copy_to(bits[ipattern].buffer_info()[0], len_bits)
+      # TODO - better/faster
+      for j in xrange(0, len_bits):
+        pattern[j] = bits[ipattern][j]
 
       for ispu in range(n_spus):
-        ids[ispu] = proc.execute(codes[ispu], mode='async')
+        ids[ispu] = proc.execute(codes[ispu], async=True)
 
       for ispu in range(n_spus):
         proc.join(ids[ispu])
@@ -655,6 +697,7 @@ def TestFramebufferLyapunov():
   ml = FramebufferLyapunov()
   # size = [256, 256] # [128, 128]
   size = [512, 384] # [128, 128]
+  size = [768, 512] # [128, 128]
   ml.generate(None, patterns, [2.0, 4.0], [2.0, 4.0], 100, 500, size)
 
   return

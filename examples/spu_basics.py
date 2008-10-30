@@ -1,23 +1,45 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 import array
 import time
 
+import corepy.lib.extarray as extarray
 import corepy.arch.spu.isa as spu
+from corepy.spre.syn_util import *
 from corepy.arch.spu.types.spu_types import SignedWord, SingleFloat
 from corepy.arch.spu.lib.iterators import memory_desc, spu_vec_iter, \
      stream_buffer, syn_iter, parallel
 import corepy.arch.spu.lib.dma as dma
+import corepy.arch.spu.lib.util as util
 from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     NativeInstructionStream, Processor, aligned_memory, spu_exec
+     Processor, spu_exec
+     #NativeInstructionStream, Processor, aligned_memory, spu_exec
 
   
 def SimpleSPU():
@@ -31,7 +53,8 @@ def SimpleSPU():
   
 
   # Acquire two registers
-  x    = code.acquire_register()
+  #x    = code.acquire_register()
+  x = code.gp_return
   test = code.acquire_register()
 
   spu.xor(x, x, x) # zero x
@@ -40,14 +63,24 @@ def SimpleSPU():
 
   spu.ceqi(test, x, 42) # test = (x == 42)
 
-  # If test is false (all 0s), skip the stop(0x200A) instruction
+  # If test is false (all 0s), skip the stop(0x100A) instruction
   spu.brz(test, 2)
-  spu.stop(0x200A)
-  spu.stop(0x200B)
-  
-  r = proc.execute(code) 
-  assert(r == 0xA)
+  spu.stop(0x100A)
+  spu.stop(0x100B)
+ 
+  code.print_code(hex = True) 
+  r = proc.execute(code, mode = 'int', stop = True, debug = True) 
+  assert(r[0] == 42)
+  assert(r[1] == 0x100A)
 
+  code = InstructionStream()
+  spu.set_active_code(code)
+
+  util.load_float(code, code.fp_return, 3.14)
+
+  code.print_code(hex = True)
+  r = proc.execute(code, mode = 'fp')
+  print r
   return
 
 
@@ -88,15 +121,16 @@ def MemoryDescExample(data_size = 20000):
   spu.set_active_code(code)
 
   # Create a python array
-  data = array.array('I', range(data_size))
+  data = extarray.extarray('I', range(data_size))
 
   # Align the data in the array
-  a_data = aligned_memory(data_size, typecode = 'I')
-  a_data.copy_to(data.buffer_info()[0], data_size)
+  #a_data = aligned_memory(data_size, typecode = 'I')
+  #a_data.copy_to(data.buffer_info()[0], data_size)
   
   # Create memory descriptor for the data in main memory
   data_desc = memory_desc('I')
-  data_desc.from_array(a_data)
+  #data_desc.from_array(a_data)
+  data_desc.from_array(data)
 
   # Transfer the data to 0x0 in the local store
   data_desc.get(code, 0)
@@ -117,13 +151,13 @@ def MemoryDescExample(data_size = 20000):
   # Execute the synthetic program
   # code.print_code()
   
-  spe_id = proc.execute(code, mode = 'async')
+  spe_id = proc.execute(code, async=True)
   proc.join(spe_id)
 
   # Copy it back to the Python array
-  a_data.copy_from(data.buffer_info()[0], data_size)
+  #a_data.copy_from(data.buffer_info()[0], data_size)
 
-  for i in range(data_size):
+  for i in xrange(data_size):
     assert(data[i] == i + 1)
   return
 
@@ -143,9 +177,7 @@ def DoubleBufferExample(n_spus = 6):
   buffer_size = 16
 
   # Create an array and align the data
-  a_array = array.array('I', range(n))
-  a = aligned_memory(n, typecode = 'I')
-  a.copy_to(a_array.buffer_info()[0], len(a_array))
+  a = array.array('I', range(n))
 
   addr = a.buffer_info()[0]  
   n_bytes = n * 4
@@ -173,13 +205,12 @@ def DoubleBufferExample(n_spus = 6):
   # Run the synthetic program and copy the results back to the array 
   proc = Processor()
   r = proc.execute(code, n_spus = n_spus)
-  a.copy_from(a_array.buffer_info()[0], len(a_array))    
 
-  for i in range(2, len(a_array)):
+  for i in range(2, len(a)):
     try:
-      assert(a_array[i] == i - 2)
+      assert(a[i] == i - 2)
     except:
-      print 'DoubleBuffer error:', a_array[i], i - 2
+      print 'DoubleBuffer error:', a[i], i - 2
   
   return
 
@@ -213,6 +244,7 @@ def SpeedTest(n_spus = 6, n_floats = 6):
     
 
   # Run the synthetic program and copy the results back to the array 
+  # TODO - AWF - use the SPU decrementers to time this
   proc = Processor()
   start = time.time()
   r = proc.execute(code, n_spus = n_spus)

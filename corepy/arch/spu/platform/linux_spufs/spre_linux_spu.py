@@ -1,34 +1,61 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 __doc__="""
 SPE for the Cell SPU
 """
 
-import array
-import math
+#import array
+#import math
 
+import corepy.lib.extarray as extarray
 import corepy.spre.spe as spe
-# import corepy.arch.spu.platform.linux.spu_exec as spu_exec
-import spu_exec2 as spu_exec
-ExecParams = spu_exec.ExecParams
+import spu_exec
+#import synbuffer
 
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.util as util
+
+try:
+  import cell_fb
+except:
+  cell_fb = None
+
+ExecParams = spu_exec.ExecParams
 
 # ------------------------------
 # Registers
 # ------------------------------
 
-class SPURegister(spe.Register): pass
+class SPURegister(spe.Register):
+  def __init__(self, reg, code):
+    spe.Register.__init__(self, reg, code, prefix = 'r')
+
 
 # ------------------------------
 # Constants
@@ -38,11 +65,7 @@ WORD_TYPE = 'I'           # array type that corresponds to 1 word
 WORD_SIZE = 4             # size in bytes of one word
 WORD_BITS = WORD_SIZE * 8 # number of bits in a word
 
-INT_SIZES = {'b':1, 'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
-
-# ------------------------------
-# Constants
-# ------------------------------
+INT_SIZES = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
 
 # Parameters - (register, slot)
 REG, SLOT = (0, 1)
@@ -60,41 +83,44 @@ spu_param_8 = (5, 1)
 spu_param_9 = (5, 2)
 spu_param_10 = (5, 3)
 
-N_SPUS = 6
+N_SPUS = spu_exec.get_num_avail_spus()
+
+#class aligned_memory(object): pass
 
 # ------------------------------------------------------------
 # Aligned Memory
 # ------------------------------------------------------------
 
-class aligned_memory(spu_exec.aligned_memory):
-  def __init__(self, size, alignment = 128, typecode = 'B'):
-    spu_exec.aligned_memory.__init__(self, size * INT_SIZES[typecode], alignment)
-    self.typecode = typecode
-    return
-
-  def __str__(self): return '<aligned_memory typecode = %s addr = 0x%X size = %d ' % (
-    self.typecode, self.get_addr(), self.get_size())
-  
-  def __len__(self):
-    return self.get_size() / INT_SIZES[self.typecode]
-  
-  def buffer_info(self):
-    return (self.get_addr(), self.get_size())
-
-  def copy_to(self, source, size):
-    return spu_exec.aligned_memory.copy_to(self, source, size * INT_SIZES[self.typecode])
-
-  def copy_from(self, dest, size):
-    return spu_exec.aligned_memory.copy_from(self, dest, size * INT_SIZES[self.typecode])
-
-  def word_at(self, index, signed = False):
-    """
-    Minor hack to give fast access to data...
-    TODO: full array-type interface?
-    """
-    # if signed:
-    # return spu_exec.aligned_memory.signed_word_at(self, index * 4)
-    return spu_exec.aligned_memory.word_at(self, index * 4)
+#class aligned_memory(spu_exec.aligned_memory):
+#  def __init__(self, size, alignment = 128, typecode = 'B'):
+#    print "NOTICE:  aligned_memory is deprecated; consider using extarray instead"
+#    spu_exec.aligned_memory.__init__(self, size * INT_SIZES[typecode], alignment)
+#    self.typecode = typecode
+#    return
+#
+#  def __str__(self): return '<aligned_memory typecode = %s addr = 0x%X size = %d ' % (
+#    self.typecode, self.get_addr(), self.get_size())
+#  
+#  def __len__(self):
+#    return self.get_size() / INT_SIZES[self.typecode]
+#  
+#  def buffer_info(self):
+#    return (self.get_addr(), self.get_size())
+#
+#  def copy_to(self, source, size):
+#    return spu_exec.aligned_memory.copy_to(self, source, size * INT_SIZES[self.typecode])
+#
+#  def copy_from(self, dest, size):
+#    return spu_exec.aligned_memory.copy_from(self, dest, size * INT_SIZES[self.typecode])
+#
+#  def word_at(self, index, signed = False):
+#    """
+#    Minor hack to give fast access to data...
+#    TODO: full array-type interface?
+#    """
+#    # if signed:
+#    # return spu_exec.aligned_memory.signed_word_at(self, index * 4)
+#    return spu_exec.aligned_memory.word_at(self, index * 4)
 
 
 # ------------------------------------------------------------
@@ -145,20 +171,39 @@ class InstructionStream(spe.InstructionStream):
   """
 
   # Class attributes
-  RegisterFiles = (('gp', SPURegister, range(0,128)),)
-  default_register_type = SPURegister
+  RegisterFiles = (('gp', SPURegister, range(1,128)),)
   
+  default_register_type = SPURegister
   exec_module   = spu_exec
-  align         = 16 # 128 is max efficiency, 16 is what array currently does
   instruction_type  = WORD_TYPE
   
-  def __init__(self, optimize=False):
+  def __init__(self, optimize = False):
     spe.InstructionStream.__init__(self)
 
     self._optimize = optimize
 
+    self.r_zero = SPURegister(0, self)
+    self.gp_return = SPURegister(1, self)
+    self.fp_return = self.gp_return
     return
 
+  def make_executable(self):
+    bi = self.render_code.buffer_info()
+    self.exec_module.make_executable(bi[0], bi[1] * self.render_code.itemsize)
+    return 
+
+  def create_register_files(self):
+    # Each declarative RegisterFiles entry is:
+    #   (file_id, register class, valid values)
+    for reg_type, cls, values in self.RegisterFiles:
+      regs = [cls(value, self) for value in values]
+      self._register_files[cls] = spe.RegisterFile(regs, reg_type)
+      self._reg_type[reg_type] = cls
+      for reg in regs:
+        reg.code = self
+    
+    return
+  
   # ------------------------------
   # Execute/ABI support
   # ------------------------------
@@ -168,59 +213,28 @@ class InstructionStream(spe.InstructionStream):
     Setup register 0.
     """
 
-    self._prologue = InstructionStream()
-    
-    # Reserve register r0 for the value zero
-    self.acquire_register(reg = 0)
-    util.load_word(self._prologue, 0, 0, zero = False)
+    #self._prologue = InstructionStream()
+    self._prologue = [self.lbl_prologue]
 
+    # Reserve register r0 for the value zero
+    self._prologue.append(spu.il(self.r_zero, 0, ignore_active = True))
+    self._prologue.append(spu.lnop(ignore_active = True))
     return
 
   def _synthesize_epilogue(self):
     """
-    Do nothing.
-    """
-
-    return
-
-  def cache_code(self):
-    """
     Add a stop signal with return type 0x2000 (EXIT_SUCCESS) to the
-    end if the instruction stream. (BE Handbook, p. 422).
+    instruction stream epilogue. (BE Handbook, p. 422).
     """
-
-    # Generate the prologue
-    self._synthesize_prologue()
-
-    # Don't have a real epilogue.
-    self.add(spu.stop(0x2000))
-    # self._check_alignment(self._code, 'spu code')
-
-    # self.exec_module.make_executable(self._code.buffer_info()[0], len(self._code))
-
-    # Append our instructions to the prologue's, first making sure the alignment is correct.
-    if len(self._prologue._code) % 2 == 1: # Odd number of instructions
-      self._prologue.add(spu.lnop(0))
-
-    self._prologue._code.extend(self._code)
-    self._prologue._check_alignment(self._prologue._code, 'spu prologue')
-    
-    self._epilogue = self    
-    self._cached = True
+    self._epilogue = [self.lbl_epilogue]
+    self._epilogue.append(spu.stop(0x2000, ignore_active = True))
     return
 
-
-  def add_return(self):
-    """
-    Do nothing.
-    """
+  def debug_set(self, idx, inst):
+    self._prologue[idx] = inst.render()
+    self[idx] = inst
     return
 
-  def add_jump(self, addr):
-    """
-    No nothing.
-    """
-    return
 
   def align_code(self, boundary):
     """
@@ -229,11 +243,11 @@ class InstructionStream(spe.InstructionStream):
     """
     word_align = boundary / 4
 
-    while len(self._code) % word_align:
-      if len(self._code) % 2 == 0:
+    while len(self._instructions) % word_align:
+      if len(self._instructions) % 2 == 0:
         self.add(spu.nop(0), True)
       else:
-        self.add(spu.lnop(0), True)
+        self.add(spu.lnop(), True)
 
     return
 
@@ -257,24 +271,22 @@ class InstructionStream(spe.InstructionStream):
         
       pipeline = inst.cycles[0]
         
-      if (len(self._code) % 2 == 0) and pipeline == 0:   
+      if (len(self._instructions) % 2 == 0) and pipeline == 0:   
         InstructionStream.add(self, inst)
 
-      elif (len(self._code) % 2 == 1) and pipeline == 1:
+      elif (len(self._instructions) % 2 == 1) and pipeline == 1:
         InstructionStream.add(self, inst)
-      elif (len(self._code) % 2 == 0) and pipeline == 1:
+      elif (len(self._instructions) % 2 == 0) and pipeline == 1:
         InstructionStream.add(self, spu.nop(0))
         InstructionStream.add(self, inst)
-      elif (len(self._code) % 2 == 1) and pipeline == 0:
+      elif (len(self._instructions) % 2 == 1) and pipeline == 0:
         InstructionStream.add(self, spu.lnop(0))
         InstructionStream.add(self, inst)
 
     else:
       spe.InstructionStream.add(self, inst)
 
-    # Invalidate the cache
-    self._cached = False
-    return len(self._code)
+    return len(self._instructions)
 
 
 class ParallelInstructionStream(InstructionStream):
@@ -306,14 +318,14 @@ class ParallelInstructionStream(InstructionStream):
 
     # Parallel parameters are passed in the prefered slot and the next
     # slot of the user arugment.
-    self._prologue.add(spu.shlqbyi(self.r_rank, SPURegister(3, None), 4)) 
-    self._prologue.add(spu.shlqbyi(self.r_size, SPURegister(3, None), 8)) 
+    self._prologue.append(spu.shlqbyi(self.r_rank, SPURegister(3, None), 4)) 
+    self._prologue.append(spu.shlqbyi(self.r_size, SPURegister(3, None), 8)) 
 
     if self.raw_data_size is not None:
       self.acquire_block_registers()
 
-      self._prologue.add(spu.shlqbyi(self.r_block_size, SPURegister(4, None), 4)) 
-      self._prologue.add(spu.shlqbyi(self.r_offset, SPURegister(4, None), 8)) 
+      self._prologue.append(spu.shlqbyi(self.r_block_size, SPURegister(4, None), 4)) 
+      self._prologue.append(spu.shlqbyi(self.r_offset, SPURegister(4, None), 8)) 
     else:
       print 'no raw data'
     return
@@ -338,7 +350,6 @@ class ParallelInstructionStream(InstructionStream):
       self.release_register(self.r_offset)
       
     return
-
 
 
 def _copy_params(params, rank, size):
@@ -368,7 +379,59 @@ def _copy_params(params, rank, size):
 class Processor(spe.Processor):
   exec_module = spu_exec
 
-  def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
+  def _execute(self, addr, mode, async, params, stop):
+    ti = spu_exec.alloc_context()
+    ti.params = params;
+
+    size = params.size;
+    if size % 16 != 0:
+      size += 16 - (size % 16)
+
+    lsa = 0x40000 - size;
+
+    # Initialize the SPU regs
+    spu_exec.put_spu_params(ti)
+
+    if async == False:
+      spu_exec.run_stream(ti, addr, size, lsa, lsa)
+      
+      # Get the return value
+      # TODO - optimize this, don't need to pull all 128 regs..
+      if mode == 'int':
+        regs = extarray.extarray('I', 128 * 4)
+        spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
+        retval = regs[4]
+      elif mode == 'fp':
+        regs = extarray.extarray('f', 128 * 4)
+        spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
+        retval = regs[4]
+      else:
+        retval = None
+      
+      if stop == True:
+        retval = (retval, spu_exec.get_result(ti))
+
+      spu_exec.free_context(ti)
+    else: # async == True
+      spu_exec.run_stream_async(ti, addr, size, lsa, lsa)
+
+      if mode == 'void':
+        ti.mode = self.MODE_VOID
+      elif mode == 'int':
+        ti.mode = self.MODE_INT
+      else: # mode == 'fp'
+        ti.mode = self.MODE_FP
+
+      if stop == True:
+        ti.stop = 1
+      else:
+        ti.stop = 0
+      retval = ti
+
+    return retval
+
+
+  def execute(self, code, mode = 'int', async = False, params = None, debug = False, stop = False, n_spus = 1):
     """
     Execute the instruction stream in the code object.
 
@@ -379,8 +442,13 @@ class Processor(spe.Processor):
       'fp'   - return the floating point value in register fp_return
                when execution is complete
       'void' - return None
-      'async'- execute the code in a new thread and return the thread
-               id immediately
+
+    If async is True, a thread id and mode tuple is returned immediately
+    and the code is executed asynchronously in its own thread.  The execution
+    mode then controls what kind of value is returned from the join method.
+
+    If stop is true, a tuple containing the return value and SPU stop code is
+    returned where a return value would normally be returned.
 
     If debug is True, the buffer address and code length are printed
     to stdout before execution.
@@ -405,8 +473,137 @@ class Processor(spe.Processor):
     
     """
 
-    if len(code._code) == 0:
+    # Setup the parameter structure
+    if params is None:
+      params = spu_exec.ExecParams()
+    elif type(params) is not self.exec_module.ExecParams:
+      # Backwards compatibility for list-style params
+      _params = self.exec_module.ExecParams()
+      _params.p1, _params.p2, _params.p3 = params
+      params = _params
+
+    if len(code._instructions) == 0:
       return None
+
+    if not code._cached:
+      code.cache_code()
+
+    bi = code.render_code.buffer_info()
+    params.addr = bi[0]
+    params.size = bi[1] * code.render_code.itemsize
+
+    if debug:
+      print 'code info:'
+      print ' body inst addr: 0x%x' % (code.inst_addr())
+      code.print_code(hex = True, pro = True, epi = True)
+
+    retval = None
+
+    if type(code) is ParallelInstructionStream:
+      # Parallel SPU execution
+      speids = []
+      if n_spus > N_SPUS:
+        raise Exception("Too many SPUs requests (%d > %d)" % n_spus, N_SPUS)
+
+      # Set up the parameters and execute each spu thread
+      for i in range(n_spus):
+        pi = _copy_params(params, i, n_spus)
+
+        if hasattr(code, "raw_data_size") and code.raw_data_size is not None:
+          pi.p4 = int(code.raw_data_size / n_spus)  # block_size
+          pi.p5 = pi.p4 * i                         # offset
+
+          # print 'Executing: 0x%x %d %d %d %d' % (pi.addr, pi.p1, pi.p2, pi.p4, pi.p5)
+        #speids.append(spe.Processor.execute(self, code, async = True, debug = debug, params = pi, mode = mode))
+        speids.append(self._execute(code.inst_addr(), mode, True, pi, mode))
+
+      # Handle blocking execution modes
+      if async == False:
+        retval = [self.join(speid) for speid in speids]
+      else:
+        retval = speids
+    else:
+      # Single SPU execution
+      retval = self._execute(code.inst_addr(), mode, async, params, stop)
+
+    return retval
+
+
+  def join(self, ti):
+    if not isinstance(ti, spu_exec.ThreadInfo):
+      raise Exception('Invalid thread handle: ' + str(ti))
+
+    spu_exec.wait_stream(ti)
+
+    if ti.mode == self.MODE_INT:
+      regs = extarray.extarray('I', 128 * 4)
+      spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
+      retval = int(regs[4])
+    elif ti.mode == self.MODE_FP:
+      regs = extarray.extarray('f', 128 * 4)
+      spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
+      retval = float(regs[4])
+    else:
+      retval = None
+
+    if ti.stop != 0:
+      retval = (retval, spu_exec.get_result(ti))
+
+    spu_exec.free_context(ti)
+    return retval
+
+
+DEBUG_STOP = 0xD
+DEBUG_STOP_TARGET = 0xB
+
+class DebugProcessor(spe.Processor):
+  """
+  Experimental class for simple debugging.
+  """
+
+  exec_module = spu_exec
+  debug_stop = spu.stop(DEBUG_STOP, ignore_active = True)
+  
+  def __init__(self):
+    spe.Processor.__init__(self)
+    self.params = None
+    self.spe_id = None
+    self.code   = None
+
+    self.ea  = None
+    self.lsa = None 
+    self.inst_size = None
+
+    self.last_pc = None
+    self.last_stop = None
+    self.stop_code = None
+    
+    self.instructions = {} # key: inst, backup copy of we've replaced
+    return
+  
+
+  def execute(self, code, mode = 'int', debug = False, params = None, n_spus = 1):
+
+    if type(code) is ParallelInstructionStream:
+      raise Exception('DebugProcessor does not support ParallelInstructionStream')
+
+    self.code = code
+    
+    if len(code._instructions) == 0:
+      return None
+
+    # Add the debug instructions - two each for normal instructions and branch targets
+    self.debug_idx = self.code.size()
+    self.code.add(spu.stop(DEBUG_STOP))
+
+    self.debug_branch = self.code.size()    
+    self.code.add(spu.stop(DEBUG_STOP))    
+
+    self.debug_target_idx = self.code.size()
+    self.code.add(spu.stop(DEBUG_STOP_TARGET))
+
+    self.debug_target_branch = self.code.size()    
+    self.code.add(spu.stop(DEBUG_STOP_TARGET))    
 
     # Cache the code here
     if not code._cached:
@@ -418,41 +615,201 @@ class Processor(spe.Processor):
 
     addr = code._prologue.inst_addr()
     params.addr = addr
-    params.size = len(code._prologue._code) * 4 # size in bytes
+    params.size = len(code.render_code) * 4 # size in bytes
 
-    retval = None
+    self.params = params
+    self.ea   = code._prologue.inst_addr()
+    self.lsa  = (0x3FFFF - params.size) & 0xFFF80;
+    self.size = params.size + (16 - params.size % 16);
+    self.last_pc   = self.lsa
+    self.last_stop = (1,)
 
-    if type(code) is ParallelInstructionStream:
-      # Parallel SPU execution
-      speids = []
-      if n_spus > 6:
-        raise Exception("Too many SPUs requests (%d > 6)" % n_spus)
+    self.debug_lsa = (self.lsa + self.code.code_offset * 4 + self.debug_idx * 4) >> 2
+    self.debug_target_lsa = (self.lsa + self.code.code_offset * 4 + self.debug_target_idx * 4) >> 2    
 
-      # print 'Regs:', code.r_rank, code.r_size, code.r_block_size, code.r_offset
-      # Set up the parameters and execute each spu thread
-      for i in range(n_spus):
-        pi = _copy_params(params, i, n_spus)
+    mode = 'async'
 
-        if hasattr(code, "raw_data_size") and code.raw_data_size is not None:
-          pi.p4 = int(code.raw_data_size / n_spus)  # block_size
-          pi.p5 = pi.p4 * i                         # offset
+    # TODO: Factor replacing into one function in case the first one is a branch
+    self.replace(self.last_stop[0], spu.bra(self.debug_lsa, ignore_active = True))
 
-          # print 'Executing: 0x%x %d %d %d %d' % (pi.addr, pi.p1, pi.p2, pi.p4, pi.p5)
-        speids.append(spe.Processor.execute(self, code, debug=debug, params=pi, mode='async'))
+    self.spe_id = spe.Processor.execute(self, code, mode, debug, params)
+    code.print_code()
 
-      # Handle blocking execution modes
-      if mode != 'async':
-        reterrs = [self.join(speid) for speid in speids]
-        retval = reterrs
-      else:
-        retval = speids
-    else:
-      # Single SPU execution
-      retval = spe.Processor.execute(self, code, mode, debug, params)
-
+    retval = self.wait_debug()
+    
     return retval
 
 
+  def replace(self, idx, inst):
+    self.instructions[idx] =  self.code.get_inst(idx)
+    self.code.debug_set(idx, inst)
+    return 
+
+
+  def restore(self, idx):
+    """
+    Restore the function at idx and return a reference to the instruction
+    """
+    # self.code._prologue._code[idx] = self.instructions[idx]
+    self.code.debug_set(idx, self.instructions[idx])
+    return self.code.get_inst(idx)
+
+
+  def get_instructions(self):
+    # return spe_mfc_getb(speid, ls, (void *)ea, size, tag, tid, rid);
+    tag = 5
+    ea = self.code._prologue.inst_addr()
+    spu_exec.spu_getb(self.spe_id, self.lsa, ea, self.size, tag, 0, 0)
+    spu_exec.read_tag_status_all(self.spe_id, 1 << tag);
+    return
+
+
+  def wait_debug(self):
+    r = spu_exec.wait_stop_event(self.spe_id)
+    if r not in (DEBUG_STOP, DEBUG_STOP_TARGET):
+      print 'Warning: SPU stopped for unknown reason:', r
+    else:
+      print 'Debug stop: 0x%X' % r
+    return r
+
+
+  def nexti(self):
+    
+    if len(self.last_stop) == 1:
+      # Restore a single instruction
+      current_inst = self.restore(self.last_stop[0])
+      last_idx = self.last_stop[0]
+    else:
+      # Restore two branch targets and determine which branch was taken
+      # based on the stop code 
+      i1 = self.restore(self.last_stop[0])
+      i2 = self.restore(self.last_stop[1])
+      if self.stop_code == DEBUG_STOP:
+        current_inst = i1
+        last_idx = self.last_stop[0]
+      else:
+        current_inst = i2
+        last_idx = self.last_stop[1]
+        
+    # If the current instruction is a branch, get the location
+    # of all possible next instructions
+    if isinstance(current_inst, (spu.br, spu.brsl)):
+      next_stop = (self.last_stop[0] + current_inst.I16,)
+      print 'next br:', next_stop
+    elif isinstance(current_inst, (spu.bra, spu.brasl)):
+      next_stop = (current_inst.I16 - (self.lsa >> 2),)
+    elif isinstance(current_inst, (spu.brnz, spu.brz, spu.brhnz, spu.brhz)):
+      next_stop = (self.last_stop[0] + 1,
+                   self.last_stop[0] + current_inst.I16)
+      
+    elif isinstance(current_inst, (spu.bi, spu.bisled, spu.bisl)):
+      raise Exception("DebugProcessor does not support branch indirect (bi) instructions")
+    else:
+      next_stop = (self.last_stop[0] + 1,)
+          
+
+    # TODO: Get rid of last instruction.  Do something smarter.
+    last_instruction = (next_stop[0] == (self.debug_idx - 1))
+
+
+    # !!! STOPPED HERE !!!
+    # !!! STILL WRONG !!!
+    if not last_instruction:
+      # Normal instructions and single target branches
+      self.replace(next_stop[0],    spu.bra(self.debug_lsa, ignore_active = True))
+      print 'target (1):', -(self.debug_lsa - ((self.lsa >> 2) + next_stop[0])), self.debug_lsa, last_idx, self.lsa
+      self.replace(self.debug_branch, spu.br(-(self.debug_lsa - ((self.lsa >> 2) + next_stop[0])),
+                                             ignore_active = True))
+      # Branch target for test-based branch instructions
+      if len(next_stop) == 2:
+        self.replace(next_stop[1],    spu.bra(self.debug_target_lsa, ignore_active = True))
+        print 'target (2):', -(self.debug_target_lsa - ((self.lsa >> 2) + next_stop[1])), self.debug_target_lsa
+        self.replace(self.debug_target_branch,
+                     spu.br(-(self.debug_target_lsa - ((self.lsa >> 2) + next_stop[1])), ignore_active = True))
+        
+      # self.replace(next_stop, self.debug_stop)
+      
+    self.get_instructions()
+    self.code.print_code()
+    self.resume(self.spe_id)
+
+    if last_instruction:
+      r = self.join(self.spe_id)
+      r = None
+    else:
+      r = self.wait_debug()
+      self.last_stop = next_stop
+      self.stop_code = r
+      
+    return r
+
+
+  def dump_regs(self):
+    mbox   = 28 # write out mbox channel
+
+    # Pseudo-code:
+    #  1) Save code is: (do this as an array, not an instruction stream)
+    save_size = 128 * 2 + 4
+    save_code = extarray.extarray('I', range(save_size))
+    
+    for i in range(0, 128 * 2, 2):
+      save_code[i] = spu.wrch(i / 2, mbox, ignore_active = True).render()
+      save_code[i + 1] = spu.stop(0x6, ignore_active = True).render()
+
+    # branch back to the debug stop
+    save_code[128 * 2] = spu.stop(0x7, ignore_active = True).render()
+    ret = spu.bra(self.debug_lsa, ignore_active = True)
+    save_code[128 * 2 + 1] = ret.render()
+
+    #aligned_save_code = aligned_memory(save_size, typecode = 'I')
+    #aligned_save_code.copy_to(save_code.buffer_info()[0], len(save_code))
+
+    #  2) Save lsa[0:len(save_code)]
+    # TODO: do this with putb
+
+    #  3) Push save code to lsa[0:]
+    tag = 2
+    spu_exec.spu_getb(self.spe_id, 0, save_code.buffer_info()[0], save_size * 4, tag, 0, 0)
+    spu_exec.read_tag_status_all(self.spe_id, 1 << tag);
+    
+    #  3) Replace the debug branch with a branch to 0
+    self.replace(self.debug_branch, spu.bra(0, ignore_active = True))
+    self.get_instructions()
+
+    #  4) Resume
+    self.resume(self.spe_id)    
+
+    #  5) Read the register values and send the ok signal
+    regs = []
+    for i in range(128):
+      while spu_exec.stat_out_mbox(self.spe_id) == 0: pass
+      value = spu_exec.read_out_mbox(self.spe_id)
+      regs.append(value)
+
+      r = spu_exec.wait_stop_event(self.spe_id)
+      self.resume(self.spe_id)
+
+    r = spu_exec.wait_stop_event(self.spe_id)
+    print 'next stop', r
+    #  6) Restore code at original pc
+    self.restore(self.debug_branch)
+    self.get_instructions()
+
+    #  7) Restore lsa[0:len(save_code)]
+    # TODO: do this with putb
+
+    #  8) Resume
+    # self.resume(self.spe_id)    
+    # r = spu_exec.wait_stop_event(self.spe_id)
+    self.resume(self.spe_id)
+    r = self.wait_debug()
+
+    return regs
+
+  def dump_mem(self):
+    # Use putb to copy the local store to Python array
+    return
+    
 # ------------------------------------------------------------
 # Unit tests
 # ------------------------------------------------------------
@@ -474,11 +831,11 @@ def TestInt():
   
   spu.stop(0x200D)
   
-  r = proc.execute(code) # , debug = True)
-  assert(r == 13)
-  print 'int result:', r
-  # while True:
-  #   pass
+  r = proc.execute(code, stop = True) # , debug = True)
+
+  #print 'int result:', r
+  assert(r[0] == 0)
+  assert(r[1] == 0x200D)
   return
 
 
@@ -487,8 +844,24 @@ def TestParams():
   code = InstructionStream()
   proc = Processor()
 
-  # code.add(spu.stop(0xA))
-  code.add(spu.stop(0x200D))
+  #r_sum = code.acquire_register(reg = 1)
+  r_sum = code.gp_return
+  r_current = code.acquire_register()
+
+  # Zero the sum
+  code.add(spu.xor(r_sum, r_sum, r_sum))
+  
+  for param in [spu_param_1, spu_param_2, spu_param_3, spu_param_4, spu_param_5,
+                spu_param_6, spu_param_7, spu_param_8, spu_param_9, spu_param_10]:
+    copy_param(code, r_current, param)
+    code.add(spu.a(r_sum, r_sum, r_current))
+    
+  code.add(spu.ceqi(r_current, r_sum, 55))
+  #code.add(spu.ori(code.gp_return, r_current, 0))
+
+  code.add(spu.brz(r_current, 2))
+  code.add(spu.stop(0x200A))
+  code.add(spu.stop(0x200B))
   
   params = spu_exec.ExecParams()
 
@@ -506,50 +879,13 @@ def TestParams():
   params.p10 = 10
 
 
-  r = proc.execute(code, params = params)
-  assert(r == 13)
+  r = proc.execute(code, params = params, stop = True)
+
+  assert(r[0] == 55)
+  assert(r[1] == 0x200A)
   # print 'int result:', r
-  # while True:
-  #   pass
   return
 
-
-def TestAlignedMemory():
-  import spuiter
-  n = 10000
-  a = array.array('I', range(n))
-  aa = aligned_memory(len(a), typecode='I')
-  aa.copy_to(a.buffer_info()[0], len(a))
-
-  # aa.print_memory()
-  print str(aa), '0x%X, %d' % a.buffer_info()
-  
-  code = InstructionStream()
-  proc = Processor()
-  
-  md = spuiter.memory_desc('I')
-  md.from_array(aa)
-  print str(md)
-  md.get(code, 0)
-  
-  ls = spuiter.memory_desc('I', 0, n)
-  seq_iter = spuiter.spu_vec_iter(code, ls)
-
-  for i in seq_iter:
-    i.v = i + i
-
-  print str(md)
-  md.put(code, 0)
-
-  r = proc.execute(code, mode = 'int')
-  # print a
-  aa.copy_from(a.buffer_info()[0], len(a))
-  # aa.print_memory()  
-  print a[:20]
-  print a[4090:4105]
-  print a[8188:8200]    
-  print a[-20:]  
-  return
 
 def TestParallel():
   # Run this with a stop instruction and examine the registers and memory
@@ -559,16 +895,64 @@ def TestParallel():
   code.raw_data_size = 128*8
 
   r = code.acquire_register()
-  code.add(spu.ai(r, r, 0xCAFE))
-  code.add(spu.ai(r, r, 0xBABE))    
-  code.add(spu.stop(0x2000))
+  code.add(spu.ai(r, r, 0x2FE))
+  code.add(spu.ai(r, r, 0x2BE))    
+  code.add(spu.stop(0x1FFF))
 
-  r = proc.execute(code, mode='async', n_spus = 6)
+  r = proc.execute(code, async = True, mode='void', n_spus = 6)
 
   for speid in r:
     proc.join(speid)
 
   assert(True)
+  return
+
+
+def TestDebug():
+  code = InstructionStream()
+  proc = DebugProcessor()
+
+  spu.set_active_code(code)
+  
+  ra = code.acquire_register()
+  rb = code.acquire_register()
+  rc = code.acquire_register()
+  rd = code.acquire_register()
+  re = code.acquire_register()
+  rf = code.acquire_register()
+  rg = code.acquire_register()
+  rh = code.acquire_register()  
+  
+  spu.ai(ra, 0, 14)
+  spu.ai(rb, 0, 13)
+  spu.ai(rc, 0, 14)
+  spu.brnz(14, 3)
+  spu.ai(rd, 0, 15)
+  spu.ai(re, 0, 16)
+  spu.ai(rf, 0, 17)
+  spu.ai(rg, 0, 18)
+  spu.ai(rh, 0, 19)    
+  spu.nop(0)
+  
+  spu.stop(0x200A)
+  
+  r = proc.execute(code) # , debug = True)
+
+  r = proc.nexti()
+  r = proc.nexti()
+  r = proc.nexti()
+  r = proc.nexti()
+    
+  while r != None:
+    r = proc.nexti()
+    if r is not None:
+      regs = proc.dump_regs()
+      print '******', regs[122:]
+    
+  assert(r == None)
+  print 'int result:', r
+  # while True:
+  #   pass
   return
 
 
@@ -639,13 +1023,8 @@ def TestInt2(i0 = 0, i1 = 1):
   load_value_int32(code, r_loop, 0, clear_bits = False)
   start_label = code.size() + 1
 
-
-
-
   code.add(spu.sfi(r_loop, r_loop, 1))
   code.add(spu.brnz(r_loop, (-(next - start_label) * spu.WORD_SIZE)))
-
-  #
 
   code.add(spu.stop(0x2005))
 
@@ -656,8 +1035,9 @@ def TestInt2(i0 = 0, i1 = 1):
   return
 
 if __name__ == '__main__':
+  # TestDebug()
   TestInt()
   TestParams()
   TestParallel()
   # TestOptimization()
-  # TestAlignedMemory()
+

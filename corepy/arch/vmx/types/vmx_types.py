@@ -1,12 +1,30 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 import array
 
@@ -14,7 +32,7 @@ import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
 import corepy.spre.spe as spe
 import corepy.arch.ppc.lib.util as util
-from corepy.arch.ppc.types.ppc_types import make_user_type
+#from corepy.arch.ppc.types.ppc_types import make_user_type
 
 from corepy.spre.syn_util import most_specific
 
@@ -188,6 +206,47 @@ class SingleFloatType(VMXType):
   def _set_literal_value(self, value):
     BitType._set_literal_value(self, value)
     return
+
+
+def make_user_type(name, type_cls, g = None):
+  """
+  Create a Variable class and an Expression class for a type class.
+
+  This is equivalent to creating two classes and updating the type
+  class (except that the Expression class is not added to the global 
+  namespace):
+
+    class [name](spe.Variable, type_cls):
+      type_cls = type_cls
+    class [name]Ex(spe.Expression, type_cls):
+      type_cls = type_cls    
+    type_class.var_cls = [name]
+    type_class.expr_cls = [name]Ex
+
+  type_cls is added to help determine type precedence among Variables
+  and Expressions.
+
+  (note: there's probably a better way to model these hierarchies that
+   avoids the type_cls, var_cls, expr_cls references.  But, this works
+   and keeping explicit references avoids tricky introspection
+   operations) 
+  """
+
+  # Create the sublasses of Varaible and Expression
+  var_cls = type(name, (spe.Variable, type_cls), {'type_cls': type_cls})
+  expr_cls = type(name + 'Ex', (spe.Expression, type_cls), {'type_cls': type_cls})
+
+  # Update the type class with references to the variable and
+  # expression classes 
+  type_cls.var_cls = var_cls
+  type_cls.expr_cls = expr_cls
+
+  # Add the Variable class to the global namespace
+  if g is None: g = globals()
+  g[name] = var_cls
+
+  return
+
 
 _user_types = ( # name, type class
   ('Bits', BitType),

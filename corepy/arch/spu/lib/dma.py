@@ -1,12 +1,30 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 # Synthetic functions and components for DMA operations
 # Based on /opt/IBM/cell-sdk-1.1/src/include/spu/spu_mfcio.h
@@ -15,6 +33,7 @@
 
 import array
 import time
+import corepy.lib.extarray as extarray
 import corepy.arch.spu.platform as synspu 
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.util as util
@@ -94,6 +113,85 @@ MFC_TAG_UPDATE_IMMEDIATE = 0
 MFC_TAG_UPDATE_ANY = 1
 MFC_TAG_UPDATE_ALL = 2
 
+
+# ------------------------------------------------------------
+# High-level DMA routines
+# ------------------------------------------------------------
+
+# TODO - routines for DMA lists
+
+# TODO - should this be merged into existing routines like mfc_get and mfc_put?
+
+def mem_get(code, lsa, mma, size, tag):
+  """Start a single asynchronous DMA GET operation.  Parameters are as follows:
+    
+      lsa     Local store address of data destination
+      mma     Main memory address of source data
+      size    Size in bytes of data to transfer; hardware limit is 16Kb
+      tag     DMA control tag to associate with this transfer
+  """
+
+  param_regs = {}
+
+  r_lsa = util.get_param_reg(code, lsa, param_regs, copy = False)
+  r_mma = util.get_param_reg(code, mma, param_regs, copy = False)
+  r_size = util.get_param_reg(code, size, param_regs, copy = False)
+  r_tag = util.get_param_reg(code, tag, param_regs, copy = False)
+
+  mfc_getf(code, r_lsa, r_mma, r_size, r_tag)
+  
+  util.put_param_reg(code, r_lsa, param_regs)
+  util.put_param_reg(code, r_mma, param_regs)
+  util.put_param_reg(code, r_size, param_regs)
+  util.put_param_reg(code, r_tag, param_regs)
+  return
+
+
+def mem_put(code, lsa, mma, size, tag):
+  """Start a single asynchronous DMA PUT operation.  Parameters are as follows:
+    
+      lsa     Local store address of source data
+      mma     Main memory address of data destination
+      size    Size in bytes of data to transfer; hardware limit is 16Kb
+      tag     DMA control tag to associate with this transfer
+  """
+
+  param_regs = {}
+
+  r_lsa = util.get_param_reg(code, lsa, param_regs, copy = False)
+  r_mma = util.get_param_reg(code, mma, param_regs, copy = False)
+  r_size = util.get_param_reg(code, size, param_regs, copy = False)
+  r_tag = util.get_param_reg(code, tag, param_regs, copy = False)
+
+  mfc_putf(code, r_lsa, r_mma, r_size, r_tag)
+
+  util.put_param_reg(code, r_lsa, param_regs)
+  util.put_param_reg(code, r_mma, param_regs)
+  util.put_param_reg(code, r_size, param_regs)
+  util.put_param_reg(code, r_tag, param_regs)
+  return
+
+
+def mem_complete(code, tag):
+  """Complete a set of asynchronous DMA operations.
+
+     If tag is a literal number, all DMA operations on that tag are completed.
+     If a register provided, that register is used as-is as the tag mask.  The
+     tag mask is a bit field indicating which tags should be completed.  For
+     example, to complete only tag number 12, the tag mask should have the
+     value 1 << 12, or have the bit in position 12 set.  Multiple tags may be
+     completed by setting multiple bits.
+  """
+
+  if isinstance(tag, (spe.Register, spe.Variable)):
+    mfc_write_tag_mask(code, tag)
+  else:
+    mfc_write_tag_mask(code, 1 << tag)
+    
+  mfc_read_tag_status_all(code)
+
+
+
 # ------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------
@@ -135,12 +233,13 @@ def spu_mfcdma64(code, r_ls, r_eah, r_eal, r_size, r_tagid, cmd):
 
 def spu_writech(code, ch, msg):
   # msg may be either a literal value, or a register containing the value
-  if isinstance(msg, spe.Register):
+  if isinstance(msg, (spe.Register, spe.Variable)):
     last = code.add(spu.wrch(msg, ch))
   else:
     r_msg = code.acquire_register()
     util.load_word(code, r_msg, msg)
     last = code.add(spu.wrch(r_msg, ch))
+    code.release_register(r_msg)
 
   return last
 
@@ -237,7 +336,7 @@ def spu_write_out_mbox(code, data):
   return spu_writech(code, SPU_WrOutMbox, data)
 
 def spu_stat_out_mbox(code):
-  spu_readchcnt(code, SPU_WrOutMbox)
+  return spu_readchcnt(code, SPU_WrOutMbox)
 
 def spu_write_out_intr_mbox(code, data):
   return spu_writech(code, SPU_WrOutIntrMbox, data)
@@ -268,9 +367,10 @@ def spu_stop_decr(code):
 
 def TestMFC():
   size = 32
-  data_array = array.array('I', range(size))
-  data = synspu.aligned_memory(size, typecode = 'I')
-  data.copy_to(data_array.buffer_info()[0], len(data_array))
+  #data_array = array.array('I', range(size))
+  #data = synspu.aligned_memory(size, typecode = 'I')
+  #data.copy_to(data_array.buffer_info()[0], len(data_array))
+  data = extarray.extarray('I', range(size))
   code = synspu.InstructionStream()
 
   r_zero    = code.acquire_register()
@@ -342,13 +442,13 @@ def TestMFC():
   # Execute the code
   proc = synspu.Processor()
   # code.print_code()
-  print data_array
+  #print data_array
   proc.execute(code)
 
-  data.copy_from(data_array.buffer_info()[0], len(data_array))
+  #data.copy_from(data_array.buffer_info()[0], len(data_array))
 
   for i in range(size):
-    assert(data_array[i] == i + 1)
+    assert(data[i] == i + 1)
   
   return
 
@@ -368,8 +468,7 @@ def TestMbox():
   
   proc = synspu.Processor()
 
-  code.print_code()
-  spe_id = proc.execute(code, mode='async')
+  spe_id = proc.execute(code, async=True)
   synspu.spu_exec.write_in_mbox(spe_id, 0x88CAFE)
 
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
@@ -394,7 +493,7 @@ def TestSignal():
   
   proc = synspu.Processor()
 
-  spe_id = proc.execute(code, mode='async')
+  spe_id = proc.execute(code, async=True)
   synspu.spu_exec.write_signal(spe_id, 1, 0xCAFEBABEl)
   
   while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
@@ -422,7 +521,7 @@ def TestDecrementer():
 
   proc = synspu.Processor()
 
-  spe_id = proc.execute(code, mode='async')
+  spe_id = proc.execute(code, async=True)
 
   print 'test is sleeping for 1 second'
   time.sleep(1)

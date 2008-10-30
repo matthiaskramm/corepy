@@ -1,25 +1,44 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 __doc__ = """
 Base classes for the Synthetic Programming Environment.
 """
 
-import array
+print "WARNING: CorePy is currently undergoing a major overhaul and may be unstable through Feb. 1"
+
 
 import inspect
-import os.path
-import traceback
+
+import corepy.lib.extarray as extarray
 
 from syn_util import *
+#import syn_util as util
 
 __annoy__ = True
 
@@ -46,12 +65,15 @@ def _first_user_frame(stack_info):
         corepy_conf.py has a regexp or something that the user can use
         to determine what files should be used for printing code.
   """
+  import os.path
+
   idx = 0
   for i, frame in enumerate(stack_info):
     file = os.path.split(frame[0])[1]
     if (file != 'spe.py' and
         file[:5] != 'spre_' and
         file not in ('util.py', 'spu_extended.py', 'iterators.py', '__init__.py') and
+        #file not in ('util.py', 'spu_extended.py', '__init__.py', 'dma.py') and
         file[-9:] != '_types.py'):
       idx = i
       break
@@ -139,47 +161,28 @@ class RegisterFile(object):
     return s
   
 
-class AndyRegister(object):
-  def __init__(self, reg, name = None):
-    """
-    Create a new register:
-      reg is the architecture dependent value for the register, usually an int.
-      name is the string name of this register
-    """
-    self.reg = reg
-    self.name = name
-    return
-
-  def __str__(self): return self.name
-
-  def __eq__(self, other):
-    if isinstance(other, Register):
-      return other.reg == self.reg
-    elif isinstance(other, int):
-      return self.reg == other
-    elif isinstance(other, str):
-      return self.name == other
-    else:
-      raise Exception('Cannot compare Register against %s' % (type(other),))
-
-
 class Register(object):
-  def __init__(self, reg, code = None, name = None, prefix = 'r'):
+  def __init__(self, reg, code = None, name = None, prefix = ''):
     """
     Create a new register:
       reg is the architecture dependent value for the register, usually an int.
       code is the InstructionStream that created and owns this register.
     """
     if isinstance(code, str):
-      raise Expcetion("Use the 'name' keyword argument to set the name of a register")
+      raise Exception("Use the 'name' keyword argument to set the name of a register")
     
     self.reg = reg
     self.code = code
-    self.prefix = prefix
     self.name = name
+    self.prefix = prefix
     return
 
-  def __str__(self): return '%s%d' % (self.prefix, self.reg)
+  def __str__(self): 
+    if self.name != None:
+      return self.name
+    else:
+      return '$%d' % (self.reg)
+      #return '%s%d' % (self.prefix, self.reg)
 
   def __eq__(self, other):
     if isinstance(other, Register):
@@ -308,6 +311,7 @@ class Variable(object):
 
   def __str__(self):
     # return '<%s reg = %s>' % (type(self), str(self.reg))
+    return '%s' % str(self.reg) # for ASM formatting
     return '<%s>' % str(self.reg)
 
   # Assignment property
@@ -431,366 +435,195 @@ def _expression_method(cls, *operands, **koperands):
     return Expression(cls, *operands, **koperands)
   
 
+class InstructionOperand(object):
+  """
+  Used for machine instructions.  
+  """
+  def __init__(self, name, default = None):
+    self.name = name
+    self.default = default
+    return
+
+  def check(self, value):
+    if __annoy__:
+      print 'You should really implement a check method for %s' % (self.name)
+    return True
+
+  def render(self, value):
+    raise Exception('You should really implement a render method for %s' % (self.name))
+
+class MachineInstruction(object):
+  """
+  Machine instruction class for general types of machine instructions.
+
+  Most instructions are based on a few general classes of physical
+  instructions.  MachineInstructions represent these physical
+  instruction classes.
+
+  A MachineInstruction is composed of two main elements: an operand
+  type signature and a render method.  
+  """
+  
+  signature = ()   # Operand signature
+  opt_kw = ()      # Optional keyword arguments (e.g., on ppc.add RC, OE)
+
+  def _render(params, operands):
+    raise Exception("render() method not implemented")
+  render = staticmethod(_render)
+  
+
 class Instruction(object):
-    """
-    Main user interface to machine instructions.
-  
-    Instruction supports to main modes of operation, an 'immediate' mode
-    that creates the instruction and adds it to the active code (if
-    active code is set) and a delayed evaluation mode.
-  
-    Immediate mode is the standard approach for using instructions.  See
-    the comments in __init__ for more details.
-  
-    Delayed evaluation mode allows any instruction to be used in an
-    expression. For instance, the spu.ai instruction can be insterted
-    into an expression of SignedWord variables using the following code:
-  
-      r.v = x + y + spu.ai.ex(z, 12, type_cls=SignedWord)
-  
-    This tells ai to create an expression-compatible version of the
-    instruction with a return type of SignedWord.  The argument list to
-    the delayed form of the instruction consists of all arguments except
-    for the destination operand (which in assembly order is the first
-    operand). 
-    """
-  
-    def __init__(self, *operands, **koperands):
-      """
-      The constructor for Instruction takes the underlying instructions
-      operands as its operands.  By default, the operands are assumed to
-      be in the same order as the assembly language specification for
-      the instruction.
-  
-      The optional 'order' keyword argument can change the order the
-      operands are interpreted in. This feature exists primarily to
-      switch to machine order for an instruction, e.g.:
-        spu.ai(b, a, d, order=spu.ai.machine_inst._machine_order)
-  
-      Compared this to the normal asm order:
-        spu.ai(d, a, b) 
-      """
-  
-      # Determin the order for the operands
-      user_order = None
-      if koperands.has_key('order'):
-        user_order = koperands['order']
-        del koperands['order']
-  
-      self._operands = koperands
-      order = user_order or self.asm_order or self.machine_inst._machine_order
-  
-      if (order is self.asm_order) and len(operands) != len(self.asm_order):
-        raise Exception("Not enough arguments supplied to %s.  %d required, %d supplied" % (
-          self.machine_inst.name, len(self.asm_order), len(operands)))
-  
-      # if order is self.machine_inst._machine_order:
-      #    print self.machine_inst.name,'using machine order'
-  
-      # Create the orded list of operands
-      for op, field in zip(operands, order):
-  
-        # Check immediate operands to make sure they fit
-        if (field.mask is not None and                     # is immediate? 
-            ((op >= 0 and (field.mask & op) != op) or      # positive values
-             (op < 0 and (field.mask & (-op)) != (-op)))): # negative values
-          frame, file = _first_user_frame(_extract_stack_info(inspect.stack()))
-          print '[%s:%s:%d] Warning: immediate operand %d does not fit in allocated bits' % (
-            file, frame[2], frame[1], op)
-  
-        # Store the operand
-        self._operands[field.name] = op
-  
-      # Check to make sure the user didn't intend to call the delayed
-      # version of the instruction
-      if koperands.has_key('type_cls'):
-        print "Warning: Instruction created with keyword argument 'type_cls'.  Did you mean to use ex()?" 
-        traceback.print_stack()
-  
-      # If active code is present, add ourself to it and remember that
-      # we did so.  active_code_used is checked by InstructionStream
-      # to avoid double adds from code.add(inst(...)) when active_code
-      # is set.
-      self.active_code_used = None    
-  
-      # Allow the user to create an instruction without adding it to
-      # active code.  Used for debugging purposes.
-      ignore_active = False
-      if koperands.has_key('ignore_active'):
-        ignore_active = koperands['ignore_active']
-        del koperands['ignore_active']
-  
-      if self.active_code is not None and not ignore_active:
-        self.active_code.add(self)
-        self.active_code_used = self.active_code
-  
-      return
-  
-    def __getattr__(self, name):
-      if self._operands.has_key(name):
-        return self._operands[name]
+  def __init__(self, *operands, **koperands):
+    # Remember what the user passed in for debugging
+    # TODO - not just for debugging! remove the underscore, too
+    self._supplied_operands = operands
+    self._supplied_koperands = koperands    
+
+    self._operands = self.validate_operands(*operands, **koperands)
+
+    # If active code is present, add ourself to it and remember that
+    # we did so.  active_code_used is checked by InstructionStream
+    # to avoid double adds from code.add(inst(...)) when active_code
+    # is set.
+    self.active_code_used = None    
+
+    # Allow the user to create an instruction without adding it to
+    # active code.  Used for debugging purposes.
+    ignore_active = False
+    if koperands.has_key('ignore_active'):
+      ignore_active = koperands['ignore_active']
+      del koperands['ignore_active']
+
+    if self.active_code is not None and not ignore_active:
+      self.active_code.add(self)
+      self.active_code_used = self.active_code
+    
+    return
+
+  def validate_operands(self, *operands, **koperands):
+    ops = {} # name: value
+    if len(operands) != len(self.machine_inst.signature):
+      if len(operands) < len(self.machine_inst.signature):
+        reason = 'Not enough '
       else:
-        raise AttributeError, name
-    
-    def __str__(self):
-      if self.asm_order is None:
-        order = self.machine_inst._machine_order
+        reason = 'Too many '
+      raise Exception(reason + 'arguments supplied to instruction %s(%s).  Found arguments: (%s)' % (
+        self.__class__.__name__,
+        ', '.join([op_type.name for op_type in self.machine_inst.signature]),
+        ', '.join([str(value) for value in operands])))
+
+    iop = 0
+    for op_type, value in zip(self.machine_inst.signature, operands):
+      if op_type.check(value):
+        # Store ops by name and position.
+        ops[op_type.name] = value
+        ops[iop] = value        
+        iop += 1
       else:
-        order = self.asm_order
-  
-      operands = []
-      for field in order:
-        if self._operands.has_key(field.name):
-          operands.append(str(self._operands[field.name]))
+        raise Exception("Operand validation failed for " + op_type.name )
         
-      return '%s(%s)' % (self.machine_inst.name, ','.join([str(op) for op in operands]))
-  
-    ex = classmethod(_expression_method)
-  
-    def render(self):
-      """
-      Generate the binary form of the instruction by extracting the
-      immediate and register values from the operands and passing them
-      to the underlying machine instruction.
-      """
-  
-      rendered_operands = {}
-      for key in self._operands:
-        op = self._operands[key]
-        if isinstance(op, Register):
-          rendered_operands[key] = op.reg
-        elif isinstance(op, Immediate):
-          rendered_operands[key] = op.value
-        elif isinstance(op, Variable):
-          rendered_operands[key] = op.reg.reg
-        elif isinstance(op, Label):
-          op.add_inst(self)
-          rendered_operands[key] = op.position()
-        elif isinstance(op, (int, long)):
-          rendered_operands[key] = op
-        else:
-          # print op, isinstance(op, Variable)
-          raise Exception('Unsupported operand type: %s = %s.  Register, Immediate, Variable, or int required.' % (type(op), str(op)))
-      
-      return self.machine_inst(**rendered_operands)
+    for op_type in self.machine_inst.opt_kw:
+      kw = op_type.name
+      if koperands.has_key(kw):
+        if op_type.check(koperands[kw]):
+          ops[kw] = koperands[kw]
+      elif op_type.default is not None:
+        ops[kw] = op_type.default
 
-# class InstructionOperand(object):
-#   def __init__(self, name, default = None):
-#     self.name = name
-#     self.default = default
-#     return
-
-#   def check(self, value):
-#     if __annoy__:
-#       print 'You should really implement a check method for %s' % (self.name)
-#     return True
-
-#   def render(self, value):
-#     raise Exception('You should really implement a render method for %s' % (self.name))
-
-# class MachineInstruction(object):
-#   """
-#   Machine instruction class for general types of machine instructions.
-
-#   Most instructions are based on a few general classes of physical
-#   instructions.  MachineInstructions represent these physical
-#   instruction classes.
-
-#   A MachineInstruction is composed of two main elements: an operand
-#   type signature and a render method.  
-#   """
-  
-#   signature = () # Operand signature
-#   opt_kw = ()    # Optional keyword arguments (e.g., on ppc.add RC, OE)
-
-#   def _render(params, operands): raise Exception("render() method not implemented")
-#   render = staticmethod(_render)
-  
-
-# class Instruction(object):
-#   def __init__(self, *operands, **koperands):
-#     self._operands = self.validate_operands(*operands, **koperands)
-    
-#     # TODO: Active code support
-#     # If active code is present, add ourself to it and remember that
-#     # we did so.  active_code_used is checked by InstructionStream
-#     # to avoid double adds from code.add(inst(...)) when active_code
-#     # is set.
-#     self.active_code_used = None    
-
-#     # Allow the user to create an instruction without adding it to
-#     # active code.  Used for debugging purposes.
-#     ignore_active = False
-#     if koperands.has_key('ignore_active'):
-#       ignore_active = koperands['ignore_active']
-#       del koperands['ignore_active']
-
-#     if self.active_code is not None and not ignore_active:
-#       self.active_code.add(self)
-#       self.active_code_used = self.active_code
-    
-#     return
-
-#   def validate_operands(self, *operands, **koperands):
-#     ops = {} # name: value
-
-#     if len(operands) != len(self.machine_inst.signature):
-#       raise Exception('Not enough arguments supplied to instruction %s(%s).  Found arguments: (%s)' % (
-#         self.__class__.__name__,
-#         ', '.join([op_type.name for op_type in self.machine_inst.signature]),
-#         ', '.join([str(value) for value in operands])))
-
-#     iop = 0
-#     for op_type, value in zip(self.machine_inst.signature, operands):
-#       if op_type.check(value):
-#         # Store ops by name and position.
-#         # This is a hack for x86 where two args may have the same name
-#         # e.g., (reg8, reg8) On ppc, the fields are named, so there's
-#         # no chance of collision, on x86, they're just typed. Probably
-#         # want to switch over to numbered operand lists + keyed
-#         # koperand lists... 
-#         ops[op_type.name] = value
-#         ops[iop] = value        
-#         iop += 1
-#       else:
-#         raise Exception("Say something meanginful here " + op_type.name )
-        
-#     for op_type in self.machine_inst.opt_kw:
-#       kw = op_type.name
-#       if koperands.has_key(kw):
-#         if op_type.check(koperands[kw]):
-#           ops[kw] = koperands[kw]
-#       elif op_type.default is not None:
-#         ops[kw] = op_type.default
-
-#     return ops
+    return ops
 
   
-#   def __str__(self):
-#     # TODO: Implement this 
-#     return '%s(T,O,D,O)' % (self.__class__.__name__, )
+  def __str__(self):
+    operands = []
+    for op in self._supplied_operands:
+      operands.append(str(op))
 
-#   # TODO: Expression method
-#   # ex = classmethod(_expression_method)
+    return '%s %s' % (self.__class__.__name__, ', '.join([str(op) for op in operands]))
+    #return '%s(%s)' % (self.__class__.__name__, ', '.join([str(op) for op in operands]))
+
+
+  # Expression method
+  ex = classmethod(_expression_method)
   
-#   def render(self):
-#     return self.machine_inst.render(self.params, self._operands)
+  def render(self):
+    bin = self.machine_inst.render(self.params, self._operands)
+    return bin
 
-# def _sig_cmp(sig, user):
-#   if len(sig) != len(user):
-#     print 'cmp 1'
-#     return False
-
-#   for s, u in zip(sig, user):
-#     if not (u == s): # test in this order since user will be more specific and use the __eq__ method 
-#       return False
-#   return True
+  def set_position(self, pos):
+    """Set the byte-offset position of this instruction in its
+       InstructionStream"""
+    self._operands["position"] = pos
 
 
-# class DispatchInstruction(Instruction):
-#   """
-#   DispatchInstruction is a one-to-many mapping of Instructions 
-#   to MachineInstructions.  When constructed, a DispatchInstruction
-#   matches the type signature of its arguments against the type
-#   signatures of the different MachineInstructions in the dispatch
-#   table.  If a match is found, the MachineInstruction is used as the
-#   instance's instruction attribute.*  If a match is not found, an
-#   execption is raised. 
+def _sig_cmp(sig, user):
+  if len(sig) != len(user):
+    return False
 
-#   DisptachInstruction is intended for use with x86 instruction sets
-#   where there is a one-to-many mapping between instructions and their
-#   implmentations. 
-
-#   *Note that in Instruction, the instruction attribute is a static
-#   attribute.  DispatchInstruction abuses things a bit and creates an
-#   instance attribute for instruction.
-#   """
-#   type_id = [type]
-#   dispatch = ()
-
-#   def __init__(self, *operands, **koperands):
-#     # Get a list of the types of the operands
-#     type_func = self.type_id[0]
-#     op_types = [type_func(arg) for arg in operands]
-
-#     # Find the method that matches the operand type list
-#     instruction = None
-#     params = None
-#     for entry in self.dispatch:
-# #      print "[check] (%s) -> (%s)" % (
-# #        ','.join([str(arg_type.name) for arg_type in op_types],),
-# #        ','.join([str(arg_type.name) for arg_type in entry[0].signature],)
-# #        )
-      
-#       if _sig_cmp(entry[0].signature, op_types):
-#         instruction = entry[0]
-#         params = entry[1]
-#         break
-
-#     if instruction is None:
-#       raise Exception("No instruction method found for operand types (%s)" % (
-#         ','.join([str(arg_type.name) for arg_type in op_types],)))
-# #     else:
-# #       print "(%s) -> (%s)" % (
-# #         ','.join([str(arg_type.name) for arg_type in op_types],),
-# #         ','.join([str(arg_type.name) for arg_type in instruction.signature],)
-# #         )
-        
-    
-#     # Set our instruction type
-#     self.machine_inst = instruction
-#     self.params = params
-    
-#     # Call the main Instruction constructor
-#     Instruction.__init__(self, *operands, **koperands)
-#     return
+  for s, u in zip(sig, user):
+    # Test s against u, since user will be more specific and use __eq__()
+    if not u == s:
+      return False
+  return True
 
 
-# class MemoryReference:
-#   def __init__(self, val, disp = None, index = None, scale = 1, size = 32):
-#     if isinstance(val, Register):
-#       # TODO - validate that disp/index are correct
-#       self.reg = val
-#       self.addr = None
-#       self.disp = disp
-#       self.index = index
-#       self.size = size
+class DispatchInstruction(Instruction):
+  """
+  DispatchInstruction is a one-to-many mapping of Instructions 
+  to MachineInstructions.  When constructed, a DispatchInstruction
+  matches the type signature of its arguments against the type
+  signatures of the different MachineInstructions in the dispatch
+  table.  If a match is found, the MachineInstruction is used as the
+  instance's instruction attribute.*  If a match is not found, an
+  execption is raised. 
 
-#       if scale == 1:
-#         self.scale = 0
-#       elif scale == 2:
-#         self.scale = 1
-#       elif scle == 4:
-#         self.scale = 2
-#       elif scale == 8:
-#         self.scale = 3
-#       else:
-#         raise Exception('Invalid scale value %s must be 1,2,4,8' % (str(scale)))
+  DisptachInstruction is intended for use with x86 instruction sets
+  where there is a one-to-many mapping between instructions and their
+  implmentations. 
 
-#     elif isinstance(val, (int, long)):
-#       self.reg = None
-#       self.addr = val
-#       self.disp = None
-#       self.index = None
-#       self.size = size
-#       return
+  *Note that in Instruction, the instruction attribute is a static
+  attribute.  DispatchInstruction abuses things a bit and creates an
+  instance attribute for instruction.
+  """
+  type_id = [type]
+  dispatch = ()
 
-#   def __str__(self):
-#     if self.reg != None:
-#       if self.disp != None:
-#         if self.index != None:
-#           if self.scale != None:
-#             return "MemRef(%s, %d, %s, %d)" % (str(self.reg), self.disp, str(self.index), self.scale)
-            
-#           return "MemRef(%s, %d, %s, 1)" % (str(self.reg), self.disp, str(self.index))
-#         return "MemRef(%s, %d)" % (str(self.reg), self.disp)
-#       return "MemRef(%s)" % (str(self.reg))
-#     elif self.addr != None:
-#       return "MemRef(0x%x)" % (self.addr)
+  def __init__(self, *operands, **koperands):
+    # Get a list of the types of the operands
+    type_func = self.type_id[0]
+    op_types = [type_func(arg) for arg in operands]
+
+    # Find the method that matches the operand type list
+    instruction = None
+    params = None
+    for entry in self.dispatch:
+#      print "[check] (%s) -> (%s)" % (
+#        ','.join([str(arg_type.name) for arg_type in op_types],),
+#        ','.join([str(arg_type.name) for arg_type in entry[0].signature],)
+#        )
+
+      if _sig_cmp(entry[0].signature, op_types):
+        instruction = entry[0]
+        params = entry[1]
+        break
+
+    if instruction is None:
+      print op_types
+      raise Exception("No instruction method found for operand types (%s)" % (
+        ','.join([str(arg_type.name) for arg_type in op_types],)))
 #     else:
-#       return "INVALID MemoryReference"
+#       print "(%s) -> (%s)" % (
+#         ','.join([str(arg_type.name) for arg_type in op_types],),
+#         ','.join([str(arg_type.name) for arg_type in instruction.signature],)
+#         )
+        
 
-# class MemRef(MemoryReference): pass
+    # Set our instruction type
+    self.machine_inst = instruction
+    self.params = params
+    
+    # Call the main Instruction constructor
+    Instruction.__init__(self, *operands, **koperands)
+    return
 
 
 class ExtendedInstruction(object):
@@ -864,77 +697,98 @@ class ExtendedInstruction(object):
 # ------------------------------------------------------------
 
 class Label(object):
-  def __init__(self, code, pos):
+  def __init__(self, code, name):
     object.__init__(self)
-    self._code = code
-    self._position = pos
-    self._insts = []
+    self.code = code
+    self.name = name
+    self.position = None
     return
 
-  def get_position(self): return self._position
-  def set_position(self, pos): self._position = pos
+  def __str__(self):
+    return "Label(%s)" % (self.name)
+    #return "Label(%s, %s)" % (self.name, self.position)
+    #return "Label(%s, %s)" % (str(self.code), self.name)
 
-  def add_inst(self, inst, pos): self._insts.append((pos, inst))
+  def set_position(self, pos):
+    """Set the byte-offset position of this label in its
+       InstructionStream.  Provided so that cache_code can simple call the
+       set_position() without checking whether the object is an instruction or
+       a label."""
+    self.position = pos
 
-  def resolve_labels(self):
-    for pos, inst in self._insts:
-      self._code[pos] = inst
-    return
 
-  
 class InstructionStream(object):
   """
-  InstructionStream mantains ABI compliance and code cach
+  InstructionStream mantains ABI compliance and code cache
   """
 
+  # Class parameters.  Sublasses must provide values for these.
+
+  # Register file to pull a register from if no type is provided by the user
+  default_register_type = None
+
+  # Native size of the instruction or instruction components. This
+  # will be 'I' for 32-bit instructions and 'B' for variable length 
+  # instructions.
+  instruction_type  = None
+  
   def __init__(self):
     object.__init__(self)
+
+    # Make sure subclasses provide property values
+    if self.default_register_type is None:
+      raise Exception("Subclasses must set default_register_type")
+    if self.instruction_type is None:
+      raise Exception("Subclasses must set instruction_type")
     
     # Major code sections
-    self._prologue = None
-    self._code     = None
-    self._epilogue = None
-    self._instructions = None
+    self._prologue = []
+    self._epilogue = []
+    self._instructions = []
+    self._labels = {}
+
+    # Some default labels
+    self.lbl_prologue = self.get_label("PROLOGUE")
+    self.lbl_body = self.get_label("BODY")
+    self.lbl_epilogue = self.get_label("EPILOGUE")
 
     # Debugging information
     self._stack_info = None
     self._debug = False
     
-    # Alignment parameters
-    self._offset = 0
-    
     # Register Files
     # Use RegisterFiles to create a set of register instances for this
     # instance of InstructionStream.
-    # 
-    # Each declarative RegisterFiles entry is:
-    #   (file_id, register class, valid values)
     self._register_files = {} # type: RegisterFile
-    self._reg_type = {} # 'cls': type
-    for reg_type, cls, values in self.RegisterFiles:
-      regs = [cls(value, self) for value in values]
-      self._register_files[cls] = RegisterFile(regs, reg_type)
-      self._reg_type[reg_type] = cls
-      for reg in regs:
-        reg.code = self
-        
+    self._reg_type = {} # 'string': type, e.g. 'gp': GPRegister
+    self.create_register_files()
+    
     # Storage holds references to objects created by synthesizers
     # that may otherwise get garbage collected
     self._storage = None
 
-    # True if the all instruction streams have been created.
-    self._cached = False
-
     self._active_callback = None
     self.reset()
-
     return
 
-  def set_debug(self, debug): self._debug = debug
-  def get_debug(self): return self._debug
+  def make_executable(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
+
+  def create_register_files(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))  
+
+  def set_debug(self, debug):
+    self._debug = debug
+
+  def get_debug(self):
+    return self._debug
+
   debug = property(get_debug, set_debug)
-  
-  def set_active_callback(self, cb): self._active_callback = cb
+
+ 
+  # TODO - AWF - what calls this, what does it do? 
+  def set_active_callback(self, cb):
+    self._active_callback = cb
   
   def __del__(self):
     print 'Destroying', self
@@ -944,19 +798,32 @@ class InstructionStream(object):
     """
     Allow the user to replace instructions by index.
     """
-    self._code[key + self._offset] = inst.render()
-    self._instructions[key + self._offset] = inst
+    self._instructions[key] = inst
+    self.render_code = None
+    self._cached = False
+    return
 
+  def __getitem__(self, v):
+    return self._instructions[v]
+
+  def __iter__(self):
+    return self._instructions.__iter__()
 
   def get_inst(self, idx):
     """
     Return the instruction at idx.
     """
-    return self._instructions[idx + self._offset]
-    
+    return self._instructions[idx]
 
-  def label(self):
-    return Label(code, self.size() - 1)
+  def has_label(self, name):
+    return self._labels.has_key(name)
+
+  def get_label(self, name):
+    if self._labels.has_key(name):
+        return self._labels[name]
+    lbl = Label(self, name)
+    self._labels[name] = lbl
+    return lbl
   
   def add_storage(self, s):
     """
@@ -989,13 +856,16 @@ class InstructionStream(object):
     Clear the instruction stream.  This has the side effect of
     invalidating the code cache.
     """
-    self._code = array.array(self.instruction_type)
-    self._instructions = []
+    self._instructions = [self.lbl_body]
+    self._labels = {}
     self._stack_info = []
     self.reset_cache()
     return
 
-  def reset_cache(self): self._cached = False
+  def reset_cache(self):
+    self._cached = False
+    self.render_code = None
+    return
     
   def reset(self):
     """
@@ -1010,7 +880,6 @@ class InstructionStream(object):
       
     self.reset_cache()
     return
-  
 
   # ------------------------------
   # User register management
@@ -1024,7 +893,6 @@ class InstructionStream(object):
       type = self._reg_type[type]
 
     reg = self._register_files[type].acquire_register(reg)
-    self._cached = False # Invalidate the cache
 
     # print 'acquire', str(self._register_files[type])
     return reg
@@ -1064,7 +932,6 @@ class InstructionStream(object):
       #   code.add(inst(a, b, c))
       # when active code is set.
       if inst.active_code_used is not self:
-        self._code.append(inst.render())
         self._instructions.append(inst)
 
         if self._debug:
@@ -1075,20 +942,23 @@ class InstructionStream(object):
         old_active = inst.get_active_code()
         if old_active is not self:
           inst.set_active_code(self)
-        inst.render() # Calls add for each individual instruction
+        # AWF - 'render' here on the extended inst is a misnomer.
+        # What happens is that the extended inst's block method is called,
+        # which then adds instructions to the active instruction stream.
+        inst.render()
         if old_active is not self:
           inst.set_active_code(old_active)
-
-    elif isinstance(inst, (int, long)):
-      self._code.append(inst)
+    elif isinstance(inst, Label):
+      self._instructions.append(inst)
     else:
       raise Exception('Unsupported instruction format: %s.  Instruction or int is required.' % type(inst))
 
     # Invalidate the cache
     self._cached = False
-    return len(self._code)
+    self.render_code = None
+    return len(self._instructions)
 
-  def size(self): return len(self._code)
+  def size(self): return len(self._instructions)
   def __len__(self): return self.size()
 
   # ------------------------------
@@ -1096,93 +966,42 @@ class InstructionStream(object):
   # ------------------------------
 
   def _synthesize_prologue(self):
-    """
-    Create the prologue to  manage register preservation requirements
-    from the ABI. 
-    """
-    return
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
 
   def _synthesize_epilogue(self):
-    """
-    Create the prologue to  manage register preservation requirements
-    from the ABI. 
-    """
-    return
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
 
-
-  def _align_instructions(self):
-    """
-    TODO: This needs to be replaced with something better.  Python's
-    memory allocator is not honest about allocated memory if debug
-    memory is turned on.  It's very easy to get off by 2 bytes and
-    overwrite the sentinals.
-
-    The solution will probably be to just bite the bullet and move
-    all binary data over to our own aligned memory library.
-    """
-    a = self._code
-    
-    # If we're not aligned, make a new buffer that can be aligned and copy
-    # the instructions into the buffer, starting at an aligned index
-    if self.align != 0 and a.buffer_info()[0] % self.align != 0:
-      n_extra = self.align / 4
-      
-      # print 'Warning: Unaligned array. Subsequent __setitem__ calls will not work. TODO: FIX THIS :)'
-      aligned = array.array('I', range(len(a)) + range(n_extra))
-
-      # print 'align: ', '0x%X' % a.buffer_info()[0], self.align
-      offset = (aligned.buffer_info()[0] % (n_extra * 4)) / 4
-      # print 'align: ', offset, '0x%X' % aligned.buffer_info()[0], self.align
-
-      for i in range(offset):
-        aligned[i] = 0
-        
-      for i in range(len(a)):
-        aligned[i + offset] = a[i]
-        
-      self._offset = offset
-      self._code = aligned
-    
-    self.inst_addr()
-    
-
-    return 
 
   def inst_addr(self):
-    # print self._code
-    addr = self._code.buffer_info()[0]
-    # print self._code
-    # print '0x%X 0x%X' % (addr, addr + self._offset * 4)
-    return addr + self._offset * 4 # (addr % 16)
-    
-
-  def _check_alignment(self, buffer, name):
-    """
-    This should never return false for Python arrays...
-    Until Linux.  Blah.
-    """
-    if self.align != 0 and buffer.buffer_info()[0] % self.align != 0:
-      # print 'Warning: misaligned code:', name
-      self._align_instructions()
-      return False
+    if self._cached == True:
+      return self.render_code.buffer_info()[0]
     else:
-      return True
+      return None
 
 
-  def add_return(self):
-    """
-    Add the architecture dependent code to return from a function.
-    Used by cache_code to have the epilogue return.
-    """
-    return
+  def _adjust_pass(self, inst_list):
+    # Do adjustment passes until the rendered code stops changing
+    change = True
+    while change == True:
+      change = False
+      inst_len = 0
+  
+      for rec in inst_list:
+        # Once a change occurs, lbl/inst positions need to be updated
+        if change == True:
+          rec[2].set_position(inst_len)
 
-  def add_jump(self, addr, reg):
-    """
-    Add the architecture dependent code to jump to a new instruction.
-    Used by cache_code to chain the prologue, code, and epilogue.
-    """
-    return
-    
+        if rec[0] == True:
+          # Re-render the instruction, it has a label ref
+          r = rec[2].render()
+          if r != rec[1]:
+            change = True
+            rec[1] = r
+
+        inst_len += len(rec[1])
+
+    return inst_list
+
 
   def cache_code(self):
     """
@@ -1191,6 +1010,9 @@ class InstructionStream(object):
     it.  Also perform alignment checks.  Once the checks are
     preformed, the code should not be modified.
     """
+
+    if self._cached == True:
+      return
     
     # HACK: Disable the current active code
     # NOTE: This may not work in the presence of multiple ISAs...
@@ -1199,38 +1021,113 @@ class InstructionStream(object):
       active_callback = self._active_callback
       active_callback(None)
 
-    # Acquire a register to form the jump address in.  Acquire the
-    # register before the prologue is created so the register is
-    # properly saved and restored.
-    jump_reg = self.acquire_register()
 
-    # Generate the prologue
     self._synthesize_prologue()
-
-    # Generate the epilogue
     self._synthesize_epilogue()
 
-    # Connect the prologue -> code -> epilogue -> return (in reverse
-    # order to avoid address changes from buffer reallocation)
-    self._epilogue.add_return()
-    self._check_alignment(self._epilogue._code, 'epilogue')
+    render_code = extarray.extarray(self.instruction_type)
 
-    # self.add_jump(self._epilogue._code.buffer_info()[0], jump_reg)
-    self.add_jump(self._epilogue.inst_addr(), jump_reg)
-    self._check_alignment(self._code,     'code')
+    # Note - TRAC ticket #19 has some background info and reference links on
+    # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19
 
-    # self._prologue.add_jump(self._code.buffer_info()[0], jump_reg)
-    self._prologue.add_jump(self.inst_addr(), jump_reg)
-    self._check_alignment(self._prologue._code, 'prologue')
+    if self.instruction_type == 'I':
+      fwd_ref_list = []
 
-    # Finally, make everything executable
-    for code in [self._prologue._code, self._code, self._epilogue._code]:
-      self.exec_module.make_executable(code.buffer_info()[0], len(code))
+      # Assumed below that 'I' type is 4 bytes
+      for arr in (self._prologue, self._instructions, self._epilogue):
+        for val in arr:
+          if isinstance(val, (Instruction, ExtendedInstruction)):
+            # Does this instruction reference any labels?
+            lbl = None
+            for k in val._operands.keys():
+              if isinstance(val._operands[k], Label):
+                lbl = val._operands[k]
+                break
+
+            if lbl == None: # No label reference, render the inst
+              render_code.append(val.render())
+            else: # Label reference
+              assert(lbl.code == self)
+              val.set_position(len(render_code) * 4)
+
+              if lbl.position != None:  # Back reference, render the inst
+                render_code.append(val.render())
+              else: # Fill in a dummy instruction and save info to render later
+                fwd_ref_list.append((val, len(render_code)))
+                render_code.append(0xFFFFFFFF)
+          elif isinstance(val, Label): # Label, fill in a zero-length slot
+            val.set_position(len(render_code) * 4)
+
+      # Render the instructions with forward label references
+      for rec in fwd_ref_list:
+        render_code[rec[1]] = rec[0].render()
+
+    elif self.instruction_type == 'B':
+      # inst_list is a list of tuples.  Each tuple contains a bool
+      # indicating presence of a label reference, rendered code ([] if label),
+      # and a label or instruction object.
+      inst_list = []
+      inst_len = 0
+
+      for arr in (self._prologue, self._instructions, self._epilogue):
+        for val in arr:
+          if isinstance(val, (Instruction, ExtendedInstruction)):
+            # Does this instruction reference any labels?
+            lbl = None
+            relref = False
+            #iop = 0
+            #for k in val._operands.keys():
+            sig = val.machine_inst.signature
+            #while val._operands.has_key(iop):
+            for iop in xrange(0, len(sig)):
+              opsig = sig[iop]
+              #if isinstance(op, (int, long)):
+              #  print "ops", val._operands
+              #  print "op", op, iop, val.params, val.machine_inst.signature
+              #  print "opsig", opsig
+              if hasattr(opsig, "relative_op") and opsig.relative_op == True:
+                op = val._operands[iop]
+                if isinstance(op, Label):
+                  lbl = op
+                # This is a hack, but it works.  Some instructions can have
+                # a relative offset that is not a label.  These insts need to be
+                # re-rendered if instruction sizes change
+                relref = True
+              #iop += 1
+
+            if lbl == None: # No label references
+              val.set_position(inst_len)
+              r = val.render()
+              inst_list.append([relref, r, val])
+              inst_len += len(r)
+            else: # Instruction referencing a label.
+              assert(lbl.code == self)
+              val.set_position(inst_len)
+
+              if lbl.position != None: # Back-reference, render the instruction
+                r = val.render()
+                inst_list.append([True, r, val])
+                inst_len += len(r)
+              else: # Fill in a dummy instruction, assuming 2-byte best case
+                inst_list.append([True, [-1, -1], val])
+                inst_len += 2
+          elif isinstance(val, Label): # Label, fill in a zero-length slot
+            val.set_position(inst_len)
+            inst_list.append([False, [], val])
+
+      inst_list = self._adjust_pass(inst_list)
+
+      # Final loop, bring everything together into render_code
+      for rec in inst_list:
+        if isinstance(rec[2], (Instruction, ExtendedInstruction)):
+          render_code.fromlist(rec[1])
+
+    self.render_code = render_code
+    self.make_executable()
 
     if active_callback is not None:
       active_callback(self)
 
-    self.release_register(jump_reg)
     self._cached = True
     return
 
@@ -1239,18 +1136,50 @@ class InstructionStream(object):
   # Debugging
   # ------------------------------
 
-  def print_code(self, pro = False, epi = False, binary = False):
+  # Utility function to print an array of instructions, used by print_code()
+  def _print_instructions(self, instrs, binary, hexad):
+    offset = 0
+    for inst in instrs:
+      print '%4d %s' % (offset, str(inst))
+      #print "%s" % (str(inst))
+      if isinstance(inst, (Instruction, ExtendedInstruction)):
+        render = inst.render()
+        if self.instruction_type == 'I':
+          #offset += 4
+          if binary or hexad:
+            bin = DecToBin(render)
+            hex = '%08x' % (render)
+        else: #self.instruction_type == 'B'
+          offset += len(render)
+          if binary or hexad:
+            bin = ''
+            hex = ''
+            for byte in render:
+              bin += DecToBin(byte)[24:32]
+              hex += '%02x' % (byte)
+
+        if binary == True:
+          print bin
+        if hexad == True:
+          print hex
+
+  def print_code(self, pro = False, epi = False, binary = False, hex = False):
     """
     Print the user instruction stream.
     """
 
-    print 'code info:', self._code.buffer_info()[0], len(self._code)
+    if self._cached == False:
+      self.cache_code()
+    print 'code info:', self.render_code.buffer_info()[0], len(self.render_code)
+
+
+    #if self._cached == True:
+    #  print 'code info:', self.render_code.buffer_info()[0], len(self.render_code)
+    #else:
+    #  print 'code info: not cached/rendered'
     
     if pro:
-      for inst, dec in zip(self._prologue._instructions, self._prologue._code):
-        print str(inst)
-        if binary:
-          print DecToBin(dec)
+      self._print_instructions(self._prologue, binary, hex)
 
     print 
 
@@ -1288,21 +1217,13 @@ class InstructionStream(object):
         if binary:
           print DecToBin(dec)
     else:
-      for inst, dec, i in zip(self._instructions, self._code, range(0, self._code.buffer_info()[1])):
-        print '%4d %s' % (i, str(inst))
-        if binary:
-          print DecToBin(dec)
+      self._print_instructions(self._instructions, binary, hex)
 
     print 
 
     if epi:
-      for inst, dec in zip(self._epilogue._instructions, self._epilogue._code):
-        print str(inst)
-        if binary:
-          print DecToBin(dec)
-      
+      self._print_instructions(self._epilogue, binary, hex)
     return
-
 
 
 class Processor(object):
@@ -1316,9 +1237,14 @@ class Processor(object):
   in a new thread and returns the thread id immediately.  
   """
 
+  # Execution mode (return code type) constants
+  MODE_VOID = 0
+  MODE_INT = 1
+  MODE_FP = 2
+
   def __init__(self):  object.__init__(self)
   
-  def execute(self, code, mode = 'int', debug = False, params = None):
+  def execute(self, code, mode = 'int', async = False, params = None, debug = False):
     """
     Execute the instruction stream in the code object.
 
@@ -1329,65 +1255,61 @@ class Processor(object):
       'fp'   - return the floating point value in register fp_return
                when execution is complete
       'void' - return None
-      'async'- execute the code in a new thread and return the thread
-               id immediately
+
+    If async is True, a thread id and mode tuple is returned immediately
+    and the code is executed asynchronously in its own thread.  The execution
+    mode then controls what kind of value is returned from the join method.
 
     If debug is True, the buffer address and code length are printed
     to stdout before execution.
     """
 
-    if len(code._code) == 0:
+    if len(code._instructions) == 0:
       return None
 
     if not code._cached:
       code.cache_code()
 
     if debug:
-      print 'code info: 0x%x 0x%x 0x%x %d' % (
-        # code._prologue._code.buffer_info()[0],
-        code._prologue.inst_addr(),
-        # code._code.buffer_info()[0],
+      print 'code info: 0x%x %d' % (
         code.inst_addr(),
-        code._epilogue.inst_addr(),
-        len(code._code))
-      # print code._prologue._code
-      # print code._code
-      # print code._epilogue._code      
-              
-    
-    # addr = code._prologue._code.buffer_info()[0]
-    addr = code._prologue.inst_addr()
+        len(code.render_code))
+      code.print_code(hex = True, pro = True, epi = True)
+     
+    addr = code.inst_addr()
 
-    result = None
-    if mode == 'fp':
-      result = self.exec_module.execute_fp(addr)
-    elif mode == 'async':
-      if params is None:
-        result = self.exec_module.execute_async(addr)
-      elif type(params) is self.exec_module.ExecParams:
-        result = self.exec_module.execute_param_async(addr, params)
-      else:
-        # Backwards compatibility for list-style params
-        _params = self.exec_module.ExecParams()
-        _params.p1, _params.p2, _params.p3 = params
-        result = self.exec_module.execute_param_async(addr, _params)
-    elif mode == 'void':
+    if params is None:
+      params = self.exec_module.ExecParams()
+    elif type(params) is not self.exec_module.ExecParams:
+      # Backwards compatibility for list-style params
+      _params = self.exec_module.ExecParams()
+      _params.p1, _params.p2, _params.p3 = params
+      params = _params
+
+    if async:
       result = None
-      self.exec_module.execute_void(addr)
-    elif mode == 'int':
-      if params is None:
-        result = self.exec_module.execute_int(addr)
-      elif type(params) is self.exec_module.ExecParams:
-        result = self.exec_module.execute_param_int(addr, params)
+      if mode == 'void':
+        result = self.exec_module.execute_int_async(addr, params)
+        result.mode = self.MODE_VOID
+      elif mode == 'int':
+        result = self.exec_module.execute_int_async(addr, params)
+        result.mode = self.MODE_INT
+      elif mode == 'fp':
+        result = self.exec_module.execute_fp_async(addr, params)
+        result.mode = self.MODE_FP
       else:
-        # Backwards compatibility for list-style params
-        _params = self.exec_module.ExecParams()
-        _params.p1, _params.p2, _params.p3 = params
-        result = self.exec_module.execute_param_int(addr, _params)
+        raise Exception('Unknown mode: ' + mode)
+      return result
     else:
-      raise Exception('Unknown mode: ' + mode)
-
-    return result
+      if mode == 'int':
+        return self.exec_module.execute_int(addr, params)
+      elif mode == 'fp':
+        return self.exec_module.execute_fp(addr, params)
+      elif mode == 'void':
+        self.exec_module.execute_int(addr, params)
+      else:
+        raise Exception('Unknown mode: ' + str(mode))
+    return
 
 
   # ------------------------------
@@ -1398,22 +1320,40 @@ class Processor(object):
     """
     'Join' thread t, blocking until t is complete.
     """
-    return self.exec_module.join_async(t)
+    # TODO - should have a way of returning the join error status
+    if not isinstance(t, self.exec_module.ThreadInfo):
+      raise Exception('Invalid thread handle: ' + str(t))
+    if t.mode == self.MODE_INT:
+      return self.exec_module.join_int(t)
+    elif t.mode == self.MODE_FP:
+      return self.exec_module.join_fp(t)
+    elif t.mode == self.MODE_VOID:
+      self.exec_module.join_int(t)
+    else:
+      raise Exception('Unknown mode: ' + str(t.mode))
+    return
 
   def suspend(self, t):
     """
     Suspend execution of thread t.
     """
+    if not isinstance(t, self.exec_module.ThreadInfo):
+      raise Exception('Invalid thread handle: ' + str(t))
     return self.exec_module.suspend_async(t)
 
   def resume(self, t):
     """
     Resume exectuion of thread t.
     """
+    if not isinstance(t, self.exec_module.ThreadInfo):
+      raise Exception('Invalid thread handle: ' + str(t))
     return self.exec_module.resume_async(t)
 
   def cancel(self, t):
     """
-    Cancel exectuion of thread t.
+    Cancel execution of thread t.
     """
+    if not isinstance(t, self.exec_module.ThreadInfo):
+      raise Exception('Invalid thread handle: ' + str(t))
     return self.exec_module.cancel_async(t)
+

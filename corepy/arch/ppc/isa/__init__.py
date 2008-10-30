@@ -1,18 +1,34 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
 
 # import platform_conf
-import ppc_isa as machine
-# from ppc_isa2 import *
-# import ppc_isa
-import corepy.spre.spe as spe
+from ppc_isa import *
 
 # Nothing to see here, move along... ;)
 __active_code = None
@@ -42,51 +58,66 @@ def get_active_code():
 # _ppc_active_code_prop = property(get_active_code)
 
 # Build the instructions
-for inst in ppc_isa.PPC_ISA:
-  name = inst[0]
-  machine_inst = getattr(machine, name)
+# for inst in ppc_isa.PPC_ISA:
+#   name = inst[0]
+#   machine_inst = getattr(machine, name)
+  
+#   # asm_order = inst[1]['asm']
+#   members = {}
+#   for key in inst[1].keys():
+#     members[key] = inst[1][key]
 
-  # asm_order = inst[1]['asm']
-  members = {}
-  for key in inst[1].keys():
-    members[key] = inst[1][key]
+#   members['asm_order'] =  members['asm']
+#   members['machine_inst'] =  machine_inst
+#   members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
+#   globals()[inst[0]] = type(name, (spe.Instruction,), members)
 
-  members['asm_order'] =  members['asm']
-  members['machine_inst'] =  machine_inst
-  members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
-  globals()[inst[0]] = type(name, (spe.Instruction,), members)
-
-# for l in locals().values():
-#   if isinstance(l, type) and issubclass(l, PPCInstruction):
-#     l.active_code = property(__get_active_code) 
+for l in locals().values():
+  if isinstance(l, type) and issubclass(l, (PPCInstruction, PPCDispatchInstruction)):
+    l.active_code = property(__get_active_code) 
 
 
 # ------------------------------
 # Mnemonics
 # ------------------------------
 
-# # TODO: Find a better place for these...
-def add(D, A, SIMM): return addx(D, A, SIMM, 0, 0)
-def b(LI):   return bx(LI, 0, 0)
-def ba(LI):   return bx(LI, 1, 0)
-def bdnz(BD): return bcx(0x10, 0, BD, 0, 0)
-def bgt(BD):  return bcx(0x0D, 1, BD, 0, 0)   # bo = 011zy -> 01101 branch if true (> 0), likely to be taken
-def blt(BD):  return bcx(0x0D, 0, BD, 0, 0)   # bo = 011zy -> 01101 branch if true (> 0), likely to be taken
-def bne(BD):  return bcx(4, 2, BD, 0, 0)
-def beq(BD):  return bcx(12, 2, BD, 0, 0)
-def cmpw(crfD, A, B): return cmp_(crfD, 0, A, B)
-def divw(D, A, B): return divwx(D, A, B, 0, 0)
-def li(D, SIMM): return addi(D, 0, SIMM)
-def mftbl(D): return mftb(D, 268)
-def mftbu(D): return mftb(D, 269)
-def mullw(D, A, B): return mullwx(D, A, B, 0, 0)
-def mtctr(S): return mtspr(9, S)
-def mtvrsave(S): return mtspr(256, S)
-def mfvrsave(S): return mfspr(S, 256)
-def noop(): return ori(0,0,0) # preferred PPC noop (CWG p14)
-def subf(D, A, B): return subfx(D, A, B, 0, 0)
+# TODO: Find a better place for these...
+def add(D, A, SIMM, **koperands): return addx(D, A, SIMM, **koperands)
+
+def b(LI, **koperands):   return bx(LI, **koperands)
+#class b(bx):
+#  def __init__(self, LI, **koperands):
+#    bx.__init__(self, LI, AA=0, LK=0, **koperands)
+
+def ba(LI, **koperands):   return bx(LI, AA=1, **koperands)
+def bl(LI, **koperands):   return bx(LI, LK=1, **koperands)
+def bla(LI, **koperands):  return bx(LI, AA=1, LK=1, **koperands)
+
+def bdnz(BD, **koperands): return bcx(0x10, 0, BD, **koperands)
+# bo = 011zy -> 01101 branch if true (> 0), likely to be taken
+def bgt(BD, **koperands):  return bcx(0x0D, 1, BD, **koperands)
+# bo = 011zy -> 01101 branch if true (> 0), likely to be taken
+def blt(BD, **koperands):  return bcx(0x0D, 0, BD, **koperands)
+def bne(BD, **koperands):  return bcx(4, 2, BD, **koperands)
+def beq(BD, **koperands):  return bcx(12, 2, BD, **koperands)
+
+# def blr(): return (19 << 26) | (20 << 21) | (0 << 16) | (0 << 11) | (16 << 1)
+def blr(**koperands): return bclrx(20, 0, **koperands)
+
+def cmpw(crfD, A, B, **koperands): return cmp_(crfD, 0, A, B, **koperands)
+def divw(D, A, B, **koperands): return divwx(D, A, B, **koperands)
+def li(D, SIMM, **koperands): return addi(D, 0, SIMM, **koperands)
+def mftbl(D, **koperands): return mftb(D, 268, **koperands)
+def mftbu(D, **koperands): return mftb(D, 269, **koperands)
+def mullw(D, A, B, **koperands): return mullwx(D, A, B, **koperands)
+def mtctr(S, **koperands): return mtspr(9, S, **koperands)
+def mtvrsave(S, **koperands): return mtspr(256, S, **koperands)
+def mfvrsave(S, **koperands): return mfspr(S, 256, **koperands)
+def subf(D, A, B, **koperands): return subfx(D, A, B, **koperands)
+
+
+# preferred PPC noop (CWG p14)
+def noop(**koperands): return ori(0,0,0, **koperands)
 
 def Illegal(): return 0;
-# def blr(): return (19 << 26) | (20 << 21) | (0 << 16) | (0 << 11) | (16 << 1)
-def blr(): return bclrx(20, 0, 0)
 

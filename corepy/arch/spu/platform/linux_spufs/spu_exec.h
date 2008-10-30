@@ -1,48 +1,88 @@
-// Copyright 2006-2007 The Trustees of Indiana University.
+/* Copyright (c) 2006-2008 The Trustees of Indiana University.
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the Indiana University nor the names of its contributors may be
+ *   used to endorse or promote products derived from this software without
+ *   specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
-// This software is available for evaluation purposes only.  It may not be
-// redistirubted or used for any other purposes without express written
-// permission from the authors.
-
-// Author:
-//   Christopher Mueller
-
-// Native code for executing instruction streams on OS X.
-// Compile with -DDEBUG_PRINT to enable additional debugging code
+// Native code for executing instruction streams on Linux.
 
 #ifndef SPU_EXEC_H
 #define SPU_EXEC_H
 
 #include <stdio.h>
-#include <stdint.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <errno.h>
-
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <malloc.h>
- 
-#include <vector>
-
 #include <pthread.h>
-//#include <signal.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <signal.h>
 
-extern "C" {
 #include <sched.h>
-#include <libspe.h>
+#include "spufs.h"
 
+//Define _DEBUG to get informational debug output
+//#define _DEBUG
 
-};
+#ifdef _DEBUG
+#define DEBUG(args) printf args
+#else
+#define DEBUG(args)
+#endif
 
-#include "spu_constants.h"
+#define SPUFS_PATH "/spu"
+#define SPULS_SIZE (256 * 1024)
+
+// SPU status codes from spu_run(2) man page
+#define SPU_STOP_SIGNAL 0x02
+#define SPU_HALT        0x04
+#define SPU_WAIT_CHAN   0x08
+#define SPU_SINGLE_STEP 0x10
+#define SPU_INVAL_INST  0x20
+#define SPU_INVAL_CHAN  0x40
+
+#define SPU_CODE_MASK   0xFFFF
+#define SPU_STOP_MASK   0x3FFF0000
+
+// MFC DMA commands from 'Cell Broadband Engine Architecture' v1.01
+// (CBE_Architecture_v101.pdf)
+#define MFC_PUT     0x20
+#define MFC_PUTB    0x21
+#define MFC_GET     0x40
+#define MFC_GETB    0x41
+
 
 // ------------------------------------------------------------
 // Typedefs
 // ------------------------------------------------------------
-
-// Function pointers for different return values
-typedef void (*Stream_func_void)();
-typedef int  (*Stream_func_int)();
-typedef double (*Stream_func_double)();
 
 // Structure for putting parameters in the preferred slots of the
 // command parameters. The un-numbered field is the preferred slot 
@@ -68,10 +108,39 @@ struct ExecParams {
   unsigned int p10;
 };
 
-// Object file that contains the SPU bootstrap code
-// #define SPU_BOOTSTRAP "spu_execute.o"
-#define SPU_BOOTSTRAP "/home/osl/projects/corepy/arch/spu/platform/linux/spu_bootstrap.o"
 
+// Information structure returned when executing in async mode
+struct ThreadInfo {
+  pthread_t th;
+  struct spufs_context* spu_ctx;
+  unsigned long spuls; 
+
+  int spu_run_ret;
+
+  struct ExecParams params;
+
+  int mode;   //Execution mode; allows python to determine return type
+  int stop;   //Whether stop code should be included with return value
+};
+
+
+#ifndef SWIG
+struct ThreadParams {
+  struct ThreadInfo* ti;  //Execution Context
+  unsigned long addr;       //Main memory addr of associated stream
+  int len;                  //Length of stream in bytes
+  unsigned int code_lsa;    //Local store addr of associated stream
+  unsigned int exec_lsa;    //Local store addr to start execution
+};  
+#endif
+
+
+// Function pointers for different return values
+typedef long  (*Stream_func_int)(struct ExecParams);
+typedef double (*Stream_func_double)(struct ExecParams);
+
+
+#if 0
 class aligned_memory {
  private:
   unsigned int size;
@@ -80,6 +149,7 @@ class aligned_memory {
 
  public:
   aligned_memory(unsigned int size, unsigned int alignment) {
+    puts("NOTICE:  aligned_memory is deprecated; consider using extarray instead");
     this->data = (char*)memalign(alignment, size);
     this->size = size;
     this->alignment = alignment;
@@ -89,16 +159,16 @@ class aligned_memory {
     free(this->data);
   };
 
-  unsigned int get_addr() {
-    return (unsigned int)(this->data);
+  unsigned long get_addr() {
+    return (unsigned long)(this->data);
   };
 
-  unsigned int get_size() {
-    return (unsigned int)(this->size);
+  unsigned long get_size() {
+    return (unsigned long)(this->size);
   };
 
-  unsigned int get_alignment() {
-    return (unsigned int)(this->alignment);
+  unsigned long get_alignment() {
+    return (unsigned long)(this->alignment);
   };
   
   void copy_to(unsigned int source, unsigned int size) {
@@ -118,7 +188,7 @@ class aligned_memory {
   };
 
   void print_memory() {
-    int i = 0;
+    unsigned int i = 0;
     for(; i < this->size; ++i) {
       if((i % 8) == 0)
         printf(" ");
@@ -129,6 +199,7 @@ class aligned_memory {
     printf("\n");
   };
 };
+#endif
 
 
 // ------------------------------------------------------------
@@ -160,9 +231,6 @@ int make_executable(unsigned int addr, int size) {
     perror("Error setting memory protections");
   */
 
-  // TODO: THIS IS A BAD BAD BAD HACK 
-  //       !!! FIX THE INTERFACE TO MAKE SURE SIZE MAKES IT TO EXEC !!!
-  // __code_size = (unsigned int)size;
   return 0;
 }
 
@@ -178,9 +246,10 @@ int make_executable(unsigned int addr, int size) {
 //    cancel, suspend, and resume.
 // ------------------------------------------------------------
 
-int cancel_async(speid_t spe_id) {
-  return spe_kill(spe_id, SIGKILL);
+int cancel_async(struct ThreadInfo* ti) {
+  return pthread_cancel(ti->th);
 }
+
 
 // ------------------------------------------------------------
 // Function: suspend_async
@@ -191,9 +260,10 @@ int cancel_async(speid_t spe_id) {
 //   The native interface for suspending execution of an spu.
 // ------------------------------------------------------------
 
-int suspend_async(speid_t spe_id) {
-  return spe_kill(spe_id, SIGSTOP);
+int suspend_async(void* arg) {
+  return -1;
 }
+
 
 // ------------------------------------------------------------
 // Function: resume_async
@@ -204,240 +274,414 @@ int suspend_async(speid_t spe_id) {
 //   The native interface for resuming execution of an spu.
 // ------------------------------------------------------------
 
-int resume_async(speid_t spe_id) {
-  return spe_kill(spe_id, SIGCONT);
+int resume_async(void* arg) {
+  return -1;
 }
 
+
 // ------------------------------------------------------------
-// Function: wait/join_async
-// Arguments:
-//   spe_id - spu to wait for
-//   result - pointer to an integer for the result value.
-// Return: 0 on success, -1 on failure
+// Function: alloc_context
+// Arguments: none
+// Return:
+//  struct ThreadInfo* - pointer to execution context
 // Description:
-//   The native interface for spe wait, more flexible than 
-//   join_async.
+//  Allocate and initialize a new SPU execution context.
 // ------------------------------------------------------------
 
-int wait_async(speid_t spe_id, int *result) {
-  int err = 0;
+struct ThreadInfo* alloc_context(void) {
+  struct ThreadInfo* ti;
 
-  if ((err = spe_wait(spe_id, result, 0 /*WUNTRACED*/)) != 0) {
-    perror("spe_wait");
-    printf("Error waiting for thread: %d\n", err);
-  }
+  ti = (struct ThreadInfo*)malloc(sizeof(struct ThreadInfo));
 
-  return err;
-}
+  ti->spu_ctx = spufs_open_context("corepy-spu");
+  ti->spuls = (unsigned long)ti->spu_ctx->mem_ptr;
 
-int join_async(speid_t spe_id) {
-  return wait_async(spe_id, NULL);
+  return ti;
 }
 
 
-
 // ------------------------------------------------------------
-// Functions: spu execute methods
+// Function: free_context
 // Arguments:
-//   addr - instruction stream address
-// Return: 
-//   _void - nothing
-//   _int  - the 8-bit value returned by the stop instruction.
+//   *ti - pointer to execution context
+// Return: void
 // Description:
-//   The native interfaces for executing instruction streams 
-//   on SPUs.  All functions are are based on execute_async
-//   and that mode should be the primary mode used by applications.  
+//  Free an allocated SPU context
 // ------------------------------------------------------------
+
+void free_context(struct ThreadInfo* ti) {
+  spufs_close_context(ti->spu_ctx);
+  free(ti);
+}
 
 
 // ------------------------------------------------------------
-// Function: execute_async
+// Function: run_stream
 // Arguments:
-//   addr  - address of the instruction stream
-//   p0-p2 - parameters placed in the four word slots in $r5
-//           (3 for now to keep the interface consistent, add
-//            a 4th to ppc...)
-// Return: a new spu id
+//   *ti   Execution context to run
+//   addr     Address to load code from, NULL if none
+//   len      Length of code in bytes
+//   code_lsa Local store address to load code at
+//   exec_lsa Local store address to start execution at
+// Return: void
 // Description:
-//   The native interface for executing a code stream on an SPU.  
-//   All other SPU exec functions use it.
-//   make_executable must be called first.
+//  Start SPU execution at the given LSA address, blocking until
+//  the SPU stops execution.  Assumes len and code_lsa are
+//  16-byte aligned.
 // ------------------------------------------------------------
 
-// New interface - this should be more flexible, esp. for parallel execution
-speid_t execute_param_async(unsigned int addr, ExecParams params) {
-  speid_t   spe_id = 0;
-  spe_gid_t grp_id = 0;
-  int err = 0;
-  struct spe_event ready_event;
+unsigned int run_stream(struct ThreadInfo* ti, unsigned long addr, int len,
+                        unsigned int code_lsa, unsigned int exec_lsa) {
 
-  // This is set in Python
-  assert(params.addr == (unsigned int)addr);
-  // params.addr  = (unsigned int)addr;
-  // params.size  = (unsigned short)__code_size * 4;
+  unsigned char* spuls = (unsigned char*)ti->spuls;
 
-  // printf("Addr: 0x%x (0x%x, %d)\n", addr, &params, __code_size);
-
-  // Create a thread group 
-  grp_id = spe_create_group(SCHED_OTHER, 0, 1);
-
-  if (grp_id == 0) {
-    perror("spu_create_group");
+  if(addr != 0) {
+    //Memcpy the code from main memory to the SPU local store
+    DEBUG(("Copying code from EA %p to LSA %p (%x) %d bytes\n",
+        addr, &spuls[code_lsa], code_lsa, len));
+    memcpy(&spuls[code_lsa], (unsigned char*)addr, len);
   }
 
-  spe_program_handle_t *bootstrap = spe_open_image(SPU_BOOTSTRAP);
-  
-  if(bootstrap == NULL) {
-    perror("spu_open_image");
+  DEBUG(("Starting SPU %p\n", ti->spu_ctx));
+  ti->spu_run_ret = spufs_run(ti->spu_ctx, &exec_lsa);
+  DEBUG(("SPU %p finished executing, code %d\n", ti->spu_ctx, ti->spu_run_ret));
+
+  return exec_lsa;
+}
+
+
+// ------------------------------------------------------------
+// Function: run_stream_async
+// Arguments:
+//   *ti     Execution context to run
+//   addr     Address to load code from, NULL if none
+//   len      Length of code in bytes
+//   code_lsa Local store address to load code at
+//   exec_lsa Local store address to start execution at
+// Return: 0 if successful, -1 if error
+// Description:
+//  Start SPU execution at the given LSA address, returning as
+//  soon as execution begins.  Assumes len and code_lsa are
+//  16-byte aligned.
+// ------------------------------------------------------------
+
+// Internal thread 'main' function for async execution
+#ifndef SWIG
+void *run_stream_thread(void* arg) {
+  struct ThreadParams* tp = (struct ThreadParams*)arg;
+  unsigned int rc;
+
+  rc = run_stream(tp->ti, tp->addr, tp->len, tp->code_lsa, tp->exec_lsa);
+
+  free(tp);
+  return (void*)rc;
+}
+#endif
+
+
+int run_stream_async(struct ThreadInfo* ti, unsigned long addr, int len,
+                     unsigned int code_lsa, unsigned int exec_lsa) {
+  struct ThreadParams* tp;
+  int rc;
+
+  tp = (struct ThreadParams*)malloc(sizeof(struct ThreadParams));
+
+  tp->ti = ti;
+  tp->addr = addr;
+  tp->len = len;
+  tp->code_lsa = code_lsa;
+  tp->exec_lsa = exec_lsa;
+
+  rc = pthread_create(&ti->th, NULL, run_stream_thread, (void*)tp);
+  if(rc) {
+    printf("Error creating async stream: %d\n", rc);
+    free(tp);
   }
 
-  // Create the spe thread
-  spe_id = spe_create_thread(grp_id, bootstrap , (void*)&params, 
-                             NULL, -1, SPE_USER_REGS); // | SPE_MAP_PS);
-  if (spe_id == 0) {
-    perror("spu_create_thread");
+  return rc;
+}
+
+
+// ------------------------------------------------------------
+// Function: run_stream_async
+// Arguments:
+//   *ti     Execution context to run
+// Return: void
+// Description:
+//  Wait for an asynchronous SPU execution thread to complete.
+// ------------------------------------------------------------
+
+unsigned int wait_stream(struct ThreadInfo* ti)
+{
+  unsigned int rc;
+
+  pthread_join(ti->th, (void**)&rc);
+  return rc;
+}
+
+
+// ------------------------------------------------------------
+// Function: execute_{void, int, fp}_async
+// Arguments:
+//   addr   - address of the instruction stream
+//   params - parameters to pass to the instruction stream
+// Return: a new thread id
+// Description:
+//   The native interface for executing a code stream as a 
+//   thread.  make_executable must be called first.
+// ------------------------------------------------------------
+
+int get_result(struct ThreadInfo* ti) {
+  switch(ti->spu_run_ret & SPU_CODE_MASK) {
+  case SPU_STOP_SIGNAL:
+    return (ti->spu_run_ret & SPU_STOP_MASK) >> 16;
+  case SPU_HALT:
+    return 0;
+  default:
+    DEBUG(("SPU unexpected stop reason %x\n", ti->spu_run_ret));
   }
 
-  // Setup the event handler and wait for the ready event
-  ready_event.gid    = grp_id;
-  ready_event.events = SPE_EVENT_STOP;
-  err = spe_get_event(&ready_event, 1, -1);
-  
-  if(err == -1) {
-    perror("spu_get_event (ready)");
-  } 
-  // else {
-  // printf("Ready event: %d %ld\n", ready_event.revents, ready_event.data);
-  // }
-
-  // Restart the spu
-  spe_kill(spe_id, SIGCONT);
-  
-  return spe_id;
-}
-
-speid_t execute_async(unsigned int addr) {
-  ExecParams params;
-  params.addr = addr;
-  return execute_param_async(addr, params);
+  return 0;
 }
 
 
-int execute_int(unsigned int addr) {
-  speid_t spe_id = 0;
-  int result = 0;
+#ifndef SWIG
+void put_spu_params(struct ThreadInfo* ti);
+#endif
 
-  spe_id = execute_async(addr);
+long execute_int(unsigned long addr, struct ExecParams params) {
+  struct ThreadInfo* ti;
+  int len, lsa;
+  long result;
 
-  // Wait for the thread to finish
-  wait_async(spe_id, &result);
+  ti = alloc_context();
+  ti->params = params;
 
-  printf("execute_int: %X (%d)\n", result, result);
+  put_spu_params(ti);
 
-  // Shift the return value to extract the 8-bit user value
-  return (result >> 8);
-}
+  len = params.size;
+  if(len % 16) {
+    len += (16 - len % 16);
+  }
 
-int execute_param_int(unsigned int addr, ExecParams params) {
-  speid_t spe_id = 0;
-  int result = 0;
+  lsa = 0x40000 - len;
+  run_stream(ti, addr, len, lsa, lsa);
 
-  spe_id = execute_param_async(addr, params);
-
-  // Wait for the thread to finish
-  wait_async(spe_id, &result);
-
-  // printf("execute_int: %X (%d)\n", result, result);
-
-  // Shift the return value to extract the 8-bit user value
-  return (result >> 8);
-}
-
-void execute_void(unsigned int addr) {
-  speid_t spe_id = 0;
-
-  spe_id = execute_async(addr);
-  wait_async(spe_id, NULL);
-
-  return;
-}
-
-void execute_void(unsigned int addr,  ExecParams params) {
-  speid_t spe_id = 0;
-
-  spe_id = execute_param_async(addr, params);
-  wait_async(spe_id, NULL);
-
-  return;
-}
-
-double execute_fp(unsigned int addr) {
-  double result = 0.0;
-
-  printf("Warning: execute_fp is not implemented for SPUs");
-
+  result = get_result(ti);
+  free_context(ti);
   return result;
 }
 
-// ------------------------------------------------------------
-// MFC Functions
-//------------------------------------------------------------
 
-unsigned int read_out_mbox(speid_t spe_id) {
-  return spe_read_out_mbox(spe_id);
-}
+struct ThreadInfo* execute_int_async(unsigned long addr,
+                                     struct ExecParams params) {
+  struct ThreadInfo* ti;
+  int len, lsa;
 
-unsigned int stat_out_mbox(speid_t spe_id) {
-  return spe_stat_out_mbox(spe_id);
-}
+  ti = alloc_context();
+  ti->params = params;
 
+  put_spu_params(ti);
 
-unsigned int write_in_mbox(speid_t spe_id, unsigned int data) {
-  return spe_write_in_mbox(spe_id, data);
-}
-
-unsigned int stat_in_mbox(speid_t spe_id) {
-  return spe_stat_in_mbox(spe_id);
-}
-
-int write_signal(speid_t spe_id, unsigned int signal_reg, unsigned int data) {
-  return spe_write_signal(spe_id, signal_reg, data);
-}
-
-unsigned long wait_stop_event(speid_t spe_id) {
-  int err;
-  struct spe_event event;
-
-  event.gid    = spe_get_group(spe_id);
-  event.events = SPE_EVENT_STOP;
-  err = spe_get_event(&event, 1, -1);
-  
-  return event.data;
-}
-
-// MFC Put Functions
-// int spe_mfc_put(speid_t speid, unsigned int ls, void *ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid) 
- 
-// int spe_mfc_putb(speid_t speid, unsigned int ls, void *ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid) 
-int spu_putb(speid_t speid, unsigned int ls, unsigned long ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid) {
-  return spe_mfc_putb(speid, ls, (void *)ea, size, tag, tid, rid);
+  len = params.size;
+  if(len % 16) {
+    len += (16 - len % 16);
   }
 
-// int spe_mfc_putf(speid_t speid, unsigned int ls, void *ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid) 
+  lsa = 0x40000 - len;
+  run_stream_async(ti, addr, len, lsa, lsa);
 
-
-// MFC Get Functions
-// int mfc_get(speid_t speid, unsigned int ls, void *ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid);
-
-int spu_getb(speid_t speid, unsigned int ls, unsigned long ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid) {
-  printf("%X %X %d %d %d %d\n", ls, ea, size, tag, tid, rid);
-  return spe_mfc_getb(speid, ls, (void *)ea, size, tag, tid, rid);
+  return ti;
 }
 
-int read_tag_status_all(speid_t speid, unsigned int mask) {
-  return spe_mfc_read_tag_status_all(speid, mask);
+
+//Block on a running SPU thread until it completes, freeing resources when
+// it does.
+long join_int(struct ThreadInfo* ti) {
+  long result;
+
+  wait_stream(ti);
+
+  result = get_result(ti);
+  free_context(ti);
+  return result;
 }
 
-// int mfc_getf(speid_t speid, unsigned int ls, void *ea, unsigned int size, unsigned int tag, unsigned int tid, unsigned int rid);
+
+pthread_t execute_fp_async(long addr, struct ExecParams params) {
+  pthread_t t = NULL;
+
+  printf("Warning: execute_fp is not implemented for SPUs");
+  return t;
+}
+
+
+double join_fp(pthread_t t) {
+  printf("Warning: join_fp is not implemented for SPUs");
+  return 0.0;
+}
+
+
+double execute_fp(long addr, struct ExecParams params) {
+  printf("Warning: join_fp is not implemented for SPUs");
+  return 0.0;
+}
+
+
+// ------------------------------------------------------------
+// Utility Functions
+//------------------------------------------------------------
+
+
+// Return the number of SPUs available for use
+int get_num_avail_spus(void)
+{
+  // TODO - count the entries in /sys/devices/system/spu
+  return 6;
+}
+
+
+void get_spu_registers(struct ThreadInfo* ti, unsigned int data) {
+  if(read(ti->spu_ctx->regs_fd, (void*)data, 128 * 16) != 128 * 16) {
+    perror("get_spu_registers read");
+  }
+
+  lseek(ti->spu_ctx->regs_fd, 0, SEEK_SET);
+}
+
+
+void put_spu_registers(struct ThreadInfo* ti, unsigned int data) {
+  if(write(ti->spu_ctx->regs_fd, (void*)data, 128 * 16) != 128 * 16) {
+    perror("put_spu_registers write");
+  }
+
+  lseek(ti->spu_ctx->regs_fd, 0, SEEK_SET);
+}
+
+
+void put_spu_params(struct ThreadInfo* ti) {
+  // SPUFS is *RETARDED*!! 12 bytes into the file means seek to pos 3.
+  lseek(ti->spu_ctx->regs_fd, 3, SEEK_SET);
+
+  if(write(ti->spu_ctx->regs_fd, (void*)&ti->params, 12 * 4) != 12 * 4) {
+    perror("put_spu_params write");
+  }
+
+  lseek(ti->spu_ctx->regs_fd, 0, SEEK_SET);
+}
+
+
+unsigned int read_out_mbox(struct ThreadInfo* ti) {
+  unsigned int data = 0;
+
+  if(read(ti->spu_ctx->mbox_fd, &data, 4) != 4) {
+    perror("read_out_mbox read");
+  }
+
+  return data;
+}
+
+
+unsigned int stat_out_mbox(struct ThreadInfo* ti) {
+  unsigned int data = 0;
+
+  if(read(ti->spu_ctx->mbox_stat_fd, &data, 4) != 4) {
+    perror("stat_out_mbox read");
+  }
+
+  return data;
+}
+
+
+void write_in_mbox(struct ThreadInfo* ti, unsigned int data) {
+  if(write(ti->spu_ctx->wbox_fd, &data, 4) != 4) {
+    perror("write_in_mbox write");
+  }
+}
+
+
+unsigned int stat_in_mbox(struct ThreadInfo* ti) {
+  unsigned int data = 0;
+
+  if(read(ti->spu_ctx->wbox_stat_fd, &data, 4) != 4) {
+    perror("stat_in_mbox read");
+  }
+
+  return data;
+}
+
+
+void write_signal(struct ThreadInfo* ti, int which, unsigned int data) {
+  int fd;
+
+  if(which == 1) {
+    fd = ti->spu_ctx->signal1_fd;
+  } else { //if(which == 2) {
+    fd = ti->spu_ctx->signal2_fd;
+  }
+
+  if(write(fd, &data, 4) != 4) {
+    perror("write_signal write");
+  }
+}
+
+
+// MFC DMA Functions
+
+#ifndef SWIG
+void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
+{
+  const int size = sizeof(struct mfc_dma_command);
+
+  if(write(ti->spu_ctx->mfc_fd, &cmd, size) != size) {
+    perror("stat_in_mbox read");
+  }
+
+} 
+#endif
+
+
+void spu_putb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_PUTB;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
+void spu_getb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_GETB;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
+unsigned int read_tag_status_all(struct ThreadInfo* ti, unsigned int mask) {
+  unsigned int status;
+
+  if(read(ti->spu_ctx->mfc_fd, &status, 4) != 4) {
+    perror("read_tag_status_all read");
+  }
+
+  return status;
+}
 
 #endif // SPU_EXEC_H
+

@@ -1,18 +1,39 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
 # Iterator Hierarchy
 
 import array
+import random
 
 # import Numeric
 
+import corepy.lib.extarray as extarray
 import corepy.arch.ppc.platform as synppc
 import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
@@ -30,7 +51,7 @@ import corepy.arch.ppc.lib.util as util
 class _numeric_type: pass
 
 def _typecode(a):
-  if type(a) is _array_type:
+  if type(a) in (_array_type, _extarray_type):
     return a.typecode
   elif type(a) is _numeric_type:
     return a.typecode()
@@ -40,7 +61,7 @@ def _typecode(a):
     raise Exception('Unknown array type ' + type(a))
 
 def _array_address(a):
-  if type(a) is _array_type:
+  if type(a) in (_array_type, _extarray_type):
     return a.buffer_info()[0]
   elif type(a) is _numeric_type:
     return synnumeric.array_address(a)
@@ -86,6 +107,7 @@ class ParallelInstructionStream(synppc.InstructionStream):
 
 # _numeric_type = type(Numeric.array(1))
 _array_type   = type(array.array('I', [1]))
+_extarray_type   = type(extarray.extarray('I', [1]))
 
 CTR = 0
 DEC = 1
@@ -176,7 +198,9 @@ class syn_iter(object):
         self.code.add(ppc.noop())
 
     # Label
-    self.start_label = self.code.size() + 1
+    #self.start_label = self.code.size() + 1
+    self.start_label = self.code.get_label("SYN_ITER_START_%d" % random.randint(0, 2**32))
+    self.code.add(self.start_label)
 
     return
 
@@ -198,16 +222,18 @@ class syn_iter(object):
 
   def end(self, branch = True):
     if self.mode == CTR and branch:
-        next = self.code.size() + 1
-        self.code.add(ppc.bdnz(-((next - self.start_label) * synppc.WORD_SIZE)))
+        #next = self.code.size() + 1
+        #self.code.add(ppc.bdnz(-((next - self.start_label) * synppc.WORD_SIZE)))
+        self.code.add(ppc.bdnz(self.start_label))
 
     elif self.mode == DEC:
       # branch if r_count is not zero (CR)
       #   Note that this relies on someone (e.g. cleanup()) setting the
       #   condition register properly.
       if branch:
-        next = self.code.size() + 1
-        self.code.add(ppc.bgt(-(next - self.start_label) * synppc.WORD_SIZE))
+        #next = self.code.size() + 1
+        #self.code.add(ppc.bgt(-(next - self.start_label) * synppc.WORD_SIZE))
+        self.code.add(ppc.bgt(self.start_label))
 
       # Reset the counter in case this is a nested loop
       util.load_word(self.code, self.r_count, self.get_count())
@@ -216,8 +242,10 @@ class syn_iter(object):
       # branch if r_current < r_stop
       if branch:
         self.code.add(ppc.cmpw(0, self.r_count, self.r_stop))
-        next = self.code.size() + 1
-        self.code.add(ppc.blt(-(next - self.start_label) * synppc.WORD_SIZE))
+        #self.code.add(ppc.cmp_(0, 2, self.r_count, self.r_stop))
+        #next = self.code.size() + 1
+        #self.code.add(ppc.blt(-(next - self.start_label) * synppc.WORD_SIZE))
+        self.code.add(ppc.blt(self.start_label))
       
       # Reset the the current value in case this is a nested loop
       util.load_word(self.code, self.r_count, self.get_start())
@@ -299,9 +327,9 @@ class parallel(object):
     code = self.obj.code
     # replace count with rank
     if self.obj.mode == CTR:
-      raise Expcetion('Parallel CTR loops not supported')
+      raise Exception('Parallel CTR loops not supported')
     elif self.obj.mode == DEC:
-      raise Expcetion('Parallel DEC loops not supported')
+      raise Exception('Parallel DEC loops not supported')
     elif self.obj.mode == INC:
       self._update_inc_count()
       
@@ -311,7 +339,9 @@ class parallel(object):
         code.add(ppc.noop())
       
     # Update the real iterator's label
-    self.obj.start_label = code.size() + 1
+    #self.obj.start_label = code.size() + 1
+    self.obj.start_label = code.get_label("PARALLEL_START_%d" % random.randint(0, 2**32))
+    code.add(self.obj.start_label)
 
     return 
 
@@ -428,6 +458,7 @@ _array_ppc_lu = { # array_typecode: ppc_type
   'd': vars.DoubleFloat
   }
 
+
 class var_iter(syn_iter):
   """
   Purpose: Iterate over the values in a scalar array.
@@ -438,6 +469,7 @@ class var_iter(syn_iter):
   
   def __init__(self, code, data, step = 1, length = None, store_only = False, addr_reg = None, save = True):
     self.var_type = None
+    self.reg_type = None
 
     stop = 0
     self.data = data
@@ -448,9 +480,11 @@ class var_iter(syn_iter):
     if length is None:
       length = len(data)
 
-    if type(data) is _array_type:
+    if type(data) in (_array_type, _extarray_type):
       if (data.typecode in self.type_lu.keys()):
         self.var_type = self.type_lu[data.typecode]
+        if data.typecode in ('f', 'd'):
+          self.reg_type = 'fp'
       else:
         raise Exception('Unsupported array type: ' + data.typecode)
     
@@ -460,6 +494,8 @@ class var_iter(syn_iter):
     elif type(data) is memory_desc:
       if (data.typecode in self.type_lu.keys()):
         self.var_type = self.type_lu[data.typecode]
+        if data.typecode in ('f', 'd'):
+          self.reg_type = 'fp'
       else:
         raise Exception('Unsupported memory type: ' + data.typecode)
     
@@ -488,14 +524,14 @@ class var_iter(syn_iter):
     return self.code.add(_stores[self.typecode](self.r_current, self.r_addr, self.r_count))
 
   def make_current(self):
-    return self.var_type(reg = self.r_current)
+    return self.var_type(code = self.code, reg = self.r_current)
 
   def init_address(self):
     if self.addr_reg is None:
       return util.load_word(self.code, self.r_addr, _array_address(self.data))
   
   def start(self, align = True, branch = True):
-    self.r_current = self.code.acquire_register()
+    self.r_current = self.code.acquire_register(type = self.reg_type)
 
     # addr_reg is the user supplied address for the data
     if self.addr_reg is None:
@@ -546,7 +582,7 @@ class vector_iter(var_iter):
   type_lu = vmx_vars.array_vmx_lu
 
   def __init__(self, code, data, step = 1, length = None, store_only = False, addr_reg = None):
-    if type(data) not in (_array_type, _numeric_type):
+    if type(data) not in (_array_type, _extarray_type, _numeric_type):
       raise Exception('Unsupported array type')
 
     if _typecode(data) not in _vector_sizes.keys():
@@ -558,6 +594,8 @@ class vector_iter(var_iter):
                       store_only = store_only,
                       addr_reg = addr_reg)
     
+    # TODO - AWF - better way to force the reg_type to vector?
+    #self.reg_type = 'vector'
     return
 
   def load_current(self):
@@ -623,8 +661,6 @@ def TestIter():
 
   code = synppc.InstructionStream()
 
-  # code.add(ppc.Illegal())
-
   a = vars.SignedWord(0, code = code)
   
   for i in syn_iter(code, 16, 4):
@@ -640,7 +676,7 @@ def TestIter():
     a.v = a + vars.SignedWord.cast(i)
     
   util.return_var(a)
-  a.release_register(code)
+  #a.release_register(code)
   
   proc = synppc.Processor()
   r = proc.execute(code)
@@ -702,7 +738,6 @@ def TestNestedIter():
 
   code = synppc.InstructionStream()
   ppc.set_active_code(code)
-  # code.add(ppc.Illegal())
 
   a = vars.UnsignedWord(0)
 
@@ -712,7 +747,7 @@ def TestNestedIter():
         a.v = a + i + j + k
       
   util.return_var(a)
-  a.release_register()
+  #a.release_register()
 
   proc = synppc.Processor()
   r = proc.execute(code)
@@ -726,8 +761,6 @@ def TestRange():
   code = synppc.InstructionStream()
   ppc.set_active_code(code)
   
-  # code.add(ppc.Illegal())
-
   a = vars.UnsignedWord(0)
 
   for i in syn_range(code, 7):
@@ -740,7 +773,7 @@ def TestRange():
     a.v = a + 1
   
   util.return_var( a)
-  a.release_register(code)
+  #a.release_register(code)
 
   proc = synppc.Processor()
   r = proc.execute(code)
@@ -753,8 +786,12 @@ def TestRange():
 
 _expected = [10, 11, 12, 13]
 def _array_check(result, expected = _expected):
-  for x, y in zip(result, expected):
-    assert(x == y)
+  if result.typecode == 'b':
+    for x, y in zip(result, expected):
+      assert(ord(x) == y)
+  else:
+    for x, y in zip(result, expected):
+      assert(x == y)
 
 
 def TestVarIter():
@@ -762,8 +799,6 @@ def TestVarIter():
   code = synppc.InstructionStream()
   ppc.set_active_code(code)
   
-  # code.add(ppc.Illegal())
-
   a = array.array('I', range(4))
   for i in var_iter(code, a):
     i.v = i + 10
@@ -818,7 +853,6 @@ def TestMemoryDesc():
 
   code = synppc.InstructionStream()
   ppc.set_active_code(code)
-  # code.add(ppc.Illegal())
 
   a = array.array('I', range(4))
   m = memory_desc('I', a.buffer_info()[0], 4)
@@ -872,39 +906,35 @@ def TestMemoryDesc():
 #   return
 
 def TestVecIter():
-
   code = synppc.InstructionStream()
-
   ppc.set_active_code(code)
   
-  # code.add(ppc.Illegal())
-
-  a = array.array('I', range(16))
+  a = extarray.extarray('I', range(16))
   for i in vector_iter(code, a):
-    i.v = vmx.vadduws.ex(i, i) 
+    i.v = vmx.vadduws.ex(i, i)
 
-  ai = array.array('i', range(16))
+  ai = extarray.extarray('i', range(16))
   for i in vector_iter(code, ai):
     i.v = vmx.vaddsws.ex(i, i) 
 
-  b = array.array('H', range(16))
+  b = extarray.extarray('H', range(16))
   for i in vector_iter(code, b):
     i.v = vmx.vadduhs.ex(i, i) 
 
-  bi = array.array('h', range(16))
+  bi = extarray.extarray('h', range(16))
   for i in vector_iter(code, bi):
     i.v = vmx.vaddshs.ex(i, i) 
 
-  c = array.array('B', range(16))
+  c = extarray.extarray('B', range(16))
   for i in vector_iter(code, c):
     i.v = vmx.vaddubs.ex(i, i) 
 
-  ci = array.array('b', range(16))
+  ci = extarray.extarray('b', range(16))
   for i in vector_iter(code, ci):
     i.v = vmx.vaddsbs.ex(i, i) 
 
   ften = vmx_vars.BitType(10.0)
-  f = array.array('f', range(16))
+  f = extarray.extarray('f', range(16))
   for i in vector_iter(code, f):
     i.v = vmx.vaddfp.ex(i, i) 
 
@@ -926,11 +956,10 @@ def TestVecIter():
 def TestZipIter():
   code = synppc.InstructionStream()
   ppc.set_active_code(code)
-  # code.add(ppc.Illegal())
 
-  a = array.array('I', range(16, 32))
-  b = array.array('I', range(32, 48))
-  c = array.array('I', [0 for i in range(16)])
+  a = extarray.extarray('I', range(16, 32))
+  b = extarray.extarray('I', range(32, 48))
+  c = extarray.extarray('I', [0 for i in range(16)])
   
   sum = vars.UnsignedWord(0)
 
@@ -939,9 +968,9 @@ def TestZipIter():
     k.v = i + j 
     sum.v = sum + 1
   
-  av = vector_iter(code, array.array('I', range(16)))
-  bv = vector_iter(code, array.array('I', range(16, 32)))
-  cv = vector_iter(code, array.array('I', [0 for i in range(16)]), store_only = True)
+  av = vector_iter(code, extarray.extarray('I', range(16)))
+  bv = vector_iter(code, extarray.extarray('I', range(16, 32)))
+  cv = vector_iter(code, extarray.extarray('I', [0 for i in range(16)]), store_only = True)
 
   for i, j, k in zip_iter(code, av, bv, cv):
     k.v = vmx.vadduws.ex(i, j)  # i + j 
@@ -949,7 +978,7 @@ def TestZipIter():
   util.return_var(sum)
   
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(code, mode = 'int')
 
   assert(r == 16)
   print a
@@ -997,9 +1026,6 @@ def TestZipIter():
 
 
 if __name__=='__main__':
-
-  
-  
   # TestMemoryMap()
   util.RunTest(TestIter)
   util.RunTest(TestExternalStop)

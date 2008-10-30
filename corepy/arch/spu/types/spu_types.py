@@ -1,16 +1,34 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 import array
 
+import corepy.lib.extarray as extarray
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.spu_extended as spuex
 import corepy.arch.spu.lib.util as util
@@ -19,6 +37,7 @@ import corepy.spre.spe as spe
 from corepy.spre.syn_util import most_specific, make_user_type
 
 _array_type   = type(array.array('I', [1]))
+_extarray_type   = type(extarray.extarray('I', [1]))
 INT_ARRAY_TYPES = ('b', 'h', 'i', 'B', 'H', 'I')
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
 INT_SIZES       = {'b':1,  'c':1, 'h':2, 'i':4, 'B':1,  'H':2, 'I':4}
@@ -111,7 +130,7 @@ class BitType(SPUType):
   register_type_id = 'gp'
   array_typecodes = ('c', 'b', 'B', 'h', 'H', 'i', 'I', 'f') # all valid typecodes
   array_typecode  = None # typecode for this class
-  literal_types = (int,long, list, tuple, _array_type)
+  literal_types = (int,long, list, tuple, _array_type, _extarray_type)
 
   # Operators
   __or__ = operator(spu.or_, cast = _upcast)
@@ -128,7 +147,7 @@ class BitType(SPUType):
     return self.code.add(spu.ai(self, other, 0))
 
   def _set_literal_value(self, value):
-    if type(value) is _array_type:
+    if type(value) in (_array_type, _extarray_type):
 
       if self.array_typecode != value.typecode:
         print "Warning: array typecode does not match variable type - I hope you know what you're doing!"
@@ -246,7 +265,7 @@ class SingleFloatType(SPUType):
     if isinstance(value, (list, tuple)):
       value = array.array(self.array_typecode, value)
     
-    if type(value) is _array_type:
+    if type(value) in (_array_type, _extarray_type):
 
       if self.array_typecode != value.typecode:
         print "Warning: array typecode does not match variable type - I hope you know what you're doing!"
@@ -373,15 +392,13 @@ def TestFloatScalar():
 
   x = SingleFloat(1.0)
   y = SingleFloat(2.0)
-  r = SingleFloat(0.0)
+  r = SingleFloat(0.0, reg = code.fp_return)
 
   r.v = spu.fa.ex(x, y)
   
-  spu.wrch(r, dma.SPU_WrOutMbox)    
-
   proc = Processor()
-  result = proc.execute(code, mode='mbox')
-  assert(_bits_to_float(result) == (1.0 + 2.0))
+  result = proc.execute(code, mode='fp')
+  assert(result == (1.0 + 2.0))
   
   return
 
@@ -399,16 +416,14 @@ def TestFloatArray():
 
   sum.v = spu.fa.ex(x, y)
 
-  r = SingleFloat([0.0, 0.0, 0.0, 0.0])
+  r = SingleFloat([0.0, 0.0, 0.0, 0.0], reg = code.fp_return)
 
   for i in range(4):
     r.v = spu.fa.ex(sum, r)
     spu.rotqbyi(sum, sum, 4)
   
-  spu.wrch(r, dma.SPU_WrOutMbox)    
-
   proc = Processor()
-  result = proc.execute(code, mode='mbox')
+  result = proc.execute(code, mode='fp')
 
   x_test = array.array('f', [1.0, 2.0, 3.0, 4.0])
   y_test = array.array('f', [0.5, 1.5, 2.5, 3.5])
@@ -416,7 +431,7 @@ def TestFloatArray():
   for i in range(4):
     r_test += x_test[i] + y_test[i]
 
-  assert(_bits_to_float(result) == r_test)
+  assert(result == r_test)
   
   return
 

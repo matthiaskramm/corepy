@@ -1,10 +1,37 @@
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
+
 # PowerPC Machine Instructions
 
 # Notes:
 #  params are: OPCD, XO
 
-# from isa2 import MachineInstruction
-from corepy.spre.spe import MachineInstruction
+from corepy.spre.spe import MachineInstruction, Label
 from ppc_fields import *
 
 class OPCD_S_A_B_XO_1_STWCX_ONE(MachineInstruction):
@@ -21,7 +48,7 @@ class OPCD_S_A_B_XO_1_Rc(MachineInstruction):
   """ 
   Instructions: (11)  andx, andcx, eqvx, nandx, norx, orx, orcx, slwx, srawx, srwx, xorx
   """ 
-  signature = (S, A, B)
+  signature = (A, S, B)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -43,7 +70,7 @@ class OPCD_S_A_SH_XO_1_Rc(MachineInstruction):
   """ 
   Instructions: (1)  srawix
   """ 
-  signature = (S, A, SH)
+  signature = (A, S, SH)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -85,7 +112,7 @@ class OPCD_SC_ONE(MachineInstruction):
   """ 
   Instructions: (1)  sc
   """ 
-  signature = (SC_ONE)
+  signature = (SC_ONE,)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | SC_ONE.render(operands['SC_ONE'])
@@ -137,7 +164,7 @@ class OPCD_D_A_B_C_XO_3_Rc(MachineInstruction):
   """ 
   Instructions: (9)  fmaddx, fmaddsx, fmsubx, fmsubsx, fnmaddx, fnmaddsx, fnmsubx, fnmsubsx, fselx
   """ 
-  signature = (D, A, B, C)
+  signature = (D, A, C, B)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -148,7 +175,7 @@ class OPCD_S_A_B_MB_ME_Rc(MachineInstruction):
   """ 
   Instructions: (1)  rlwnmx
   """ 
-  signature = (S, A, B, MB, ME)
+  signature = (A, S, B, MB, ME)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -159,7 +186,7 @@ class OPCD_S_A_XO_1_Rc(MachineInstruction):
   """ 
   Instructions: (3)  cntlzwx, extsbx, extshx
   """ 
-  signature = (S, A)
+  signature = (A, S)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -241,7 +268,7 @@ class OPCD_S_A_UIMM(MachineInstruction):
   """ 
   Instructions: (6)  andi, andis, ori, oris, xori, xoris
   """ 
-  signature = (S, A, UIMM)
+  signature = (A, S, UIMM)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | S.render(operands['S']) | A.render(operands['A']) | UIMM.render(operands['UIMM'])
@@ -292,7 +319,7 @@ class OPCD_crfD_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  mcrxr
   """ 
-  signature = (crfD)
+  signature = (crfD,)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | crfD.render(operands['crfD']) | XO_1.render(params['XO'])
@@ -302,7 +329,7 @@ class OPCD_S_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  mtmsr
   """ 
-  signature = (S)
+  signature = (S,)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | S.render(operands['S']) | XO_1.render(params['XO'])
@@ -343,7 +370,7 @@ class OPCD_D_XO_1_Rc(MachineInstruction):
   """ 
   Instructions: (1)  mffsx
   """ 
-  signature = (D)
+  signature = (D,)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -394,7 +421,7 @@ class OPCD_S_spr_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  mtspr
   """ 
-  signature = (S, spr)
+  signature = (spr, S)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | S.render(operands['S']) | spr.render(operands['spr']) | XO_1.render(params['XO'])
@@ -404,7 +431,7 @@ class OPCD_S_CRM_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  mtcrf
   """ 
-  signature = (S, CRM)
+  signature = (CRM, S)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | S.render(operands['S']) | CRM.render(operands['CRM']) | XO_1.render(params['XO'])
@@ -414,7 +441,7 @@ class OPCD_crbD_XO_1_Rc(MachineInstruction):
   """ 
   Instructions: (2)  mtfsb0x, mtfsb1x
   """ 
-  signature = (crbD)
+  signature = (crbD,)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -425,7 +452,7 @@ class OPCD_B_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  tlbie
   """ 
-  signature = (B)
+  signature = (B,)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | B.render(operands['B']) | XO_1.render(params['XO'])
@@ -435,11 +462,27 @@ class OPCD_LI_AA_LK(MachineInstruction):
   """ 
   Instructions: (1)  bx
   """ 
-  signature = (LI)
+  signature = (LI,)
   opt_kw = (AA, LK)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | LI.render(operands['LI']) | AA.render(operands['AA']) | LK.render(operands['LK'])
+  render = staticmethod(_render)
+  
+class OPCD_LILBL_AA_LK(MachineInstruction):
+  """ 
+  Instructions: (1)  bx
+  """ 
+  signature = (LILBL,)
+  opt_kw = (AA, LK)
+
+  def _render(params, operands):
+    # Not supporting AA=1 for labels right now, die if that happens
+    if operands['AA'] != 0:
+      raise Exception("AA=1 not supported with label operands")
+
+    offset = operands['LILBL'].position - operands['position']
+    return OPCD.render(params['OPCD']) | LILBL.render(offset) | AA.render(operands['AA']) | LK.render(operands['LK'])
   render = staticmethod(_render)
   
 class OPCD_FM_B_XO_1_Rc(MachineInstruction):
@@ -457,7 +500,7 @@ class OPCD_S_SR_XO_1(MachineInstruction):
   """ 
   Instructions: (1)  mtsr
   """ 
-  signature = (S, SR)
+  signature = (SR, S)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | S.render(operands['S']) | SR.render(operands['SR']) | XO_1.render(params['XO'])
@@ -509,7 +552,7 @@ class OPCD_S_A_SH_MB_ME_Rc(MachineInstruction):
   """ 
   Instructions: (2)  rlwimix, rlwinmx
   """ 
-  signature = (S, A, SH, MB, ME)
+  signature = (A, S, SH, MB, ME)
   opt_kw = (Rc,)
 
   def _render(params, operands):
@@ -537,11 +580,26 @@ class OPCD_BO_BI_BD_AA_LK(MachineInstruction):
     return OPCD.render(params['OPCD']) | BO.render(operands['BO']) | BI.render(operands['BI']) | BD.render(operands['BD']) | AA.render(operands['AA']) | LK.render(operands['LK'])
   render = staticmethod(_render)
   
+class OPCD_BO_BI_BDLBL_AA_LK(MachineInstruction):
+  """ 
+  Instructions: (1)  bcx
+  """ 
+  signature = (BO, BI, BDLBL)
+  opt_kw = (AA, LK)
+
+  def _render(params, operands):
+    if operands['AA'] != 0:
+      raise Exception("AA=1 not supported with label operands")
+
+    offset = operands['BDLBL'].position - operands['position']
+    return OPCD.render(params['OPCD']) | BO.render(operands['BO']) | BI.render(operands['BI']) | BD.render(offset) | AA.render(operands['AA']) | LK.render(operands['LK'])
+  render = staticmethod(_render)
+  
 class OPCD_D_XO_1(MachineInstruction):
   """ 
   Instructions: (2)  mfcr, mfmsr
   """ 
-  signature = (D)
+  signature = (D,)
 
   def _render(params, operands):
     return OPCD.render(params['OPCD']) | D.render(operands['D']) | XO_1.render(params['XO'])

@@ -1,17 +1,33 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
+from spu_isa import *
 
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
-
-# import platform_conf
-import spu_isa as machine
-import corepy.spre.spe as spe
 
 # Nothing to see here, move along... ;)
 __active_code = None
@@ -40,16 +56,22 @@ def get_active_code():
 
 
 # Build the instructions
-for inst in spu_isa.SPU_ISA:
-  name = inst[0]
-  machine_inst = getattr(machine, name)
+#for inst in spu_isa.SPU_ISA:
+#  name = inst[0]
+#  machine_inst = getattr(machine, name)
   
   # asm_order = inst[1]['asm']
-  members = {}
-  for key in inst[1].keys():
-    members[key] = inst[1][key]
+#  members = {}
+#  for key in inst[1].keys():
+#    members[key] = inst[1][key]
 
-  members['asm_order'] =  members['asm']
-  members['machine_inst'] =  machine_inst
-  members['active_code']  = property(__get_active_code) 
-  globals()[inst[0]] = type(name, (spe.Instruction,), members)
+#  members['asm_order'] =  members['asm']
+#  members['machine_inst'] =  machine_inst
+#  members['active_code']  = property(__get_active_code) 
+#  globals()[inst[0]] = type(name, (spe.Instruction,), members)
+
+for l in locals().values():
+  if isinstance(l, type):
+    if issubclass(l, SPUInstruction) or issubclass(l, SPUDispatchInstruction):
+      l.active_code = property(__get_active_code) 
+

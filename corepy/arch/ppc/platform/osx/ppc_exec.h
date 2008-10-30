@@ -1,20 +1,41 @@
-// Copyright 2006-2007 The Trustees of Indiana University.
+/* Copyright (c) 2006-2008 The Trustees of Indiana University.
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the Indiana University nor the names of its contributors may be
+ *   used to endorse or promote products derived from this software without
+ *   specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
-// This software is available for evaluation purposes only.  It may not be
-// redistirubted or used for any other purposes without express written
-// permission from the authors.
-
-// Authors:
-//   Christopher Mueller (chemuell@cs.indiana.edu)
-//   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
-// Native code for executing instruction streams on OS X.
-// Compile with -DDEBUG_PRINT to enable additional debugging code
+// Native code for executing instruction streams on OS X
 
 #ifndef PPC_EXEC_H
 #define PPC_EXEC_H
 
-#include <stdint.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <errno.h>
 
 // Fix bug in carbon headers
 // http://aspn.activestate.com/ASPN/Mail/Message/wxPython-users/1808182
@@ -29,19 +50,45 @@
 
 #endif
 
-#include <vector>
-
-
-
 
 // ------------------------------------------------------------
 // Typedefs
 // ------------------------------------------------------------
 
+// Parameter passing structures
+struct ExecParams {
+  unsigned long p1;
+  unsigned long p2;
+  unsigned long p3;
+  unsigned long p4;
+  unsigned long p5;
+  unsigned long p6;
+  unsigned long p7;
+  unsigned long p8;
+};
+
+
+struct ThreadParams {
+  long addr;
+  struct ExecParams params;
+  union {
+    long l;
+    double d;
+  } ret;
+};
+
+
+//Returned to python in async mode
+struct ThreadInfo {
+  pthread_t th;
+  int mode;
+};
+
+
 // Function pointers for different return values
-typedef void (*Stream_func_void)();
-typedef int  (*Stream_func_int)();
-typedef double (*Stream_func_double)();
+typedef long (*Stream_func_int)(struct ExecParams);
+typedef double (*Stream_func_fp)(struct ExecParams);
+
 
 // ------------------------------------------------------------
 // Code
@@ -51,23 +98,81 @@ typedef double (*Stream_func_double)();
 // Function: make_executable
 // Arguments:
 //   addr - the address of the code stream
-//   size - the number of instructions in the stream
+//   size - the size of the code stream in bytes
 // Return: void
 // Description:
 //   Make an instruction stream executable.  The stream must 
-//   be a contiguous sequence of word sized instructions.
+//   be a contiguous sequence of bytes, forming instructions.
 // ------------------------------------------------------------
 
-int make_executable(int addr, int size) {
+int make_executable(long addr, long size) {
 #ifndef CELL
   // sys_icache_invalidate may be useful in the future for cache control. 
   // It will remove the dependency on carbon.  It's new to Leopard, so not
   // useful yet...
   // sys_icache_invalidate((char *)addr, size * 4);
   MakeDataExecutable((void *)addr, size * 4);
-#else
-  return 0;
 #endif
+  return 0;
+}
+
+
+// ------------------------------------------------------------
+// Function: cancel_async
+// Arguments:
+//   t - thread id cancel
+// Return: 0 on success, -1 on failure
+// Description:
+//   The native interface for cancelling execution of a thread.
+// ------------------------------------------------------------
+
+int cancel_async(struct ThreadInfo* tinfo) {
+  return pthread_cancel(tinfo->th);
+}
+
+
+// ------------------------------------------------------------
+// Function: suspend_async
+// Arguments:
+//   t - thread id to cancle
+// Return: 0 on success, -1 on failure
+// Description:
+//   The native interface for suspending execution of a thread.
+//   Because there is no pthread interface for thread 
+//   susped/resume, this suspends the underlying OS X mach 
+//   thread.
+// ------------------------------------------------------------
+
+int suspend_async(struct ThreadInfo* tinfo) {
+  // ref: http://gcc.gnu.org/ml/java/2001-12/msg00404.html
+  mach_port_t mthread = pthread_mach_thread_np(tinfo->th);
+  if(thread_suspend(mthread) != KERN_SUCCESS) {
+    return -1;
+  }
+
+  return 0;
+}
+
+
+// ------------------------------------------------------------
+// Function: resume_async
+// Arguments:
+//   t - thread id to resume
+// Return: 0 on success, -1 on failure
+// Description:
+//   The native interface for resuming execution of a thread.
+//   Because there is no pthread interface for thread 
+//   susped/resume, this suspends the underlying OS X mach 
+//   thread.
+// ------------------------------------------------------------
+
+int resume_async(struct ThreadInfo* tinfo) {
+  mach_port_t mthread = pthread_mach_thread_np(tinfo->th);
+  if(thread_resume(mthread) != KERN_SUCCESS) {
+    return -1;
+  }
+
+  return 0;
 }
 
 
@@ -81,252 +186,113 @@ int make_executable(int addr, int size) {
 //   as the argument via pthreads and executed here.
 // ------------------------------------------------------------
 
-void *run_stream(void *addr) {
-  ((Stream_func_void)addr)();
-  pthread_exit(NULL);
+void cleanup(void* params) {
+    struct ThreadParams *p = (struct ThreadParams*)params;
+    free(p);
 }
 
+
+void *run_stream_int(void *params) {
+  struct ThreadParams *p = (struct ThreadParams *)params;
+  pthread_cleanup_push(cleanup, params);
+
+  p->ret.l = ((Stream_func_int)p->addr)(p->params);
+
+  pthread_cleanup_pop(0);
+  return params;
+}
+
+
+void *run_stream_fp(void *params) {
+  struct ThreadParams *p = (struct ThreadParams *)params;
+  pthread_cleanup_push(cleanup, params);
+
+  p->ret.d = ((Stream_func_fp)p->addr)(p->params);
+
+  pthread_cleanup_pop(0);
+  return params;
+}
+
+
 // ------------------------------------------------------------
-// Function: execute_async
+// Function: execute_{int, fp}_async
 // Arguments:
-//   addr - address of the instruction stream
+//   addr   - address of the instruction stream
+//   params - parameters to pass to the instruction stream
 // Return: a new thread id
 // Description:
 //   The native interface for executing a code stream as a 
 //   thread.  make_executable must be called first.
 // ------------------------------------------------------------
 
-pthread_t execute_async(int addr) {
-  pthread_t t;
-  int rc;
-  
-  rc = pthread_create(&t, NULL, run_stream, (void *)addr);
-  if(rc) {
-    printf("Error creating async stream: %d\n", rc);
-  }
-  return t;
-}
 
-// ------------------------------------------------------------
-// Function: cancel_async
-// Arguments:
-//   t - thread id cancel
-// Return: 0 on success, -1 on failure
-// Description:
-//   The native interface for cancelling execution of a thread.
-// ------------------------------------------------------------
-
-int cancel_async(pthread_t t) {
-  return pthread_cancel(t);
-}
-
-// ------------------------------------------------------------
-// Function: suspend_async
-// Arguments:
-//   t - thread id to cancle
-// Return: 0 on success, -1 on failure
-// Description:
-//   The native interface for suspending execution of a thread.
-//   Becuase there is no pthread interface for thread 
-//   susped/resume, this suspends the underlying OS X mach 
-//   thread.
-// ------------------------------------------------------------
-
-int suspend_async(pthread_t t) {
-  // ref: http://gcc.gnu.org/ml/java/2001-12/msg00404.html
-  mach_port_t mthread = pthread_mach_thread_np(t);
-  if(thread_suspend(mthread) != KERN_SUCCESS)
-    return -1;
-  else
-    return 0;
-}
-
-// ------------------------------------------------------------
-// Function: resume_async
-// Arguments:
-//   t - thread id to resume
-// Return: 0 on success, -1 on failure
-// Description:
-//   The native interface for resuming execution of a thread.
-//   Becuase there is no pthread interface for thread 
-//   susped/resume, this suspends the underlying OS X mach 
-//   thread.
-// ------------------------------------------------------------
-
-int resume_async(pthread_t t) {
-  mach_port_t mthread = pthread_mach_thread_np(t);
-  if(thread_resume(mthread) != KERN_SUCCESS)
-    return -1;
-  else
-    return 0;
-}
-
-// ------------------------------------------------------------
-// Functions: execute_{void,int,fp}
-// Arguments:
-//   addr - instruction stream address
-// Return: 
-//   _void - nothing
-//   _int  - the value in regsiter gp_return (r3)
-//   _fp   - the value in regsiter fp_return (fp1)
-// Description:
-//   The native interfaces for executing instruction streams.
-//   Each fucntion casts the stream to a function of the 
-//   appropriate type and calls it. If DEBUG_PRINT is set, the 
-//   address and result are printed. 
-// ------------------------------------------------------------
-
-void execute_void(int addr) {
-#ifdef DEBUG_PRINT
-  printf("addr (native): %d\n", addr);
-#endif // DEBUG_PRINT
-
-  ((Stream_func_void)addr)();
-
-  return;
-}
-
-int execute_int(int addr) {
-  int result = 0;
-
-#ifdef DEBUG_PRINT
-  printf("addr (native): %d\n", addr);
-#endif // DEBUG_PRINT
-
-  result = ((Stream_func_int)addr)();
-
-#ifdef DEBUG_PRINT     
-  printf("result: %d\n", result);
-#endif // DEBUG_PRINT
-  return result;
-}
-
-double execute_fp(int addr) {
-  double result = 0.0;
-
-#ifdef DEBUG_PRINT
-  printf("addr (native): %d\n", addr);
-#endif // DEBUG_PRINT
-
-  result = ((Stream_func_double)addr)();
-
-#ifdef DEBUG_PRINT     
-  printf("result: %d\n", result);
-#endif // DEBUG_PRINT
-  return result;
-}
-
-// ------------------------------------------------------------
-// Parameter passing execute functions
-// ------------------------------------------------------------
-
-// Old interface
-// struct ThreadParams {
-//   int addr;
-//   int p1;
-//   int p2;
-//   int p3;
-// };
-
-// New interface
-struct ExecParams {
-  unsigned int p1;  // r3
-  unsigned int p2;  // r4
-  unsigned int p3;  // r5
-  unsigned int p4;  // r6
-  unsigned int p5;  // r7
-  unsigned int p6;  // r8
-  unsigned int p7;  // r9
-  unsigned int p8;  // r10
-};
-
-struct ThreadParams {
-  int addr;
-  ExecParams params;
-};
-
-// Old
-// typedef int  (*Stream_param_func_int)(int, int, int);
-
-// New
-typedef int  (*Stream_param_func_int)(ExecParams);
-
-// void *run_param_stream(void *params) {
-//   ThreadParams *p = (ThreadParams*)params;
-
-//   int addr = p->addr;
-//   int p1 = p->p1;
-//   int p2 = p->p2;
-//   int p3 = p->p3;
-//   int r = 0;
-
-//   r = ((Stream_param_func_int)(addr))(p1, p2, p3);
-
-//   pthread_exit(NULL);
-// }
-
-void *run_param_stream(void *params) {
-  ThreadParams *p = (ThreadParams*)params;
-
-  unsigned int addr = p->addr;
-  int r = 0;
-
-  r = ((Stream_param_func_int)(addr))(p->params);
-
-  pthread_exit(NULL);
-}
-
-// pthread_t execute_param_async(int addr, int p1, int p2, int p3) {
-//   pthread_t t;
-//   int rc;
-  
-//   ThreadParams *params = new ThreadParams();
-//   params->addr = addr;
-//   params->p1 = p1;
-//   params->p2 = p2;
-//   params->p3 = p3;
-
-//   rc = pthread_create(&t, NULL, run_param_stream, (void *)params);
-//   if(rc) {
-//     printf("Error creating async stream: %d\n", rc);
-//   }
-
-//   return t;
-// }
-
-pthread_t execute_param_async(int addr, ExecParams params) {
-  pthread_t t;
+struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
   int rc;
 
-  ThreadParams *tparams = new ThreadParams();
+  struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
+  struct ThreadParams* tparams = malloc(sizeof(struct ThreadParams));
   tparams->addr = addr;
   tparams->params = params;
 
-  rc = pthread_create(&t, NULL, run_param_stream, (void *)tparams);
+  rc = pthread_create(&tinfo->th, NULL, run_stream_int, (void *)tparams);
   if(rc) {
     printf("Error creating async stream: %d\n", rc);
   }
 
-  return t;
-}
-
-int join_async(pthread_t t) {
-  return pthread_join(t, NULL);
+  return tinfo;
 }
 
 
-// int execute_param_int(int addr, int p1, int p2, int p3) {
-//   int result = 0;
-//  result = ((Stream_param_func_int)addr)(p1, p2, p3);
-//
-//  return result;
-// }
+struct ThreadInfo* execute_fp_async(long addr, struct ExecParams params) {
+  int rc;
 
-int execute_param_int(int addr, ExecParams params) {
-  int result = 0;
-  result = ((Stream_param_func_int)addr)(params);
+  struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
+  struct ThreadParams* tparams = malloc(sizeof(struct ThreadParams));
+  tparams->addr = addr;
+  tparams->params = params;
 
+  rc = pthread_create(&tinfo->th, NULL, run_stream_fp, (void *)tparams);
+  if(rc) {
+    printf("Error creating async stream: %d\n", rc);
+  }
+
+  return tinfo;
+}
+
+
+long join_int(struct ThreadInfo* tinfo) {
+  struct ThreadParams *p;
+
+  pthread_join(tinfo->th, (void**)&p);
+
+  long result = p->ret.l;
+
+  free(tinfo);
+  free(p);
   return result;
+}
+
+
+double join_fp(struct ThreadInfo* tinfo) {
+  struct ThreadParams *p;
+
+  pthread_join(tinfo->th, (void**)&p);
+
+  double result = p->ret.d;
+
+  free(tinfo);
+  free(p);
+  return result;
+}
+
+
+long execute_int(long addr, struct ExecParams params) {
+  return ((Stream_func_int)addr)(params);
+}
+
+
+double execute_fp(long addr, struct ExecParams params) {
+  return ((Stream_func_fp)addr)(params);
 }
 
 #endif // PPC_EXEC_H

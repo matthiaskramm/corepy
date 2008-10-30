@@ -1,13 +1,30 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 __doc__="""
 An implementation of InstructionStream that conforms to the OS X
@@ -32,14 +49,17 @@ ExecParams = ppc_exec.ExecParams
 # Registers
 # ------------------------------
 
-class GPRegister(spe.Register): pass
+class GPRegister(spe.Register):
+  def __init__(self, reg, code):
+    spe.Register.__init__(self, reg, code, prefix = 'r')
+
 class FPRegister(spe.Register):
   def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, 'f')
+    spe.Register.__init__(self, reg, code, prefix = 'f')
 
 class VMXRegister(spe.Register): 
   def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, 'v')
+    spe.Register.__init__(self, reg, code, prefix = 'v')
 
 
 # ------------------------------
@@ -131,7 +151,6 @@ class InstructionStream(spe.InstructionStream):
 
   default_register_type = GPRegister
   exec_module   = ppc_exec
-  align         = 4
   instruction_type  = WORD_TYPE
 
   def __init__(self):
@@ -154,9 +173,35 @@ class InstructionStream(spe.InstructionStream):
 
     return
 
+
+  def make_executable(self):
+    self.exec_module.make_executable(self._code.buffer_info()[0], len(self._code))
+    return 
+
+  def create_register_files(self):
+    # Each declarative RegisterFiles entry is:
+    #   (file_id, register class, valid values)
+    for reg_type, cls, values in self.RegisterFiles:
+      regs = [cls(value, self) for value in values]
+      self._register_files[cls] = spe.RegisterFile(regs, reg_type)
+      self._reg_type[reg_type] = cls
+      for reg in regs:
+        reg.code = self
+    
+    return
+  
   # ------------------------------
   # Execute/ABI support
   # ------------------------------
+
+  def _load_word(self, array, reg, word):
+    """Load an immediate value into a register w/o using load_word(); instead
+       append the instruction objects to an array.
+       Used when synthesizing the prologue/epilogue."""
+    array.append(ppc.addi(reg, 0, word & 0xFFFF, ignore_active = True))
+    if (word & 0xFFFF) != word:
+      array.append(ppc.addis(reg, reg, ((word + 32768) >> 16) & 0xFFFF, ignore_active = True))
+    return
 
   def _synthesize_prologue(self):
     """
@@ -168,7 +213,7 @@ class InstructionStream(spe.InstructionStream):
     """
 
     # Reset the prologue
-    self._prologue = InstructionStream() # array.array(WORD_TYPE)
+    self._prologue = [self.lbl_prologue]
 
     # Get the lists of registers to save
     save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
@@ -183,47 +228,40 @@ class InstructionStream(spe.InstructionStream):
 
     # Store the value in register 2 in the red zone
     #  r1 is the stackpointer, -4(r1) is in the red zone
-    r_addr = 2 # use r2
-    # self._prologue.add(ppc.stwu(r_addr, r_addr, -WORD_SIZE))
     
-    load_word(self._prologue, r_addr, self._saved_gp_registers.buffer_info()[0])
+    r_addr = GPRegister(13, None) # Only available volatile register
+    r_idx = GPRegister(14, None)  # Non-volatile; safe to use before restoring
+
+    self._load_word(self._prologue, r_addr, self._saved_gp_registers.buffer_info()[0])
 
     for i, reg in enumerate(save_gp):
-      # print 'saving gp:', reg, r_addr, i * WORD_SIZE
-      self._prologue.add(ppc.stw(reg, r_addr, i * WORD_SIZE))
+      # print 'saving gp:', reg, 2, i * WORD_SIZE
+      self._prologue.append(ppc.stw(reg, r_addr, i * WORD_SIZE, ignore_active = True))
 
-    load_word(self._prologue, r_addr, self._saved_fp_registers.buffer_info()[0])
+    self._load_word(self._prologue, r_addr, self._saved_fp_registers.buffer_info()[0])
     
     for i, reg in enumerate(save_fp):
-      # print 'saving fp:', reg, r_addr, i * WORD_SIZE
-      self._prologue.add(ppc.stfd(reg, r_addr, i * WORD_SIZE * 2))
+      # print 'saving fp:', reg, 2, i * WORD_SIZE
+      self._prologue.append(ppc.stfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
 
-    load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
+    self._load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
     
     for i, reg in enumerate(save_vx):
-      #print 'saving vx:', reg, r_addr, i * WORD_SIZE
-      self._prologue.add(vmx.stvx(reg, i * WORD_SIZE * 4, r_addr))
+      #print 'saving vx:', reg, 2, i * WORD_SIZE
+      self._load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
+      self._prologue.append(vmx.stvx(reg, r_idx, r_addr, ignore_active = True))
       # print 'TODO: VMX Support'
       
-    # Restore r2
-    # self._prologue.add(ppc.lwz(r_addr, 1, -4))
-    
     # Set up VRSAVE
     # Currently, we save the old value of VRSAVE in r31.
-    vx_bits = 0l
-
-    # Fill in the bits for the used vector registers
-
     # On the G4, someone stomps on registers < 20 ... save them all for now.
-    for vx in range(32): #save_vx:
-      vx_bits |= (1l << vx)
-      
-    # Save vrsave and put our value in it
-    self._prologue.add(ppc.mfvrsave(31))
-    self._prologue.add(ppc.addi(r_addr, 0, vx_bits))
-    self._prologue.add(ppc.mtvrsave(r_addr))    
 
+    # Save vrsave and put our value in it
+    self._prologue.append(ppc.mfvrsave(31, ignore_active = True))
+    self._load_word(self._prologue, 5, 0xFFFFFFFF)
+    self._prologue.append(ppc.mtvrsave(5, ignore_active = True))    
     return
+
 
   def _synthesize_epilogue(self):
     """
@@ -231,7 +269,7 @@ class InstructionStream(spe.InstructionStream):
     """
 
     # Reset the epilogue
-    self._epilogue = InstructionStream() # array.array(WORD_TYPE)
+    self._epilogue = [self.lbl_epilogue]
 
     # Restore vrsave
     self._epilogue.add(ppc.mtvrsave(31))
@@ -241,54 +279,32 @@ class InstructionStream(spe.InstructionStream):
     save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
     save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
 
-    r_addr = 4
-    load_word(self._epilogue, r_addr, self._saved_gp_registers.buffer_info()[0])    
-    
-    for i, reg in enumerate(save_gp):
-      # print 'restoring gp:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.add(ppc.lwz(reg, r_addr, i * WORD_SIZE))
+    r_addr = GPRegister(13, None) # Only available volatile register
+    r_idx = GPRegister(14, None)  # Non-volatile; safe to use before restoring
 
-    load_word(self._epilogue, r_addr, self._saved_fp_registers.buffer_info()[0])    
-    
-    for i, reg in enumerate(save_fp):
-      # print 'restoring fp:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.add(ppc.lfd(reg, r_addr, i * WORD_SIZE * 2))
-
-    load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
+    self._load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
 
     for i, reg in enumerate(save_vx):
-      # print 'saving vx:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.add(vmx.lvx(reg, i * WORD_SIZE * 4, r_addr))
-      # print 'TODO: VMX Support'
+      # print 'restoring vx:', reg, r_addr, i * WORD_SIZE
+      self._load_word(self._epilogue, r_dx, i * WORD_SIZE * 4)
+      self._epilogue.add(vmx.lvx(reg, r_idx, r_addr, ignore_active = True))
+
+    self._load_word(self._epilogue, r_addr, self._saved_fp_registers.buffer_info()[0])
+
+    for i, reg in enumerate(save_fp):
+      # print 'restoring fp:', reg, r_addr, i * WORD_SIZE
+      self._epilogue.append(ppc.lfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
+
+    self._load_word(self._epilogue, r_addr, self._saved_gp_registers.buffer_info()[0])
+
+    for i, reg in enumerate(save_gp):
+      # print 'restoring gp:', reg, r_addr, i * WORD_SIZE
+      self._epilogue.append(ppc.lwz(reg, r_addr, i * WORD_SIZE, ignore_active = True))
+
+    self._epilogue.append(ppc.blr(ignore_active = True))
     return
 
 
-  def add_return(self):
-    """
-    Add the architecture dependent code to return from a function.
-    Used by cache_code to have the epilogue return.
-    """
-    self.add(ppc.blr())
-    return
-
-  def add_jump(self, addr, reg):
-    """
-    Add the architecture dependent code to jump to a new instruction.
-    Used by cache_code to chain the prologue, code, and epilogue.
-    """
-
-    # On the G4/G5, bx seems to not append the two 00 bits as specified
-    # in the PEM.  Instead, just use the whole address.
-    if (addr & 0xFFFFFF) == addr:
-      self.add(ppc.ba(addr))
-    else:
-      r_addr = reg
-      load_word(self, r_addr, addr)
-      self.add(ppc.mtctr(r_addr))
-      self.add(ppc.bcctrx(0x14, 0))
-
-    return
-      
 class Processor(spe.Processor):
   exec_module = ppc_exec
   

@@ -1,13 +1,32 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
+import sys
 import array
 
 import corepy.arch.ppc.isa as ppc
@@ -33,11 +52,15 @@ proc = env.Processor()
 ppc.set_active_code(code)
 
 ppc.addi(code.gp_return, 0, 12)
-code.print_code()
+ppc.b(code.lbl_epilogue)
+
+code.cache_code()
+code.print_code(pro=True, epi=True, binary=True)
+
 r = proc.execute(code, debug=True)
 
-assert(r == 12)
 print 'int result:', r
+assert(r == 12)
 
 code.reset()
 
@@ -50,6 +73,33 @@ r = proc.execute(code, mode='fp', debug=True)
 assert(r == 3.14)
 print 'float result:', r
 
+
+code.reset()
+
+load_word(code, code.gp_return, 0xFFFFFFFF)
+
+r = proc.execute(code, mode='int', debug=True)
+print "int result:",r
+assert(r == -1)
+
+
+code.reset()
+
+ppc.addi(code.gp_return, 0, 16)
+ppc.mtctr(code.gp_return)
+ppc.addi(code.gp_return, 0, 0)
+
+lbl_loop = code.get_label("LOOP")
+code.add(lbl_loop)
+ppc.addi(code.gp_return, code.gp_return, 2)
+ppc.bdnz(lbl_loop)
+
+code.print_code(hex = True)
+r = proc.execute(code, mode='int', debug=True)
+print "int result:",r
+assert(r == 32)
+
+sys.exit(0)
 
 # ------------------------------------------------------------
 # Variables/Exprsesions

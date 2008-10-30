@@ -1,25 +1,45 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
-
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 # SPU Iterator Hierarchy
 
 import array
 import time
+import random
 
 import corepy.spre.spe as spe
+import corepy.lib.extarray as extarray
 import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
 import corepy.arch.spu.lib.dma as dma
 import corepy.arch.spu.lib.util as util
-synbuffer = env.synbuffer
+#synbuffer = env.synbuffer
 
 def _mi(cls):
   """
@@ -39,9 +59,10 @@ INC = 2
 # ------------------------------------------------------------
 
 _array_type   = type(array.array('I', [1]))
+_extarray_type = type(extarray.extarray('I', [1]))
 
 def _typecode(a):
-  if type(a) is _array_type:
+  if type(a) in (_array_type, _extarray_type):
     return a.typecode
   elif type(a) is memory_desc:
     return a.typecode
@@ -49,7 +70,7 @@ def _typecode(a):
     raise Exception('Unknown array type ' + type(a))
 
 def _array_address(a):
-  if type(a) is _array_type:
+  if type(a) in (_array_type, _extarray_type):
     return a.buffer_info()[0]
   elif type(a) is memory_desc:
     return a.addr
@@ -60,8 +81,8 @@ def _array_address(a):
 # PPU Memory
 # ------------------------------
 
-# TODO: Merge this back with metaiter.memory_desc
-
+# TODO - AWF - this isn't use by anything except for spu_vec_iter.  Why?
+#  Even then most of this class doesn't appear to be used.
 class memory_desc(object):
   def __init__(self, typecode, addr = None, size = None):
     self.typecode = typecode
@@ -107,7 +128,6 @@ class memory_desc(object):
 
   def from_array(self, a):
     self.addr, self.size = a.buffer_info()
-    self.size = self.size / var.INT_SIZES[self.typecode]
     return
 
   def get(self, code, lsa, tag = 1):
@@ -314,13 +334,12 @@ class syn_iter(object):
     return self.step
   
   def start(self, align = True, branch = True):
-
+    """Do pre-loop iteration initialization"""
     if self.r_count is None:
       self.r_count = self.code.acquire_register()
       
     if self.mode == DEC:
       if self._external_start:
-        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
         self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_count())
@@ -330,7 +349,6 @@ class syn_iter(object):
         self.r_stop = self.code.acquire_register()
 
       if self._external_start:
-        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
         self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_start())
@@ -341,7 +359,6 @@ class syn_iter(object):
     # /end mode if
     
     if self.r_count is not None:
-      # self.current_count = var.SignedWord(code = self.code, reg = self.r_count)
       self.current_count = var.SignedWord(code = self.code, reg = self.r_count)
 
     # If the step size doesn't fit in an immediate value, store it in a register
@@ -351,50 +368,50 @@ class syn_iter(object):
       util.load_word(self.code, self.r_step, self.step_size())
 
     # Label
-    self.start_label = self.code.size() + 1
+    self.start_label = self.code.get_label("SYN_ITER_START_%d" % random.randint(0, 2**32))
+    self.code.add(self.start_label)
 
+    # Create continue/branch labels so they can be referenced; they will be
+    # added to the code in their appropriate locations.
+    self.branch_label = self.code.get_label("SYN_ITER_BRANCH_%d" % random.randint(0, 2**32))
+    self.continue_label = self.code.get_label("SYN_ITER_CONTINUE_%d" % random.randint(0, 2**32))
     return
 
   def setup(self):
+    """Do beginning-of-loop iterator setup/initialization"""
     return
 
   def get_current(self):
     return self.current_count
 
   def cleanup(self):
+    """Do end-of-loop iterator code"""
     # Update the current count
     if self.mode == DEC:
-      # Note: using addic here may cause problems with zip/nested loops...tread with caution!
       if self.r_step is not None:
-        # self.code.add(spu.sf(self.r_count, self.r_step, self.r_count, order = _mi(spu.sf)))
         self.code.add(spu.sf(self.r_count, self.r_step, self.r_count))
       else:
-        # self.code.add(spu.ai( -self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
         self.code.add(spu.ai( self.r_count, self.r_count, -self.step_size()))
     elif self.mode == INC:
       if self.r_step is not None:
-        # self.code.add(spu.a(self.r_step, self.r_count, self.r_count, order = _mi(spu.a)))
         self.code.add(spu.a(self.r_count, self.r_count, self.r_step))
       else:
-        # self.code.add(spu.ai(self.step_size(), self.r_count, self.r_count, order = _mi(spu.ai)))
         self.code.add(spu.ai(self.r_count, self.r_count, self.step_size()))
       
     return
 
   def end(self, branch = True):
+    """Do post-loop iterator code"""
     if self.hint == True:
-      next = self.code.size() + 1
-      # self.code.add(spu.hbrr(0, -(next-self.start_label) * env.WORD_SIZE, (self.code.size() + 2) * env.WORD_SIZE, order = _mi(spu.hbrr)))
-      self.code.add(spu.hbrr(0, -(((next - self.start_label) * env.WORD_SIZE) >> 2), 8 >> 2, order = _mi(spu.hbrr)))
+      self.code.add(spu.hbrr(self.branch_label, self.start_label))
 
     if self.mode == DEC:
       # branch if r_count is not zero (CR)
       #   Note that this relies on someone (e.g. cleanup()) setting the
       #   condition register properly.
       if branch:
-        next = self.code.size() + 1
-        # self.code.add(spu.brnz(-(next - self.start_label) * env.WORD_SIZE, self.r_count, order = _mi(spu.brnz)))
-        self.code.add(spu.brnz(self.r_count, -(next - self.start_label) * env.WORD_SIZE))
+        self.code.add(self.branch_label)
+        self.code.add(spu.brnz(self.r_count, self.start_label))
 
       # Reset the counter in case this is a nested loop
       util.load_word(self.code, self.r_count, self.get_count())
@@ -405,16 +422,13 @@ class syn_iter(object):
         r_cmp_gt = self.code.acquire_register()
 
         self.code.add(spu.cgt(r_cmp_gt, self.r_stop, self.r_count))
+        self.code.add(self.branch_label)
+        self.code.add(spu.brnz(r_cmp_gt, self.start_label))
 
-        next = self.code.size() + 1
-
-        # self.code.add(spu.brnz(-(((next - self.start_label) * env.WORD_SIZE) >> 2), r_cmp_gt, order = _mi(spu.brnz)))
-        self.code.add(spu.brnz(r_cmp_gt, -(((next - self.start_label) * env.WORD_SIZE) >> 2)))
         self.code.release_register(r_cmp_gt)        
 
       # Reset the the current value in case this is a nested loop
       if self._external_start:
-        # self.code.add(spu.ai(0, self.r_start, self.r_count, order = _mi(spu.ai)))
         self.code.add(spu.ai(self.r_count, self.r_start, 0))
       else:
         util.load_word(self.code, self.r_count, self.get_start())
@@ -430,14 +444,15 @@ class syn_iter(object):
   def add_continue(self, code, idx, branch_inst = spu.br):
     """
     Insert a branch instruction to branch to the end of the loop.
-    This must be called _after_ the loop is synthesized.
     """
-    if self.continue_label is None:
-      raise Exception('Continue point not set.  Has the loop been synthesized yet?')
+    #if self.continue_label is None:
+    #  raise Exception('Continue point not set.  Has the loop been synthesized yet?')
 
-    next = (self.continue_label - idx)
+    #next = (self.continue_label - idx)
     # print 'Continue:', next, idx, self.continue_label
-    code[idx] = branch_inst(next)
+    #code[idx] = branch_inst(next)
+    #code[idx] = branch_inst(self.continue_label)
+    code.add(branch_inst(self.continue_label))
     return
   
   def __iter__(self):
@@ -451,7 +466,7 @@ class syn_iter(object):
       self.setup()
       return self.get_current()
     else:
-      self.continue_label = self.code.size()
+      self.code.add(self.continue_label)
       self.cleanup()
       self.end()
       raise StopIteration
@@ -498,7 +513,7 @@ class spu_vec_iter(syn_iter):
                addr_reg = None, save = True, type_cls = None):
     self.var_type = type_cls or var.array_spu_lu[data.typecode]
 
-    if type(data) not in (_array_type, memory_desc):
+    if type(data) not in (_array_type, _extarray_type, memory_desc):
       raise Exception('Unsupported array type')
 
     if _typecode(data) not in _vector_sizes.keys():
@@ -598,6 +613,8 @@ class stream_buffer(syn_range):
   Manage a buffered data stream from main memory.
   """
   def __init__(self, code, ea, data_size, buffer_size, ls, buffer_mode='single', save = False):
+    """Stream buffer.  If save is True, buffers will be written back to main
+       memory."""
     syn_range.__init__(self, code, ea, ea + data_size, buffer_size)
 
     # Buffer addresses
@@ -651,40 +668,56 @@ class stream_buffer(syn_range):
     return
 
   def _load_buffer(self):
+    # TODO - AWF - some optimization is possible here.
+    #  rather than skipping around the DMA get on the last iteration, short out
+    #  of the loop completely.  Saves doing the check twice..
+    #  Also as soon as we do this first check, we know we are going to go
+    #  through the loop again.  Again, no need for a second conditional at the
+    #  end, just increment counters and always branch.  A hint could be added
+    #  right before the DMA get.
+
     # Don't perform the load the last time through the loop
     r_cmp = self.code.acquire_register()
 
     # Compare count == step
     self.code.add(spu.ceq(r_cmp, self.r_stop, self.r_count))
 
-    # Place holder for branch
-    start = self.code.add(spu.stop(0x2001))
+    # Create a skip label and add the branch
+    skip_label = self.code.get_label("STREAM_BUFFER_SKIP_%d" % random.randint(0, 2**32))
+    self.code.add(spu.brnz(r_cmp, skip_label))
 
-    # Perform the load
-    end = dma.mfc_get(self.code, self.ls, self.current_count, self.buffer_size, self.tag)
-    # end = self.code.add(spu.nop(0))
+    # Start the DMA get
+    dma.mfc_get(self.code, self.ls, syn_range.get_current(self), self.buffer_size, self.tag)
 
-    # Add the branch
-    offset = ((end - start) + 1) * 4
-    self.code[start - 1] = spu.brnz(r_cmp, offset >> 2)
+    # Add the branch label
+    self.code.add(skip_label)
 
     self.code.release_register(r_cmp)
     return
 
   def _save_buffer(self):
-    dma.mfc_put(self.code, self.ls, self.current_count, self.buffer_size, self.tag)
+    dma.mfc_put(self.code, self.ls, syn_range.get_current(self), self.buffer_size, self.tag)
     return
 
   def _wait_buffer(self):
+    # TODO - BUG HERE!!
+    # Here's what happens: a variable 'mask' is created, then used.  When this
+    # code finishes with the variable, it calls mask.release_register() to
+    # release the underlying register, which is no longer needed.  But,
+    # release_register() sets mask.reg to None.  Although it appears mask would
+    # go out of scope here and be garbage collected, it does not!  mask is
+    # still referred to by self.code, since instructions have been added that
+    # reference it.  The problem is that if these instructions ever need to be
+    # rendered again -- like say, for print_code() -- mask.reg.reg is None,
+    # which makes it impossible to render the instruction.
     mask = var.SignedWord(1, self.code)
     mask.v = mask << self.tag
 
-    self.code.add(spu.wrch(mask, dma.MFC_WrTagMask))
+    dma.mfc_write_tag_mask(self.code, mask)
+    reg = dma.mfc_read_tag_status_all(self.code)
+    self.code.release_register(reg)
 
-    # Wait for the transfer to complete
-    dma.mfc_read_tag_status_all(self.code);
-
-    mask.release_register()
+    #mask.release_register()
 
     return
 
@@ -725,7 +758,8 @@ class stream_buffer(syn_range):
 
 
   def start(self, align = True, branch = True):    
-    # Initialize the iterator
+    """Do pre-loop iteration initialization"""
+
     syn_range.start(self, align = align, branch = branch)
     if not hasattr(self, 'skip_start_post'):
       self._start_post()
@@ -735,24 +769,26 @@ class stream_buffer(syn_range):
     # Initialize the buffer size
     self.buffer_size = var.SignedWord(self.ibuffer_size, self.code)
   
-    # Initialize a the ls and tag vectors with (optionally) alternating values
+    # Initialize the ls and tag vectors with (optionally) alternating values
     if self.buffer_mode == 'single':
       self.ls  = var.SignedWord(self.lsa, self.code)
-      self.tag = var.SignedWord(0, self.code)
+      self.tag = var.SignedWord(1, self.code)
     else:
       self.ls  = var.SignedWord(array.array('i', [self.lsa, self.lsb, self.lsa, self.lsb]),  self.code)
-      self.tag = var.SignedWord(array.array('i', [0, 1, 0, 1]), self.code)
+      self.tag = var.SignedWord(array.array('i', [1, 2, 1, 2]), self.code)
 
-    # For double buffering, load the first buffer and increment count for the next buffer
-    if self.buffer_mode == 'double':
+    # For double buffering, load the first buffer
       self._load_buffer()
   
-    # Update the start label
-    self.start_label = self.code.size() + 1
-  
+    # Update the start label (make a new one and add it)
+    self.start_label = self.code.get_label("STREAM_BUFFER_START_%d" % random.randint(0, 2**32))
+    self.code.add(self.start_label)
     return
 
+
   def setup(self):
+    """Do beginning-of-loop iterator setup/initialization"""
+
     syn_range.setup(self)
 
     # Toggle the tag and set the ls to next
@@ -780,6 +816,8 @@ class stream_buffer(syn_range):
 
 
   def cleanup(self):
+    """Do end-of-loop iterator code"""
+
     # Save current
     if self.save:
       self._save_buffer()
@@ -794,7 +832,7 @@ class stream_buffer(syn_range):
     return
 
   def end(self, branch = True):
-
+    """Do post-loop iterator code"""
     syn_range.end(self, branch = branch)
   
     self.code.release_register(self.ls.reg)
@@ -872,9 +910,9 @@ class parallel(object):
     code = self.obj.code
     # replace count with rank
     if self.obj.mode == CTR:
-      raise Expcetion('Parallel CTR loops not supported')
+      raise Exception('Parallel CTR loops not supported')
     elif self.obj.mode == DEC:
-      raise Expcetion('Parallel DEC loops not supported')
+      raise Exception('Parallel DEC loops not supported')
     elif self.obj.mode == INC:
       self._update_inc_count()
     
@@ -888,7 +926,7 @@ class parallel(object):
 #          code.add(spu.lnop(0))
         
     # Update the real iterator's label
-    self.obj.start_label = code.size() + 1
+    self.obj.start_label = code.get_label("PARALLEL_START_%d" % random.randint(0, 2**32))
 
     # HACK end
     if hasattr(self.obj, '_start_post'):
@@ -900,9 +938,9 @@ class parallel(object):
     self.obj.end(branch)
   
     if self.obj.mode == CTR and branch:
-      raise Expcetion('Parallel CTR loops not supported')
+      raise Exception('Parallel CTR loops not supported')
     elif self.obj.mode == DEC:
-      raise Expcetion('Parallel DEC loops not supported')
+      raise Exception('Parallel DEC loops not supported')
     elif self.obj.mode == INC:
       self._update_inc_count()
 
@@ -944,10 +982,7 @@ class parallel(object):
 
 def TestSPUIter():
   size = 32
-  data = array.array('I', range(size + 2))
-
-  print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
-  
+  data = extarray.extarray('I', range(size))
   code = env.InstructionStream()
 
   r_zero    = code.acquire_register()
@@ -959,16 +994,13 @@ def TestSPUIter():
   # Load zero
   util.load_word(code, r_zero, 0)
 
-  print 'array ea: %X' % (data.buffer_info()[0])
-  print 'r_zero = %s, ea_data = %s, ls_data = %s, r_size = %s, r_tag = %s' % (
-    str(r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
+  #print 'array ea: %X' % (data.buffer_info()[0])
+  #print 'r_zero = %s, ea_data = %s, ls_data = %s, r_size = %s, r_tag = %s' % (
+  #  str(r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
   
   # Load the effective address
-  if data.buffer_info()[0] % 16 == 0:
-    util.load_word(code, r_ea_data, data.buffer_info()[0])
-  else: 
-    util.load_word(code, r_ea_data, data.buffer_info()[0] + 8)
-    
+  util.load_word(code, r_ea_data, data.buffer_info()[0])
+
   # Load the size
   util.load_word(code, r_size, size * 4)
 
@@ -999,7 +1031,7 @@ def TestSPUIter():
     code.add(spu.stqx(current, r_zero, lsa))    
 
   # code.release_register(r_current)
-  current.release_register(code)
+  #current.release_register(code)
   
   # Store the values back to main memory
 
@@ -1027,16 +1059,16 @@ def TestSPUIter():
 
   # Execute the code
   proc = env.Processor()
-
-  print data
   r = proc.execute(code)
-  print data
+
+  for i in range(0, size):
+    assert(data[i] == i + i)
 
   return
 
 
 
-def TestSPUParallelIter(data_array, size, n_spus = 6, buffer_size = 16, run_code = True):
+def TestSPUParallelIter(data, size, n_spus = 6, buffer_size = 16, run_code = True):
   # n_spus = 8
   # buffer_size = 16 # 16 ints/buffer
   # n_buffers   = 4  # 4 buffers/spu
@@ -1044,8 +1076,9 @@ def TestSPUParallelIter(data_array, size, n_spus = 6, buffer_size = 16, run_code
   # size = buffer_size * n_buffers * n_spus
   # data = array.array('I', range(size + 2))
 
-  data = env.aligned_memory(n, typecode = 'I')
-  data.copy_to(data_array.buffer_info()[0], len(data_array))
+  #data = env.aligned_memory(n, typecode = 'I')
+  #data.copy_to(data_array.buffer_info()[0], len(data_array))
+
 
   # print 'Data align: 0x%X, %d' % (data.buffer_info()[0], data.buffer_info()[0] % 16)
 
@@ -1154,7 +1187,7 @@ def TestSPUParallelIter(data_array, size, n_spus = 6, buffer_size = 16, run_code
 
   # Execute the code
   proc = env.Processor()
-  data.copy_from(data_array.buffer_info()[0], len(data_array))  
+  #data.copy_from(data_array.buffer_info()[0], len(data_array))  
   def print_blocks():
     for i in range(0, size, buffer_size):
       # print data[i:(i + buffer_size)]
@@ -1176,7 +1209,7 @@ def ParallelTests():
   max_exp = 16
   max_size = pow(2, max_exp)
   print 'Creating data...'
-  data = array.array('I', range(max_size))
+  data = extarray.extarray('I', range(max_size))
   
   print 'Executing Tests...'
   # t = TestSPUParallelIter(data, 8192, n_spus = 1, buffer_size = 128)
@@ -1205,40 +1238,55 @@ def ParallelTests():
 
 def TestStreamBufferSingle(n_spus = 1):
   n = 1024
-  a_array = array.array('I', range(n))
-  a = env.aligned_memory(n, typecode = 'I')
-  a.copy_to(a_array.buffer_info()[0], len(a_array))  
-  buffer_size = 16
+  a = extarray.extarray('I', range(n))
+  buffer_size = 128
 
   if n_spus > 1:  code = env.ParallelInstructionStream()
   else:           code = env.InstructionStream()
   
   current = var.SignedWord(0, code)
 
-  stream = stream_buffer(code, a.buffer_info()[0], n * 4, buffer_size, 0, save = True)  
+  addr = a.buffer_info()[0]
+  stream = stream_buffer(code, addr, n * 4, buffer_size, 0, save = True)  
   if n_spus > 1:  stream = parallel(stream)
+
+  #r_bufsize = code.acquire_register()
+  #r_lsa = code.acquire_register()
+  #r_current = code.acquire_register()
   
   for buffer in stream:
+    #util.load_word(code, r_bufsize, buffer_size)
+    #code.add(spu.il(r_lsa, 0))
+
+    #loop = code.size()
+    
+    #code.add(spu.lqx(r_current, buffer, r_lsa))
+    #code.add(spu.a(r_current, r_current, r_current))
+    #code.add(spu.stqx(r_current, buffer, r_lsa))
+
+    #code.add(spu.ai(r_bufsize, r_bufsize, -16))
+    #code.add(spu.ai(r_lsa, r_lsa, 16))
+    #code.add(spu.brnz(r_bufsize, loop - code.size()))
+
     for lsa in syn_iter(code, buffer_size, 16):
       code.add(spu.lqx(current, lsa, buffer))
       current.v = current + current
+      #current.v = 5
       code.add(spu.stqx(current, lsa, buffer))
-    # code.add(spu.stop(0xB))
+      
 
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
-  a.copy_from(a_array.buffer_info()[0], len(a_array))  
+
   for i in range(0, n):
-    assert(a_array[i] == i + i)
+    assert(a[i] == i + i)
   
   return
 
 
 def TestVecIter(n_spus = 1):
   n = 1024
-  a_array = array.array('I', range(n))
-  a = env.aligned_memory(n, typecode = 'I')
-  a.copy_to(a_array.buffer_info()[0], len(a_array))
+  a = extarray.extarray('I', range(n))
   
   buffer_size = 16
 
@@ -1259,19 +1307,15 @@ def TestVecIter(n_spus = 1):
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
 
-  a.copy_from(a_array.buffer_info()[0], len(a_array))  
   for i in range(0, n):
-    assert(a_array[i] == i + i)
+    assert(a[i] == i + i)
 
   return
 
 
 def TestContinueLabel(n_spus = 1):
   n = 1024
-  a_array = array.array('I', range(n))
-
-  a = env.aligned_memory(n, typecode = 'I')
-  a.copy_to(a_array.buffer_info()[0], len(a_array))
+  a = extarray.extarray('I', range(n))
   
   buffer_size = 16
 
@@ -1294,31 +1338,30 @@ def TestContinueLabel(n_spus = 1):
 
       test.v = (current == four)
       code.add(spu.gbb(test, test))
-      lbl_continue = code.add(spu.stop(0xC)) - 1 # Place holder for the continue
+      #lbl_continue = code.add(spu.stop(0xC)) - 1 # Place holder for the continue
+      #lsa_iter.add_continue(code, 0, lambda lbl, reg = test.reg: spu.brz(reg, lbl))
+      code.add(spu.brz(test.reg, lsa_iter.continue_label))
       current.v = current + current
 
-    lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(reg, next))
+    #lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(reg, next))
   
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
-  a.copy_from(a_array.buffer_info()[0], len(a_array))    
 
   for i in range(0, n):
     if i >= 4:
-      assert(a_array[i] == i + i)
+      assert(a[i] == i + i)
     else:
-      print a_array[i]
-      assert(a_array[i] == i * 4)
+      #print a[i]
+      assert(a[i] == i * 4)
   return
 
-def TestStreamBufferDouble(n_spus = 1):
-  n = 1024
-  a_array = array.array('I', range(n))
 
-  a = env.aligned_memory(n, typecode = 'I')
-  a.copy_to(a_array.buffer_info()[0], len(a_array))
+def TestStreamBufferDouble(n_spus = 1):
+  n = 2048
+  a = extarray.extarray('I', range(n))
   
-  buffer_size = 16
+  buffer_size = 32
 
   if n_spus > 1:  code = env.ParallelInstructionStream()
   else:           code = env.InstructionStream()
@@ -1327,8 +1370,8 @@ def TestStreamBufferDouble(n_spus = 1):
 
   addr = a.buffer_info()[0]
   n_bytes = n * 4
-  print 'addr 0x%(addr)x %(addr)d' % {'addr':a.buffer_info()[0]}, n_bytes, buffer_size
-  # code.add(spu.stop(0xB))
+  #print 'addr 0x%(addr)x %(addr)d' % {'addr':a.buffer_info()[0]}, n_bytes, buffer_size
+
   stream = stream_buffer(code, addr, n_bytes, buffer_size, 0, buffer_mode='double', save = True)
   if n_spus > 1:  stream = parallel(stream)
 
@@ -1337,13 +1380,12 @@ def TestStreamBufferDouble(n_spus = 1):
       code.add(spu.lqx(current, lsa, buffer))
       current.v = current + current
       code.add(spu.stqx(current, lsa, buffer))
-  
+
   proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
-  a.copy_from(a_array.buffer_info()[0], len(a_array))    
-  for i in range(0, len(a_array)):
-    # print a_array[i]
-    assert(a_array[i] == i + i)
+
+  for i in range(0, len(a)):
+    assert(a[i] == i + i)
   
   return
 
@@ -1412,14 +1454,14 @@ def TestStreamBufferDouble(n_spus = 1):
 #   return
 
 if __name__=='__main__':
-  # TestMemoryMap(1)
-  # TestContinueLabel()  
+  TestSPUIter()
+  TestVecIter()
+  ## TestMemoryMap(1)
+  TestContinueLabel()  
   TestStreamBufferSingle(1)
   TestStreamBufferDouble(4)
     
   # TestSPUParallelIter()
   # ParallelTests()
 
-  TestSPUIter()
-  TestVecIter()
   # TestZipIter()

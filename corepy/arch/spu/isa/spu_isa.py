@@ -1,331 +1,1235 @@
-# Copyright 2006-2007 The Trustees of Indiana University.
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# All rights reserved.                                                          
+#                                                                               
+# Redistribution and use in source and binary forms, with or without            
+# modification, are permitted provided that the following conditions are met:   
+#                                                                               
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.                            
+#                                                                               
+# - Redistributions in binary form must reproduce the above copyright notice,   
+#   this list of conditions and the following disclaimer in the documentation   
+#   and/or other materials provided with the distribution.                      
+#                                                                               
+# - Neither the Indiana University nor the names of its contributors may be used
+#   to endorse or promote products derived from this software without specific  
+#   prior written permission.                                                   
+#                                                                               
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"   
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE     
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE   
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL    
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR    
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER    
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-# This software is available for evaluation purposes only.  It may not be
-# redistirubted or used for any other purposes without express written
-# permission from the authors.
-
-# Authors:
-#   Christopher Mueller (chemuell@cs.indiana.edu)
-#   Andrew Lumsdaine    (lums@cs.indiana.edu)
-
-
-from corepy.spre.isa_syn import *
+from corepy.spre.spe import Instruction, DispatchInstruction, Register
+from spu_insts import *
 
 __doc__="""
 ISA for the Cell Broadband Engine's SPU.
 """
 
-# machine = {} # name: MachineInstruction
+# Only used for branch instructions
+def spu_type(op):
+  if isinstance(op, (int, long)):
+    if I7.fits(op):
+      return I7
+    if I8.fits(op):
+      return I8
+    if I9.fits(op):
+      return I9
+    if I10.fits(op):
+      return I10
+    if I16.fits(op):
+      return I16
+    if I18.fits(op):
+      return I18
+  elif isinstance(op, Label):
+    return LBL16
+  elif isinstance(op, Register):
+    return T3
+  return
 
-# ------------------------------
-# PPC Fields
-# ------------------------------
-
-MASK_2  = 0x3;   # 0011
-MASK_7  = 0x7F;  # 0111 1111
-MASK_8  = 0xFFF; # 1111 1111
-MASK_10 = 0x3FF; # 0011 1111 1111
-MASK_16 = 0xFFFF; # 1111 1111 1111 1111
-MASK_18 = 0x3FFFF; # 0011 1111 1111 1111 1111
-
-Fields = (
-  # Shorthand for GP/FP registers
-  ("A",  (Field, (18,24))),
-  ("B",  (Field, (11,17))),
-  ("C",  (Field, (4,10))),
-  ("T",  (Field, (25,31))),
-
-  # Other fields
-  ("OPRR", (Opcode, (0,10))),
-  ("OPRRR", (Opcode, (0,3))),
-  ("OPI7", (Opcode, (0,10))),
-  ("OPI8", (Opcode, (0,9))),  
-  ("OPI10", (Opcode, (0,7))),
-  ("OPI16", (Opcode, (0,8))),
-  ("OPI18", (Opcode, (0,6))),
-  ("RA",  (Field, (18,24))),
-  ("RB",  (Field, (11,17))),
-  ("RC",  (Field, (25,31))),
-  ("RT",  (Field, (25,31))),
-
-  # RT for RRR instructions
-  ("RRR_RT",  (Field, (4,10))),  
-
-  ("CA",  (Field, (18,24))),
-  ("SA",  (Field, (18,24))),    
-
-  ("D",  (Field, (12), 0)),
-  ("E",  (Field, (13), 0)),
-
-  ("P",  (Field, (11), 0)),
-
-  ("ROH",  (MaskedField, (16,17), MASK_2 )),
-  ("ROHA",  (MaskedField, (7,8), MASK_2 )),        
-  ("ROL",  (Field, (25,31))),
-
-  ("STOP_SIG",  (Field, (18,31))),
-
-  ("_C", (Field, (11), 0)),
-  
-  ("I7",  (MaskedField, (11,17), MASK_7)),
-  ("I8",  (MaskedField, (10,17), MASK_8)),  
-  ("I10",  (MaskedField, (8,17), MASK_10)),
-  ("I16",  (MaskedField, (9,24), MASK_16)),  
-  ("I18",  (MaskedField, (7,24), MASK_18)),  
-  )
-
-# Reserved fields
-R_RA = '0000000'
-R_RB = '0000000'
-R_RT = '0000000'
-
-# Create the Field objects
-SynthesizeFields(Fields, globals())
-
-def RR(op):
-  return (OPRR(BinToDec(op)),RB, RA, RT)
-
-def RRR(op):
-  return (OPRRR(BinToDec(op)), RRR_RT, RB, RA, RC)
-
-def RI7(op):
-  return (OPI7(BinToDec(op)), I7, RA, RT)
-
-def RI10(op):
-  return (OPI10(BinToDec(op)), I10, RA, RT)
-
-def RI16(op):
-  return (OPI16(BinToDec(op)), I16, RT)
-
-def RI18(op):
-  return (OPI18(BinToDec(op)), I18, RT)
+class SPUInstruction(Instruction): pass
+class SPUDispatchInstruction(DispatchInstruction):
+  type_id = [spu_type]
 
 
-# Common machine->assembly mappings
-ASM_RR = (RT, RA, RB)
-ASM_XR = (RT, RA) # Null RB
-ASM_XX = (RT, )   # Null RB, RA
-ASM_RA = (RA, )   # Null RT (used in bi)
-ASM_RR_Branch = (RT, RA)
-ASM_RR_Channel = (RT, CA)
-ASM_RRR = (RRR_RT, RA, RB, RC)
+class lqx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':452}
+  cycles = (1, 6, 0)
 
-ASM_I7 = (RT, RA, I7)
-ASM_I8 = (RT, RA, I8)
-ASM_I10 = (RT, RA, I10)
-ASM_I16 = (RT, I16)
-ASM_XI16 = (I16,) # Null RT
-ASM_I18 = (RT, I18)
 
-# SPU Instruction Metadata
-SPU_ISA = (
-  # OPRR
-  ('lqx', {'binary': (OPRR(BinToDec('00111000100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 6, 0) }),
-  ('stqx', {'binary': (OPRR(BinToDec('00101000100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 6, 0) }),
-  ('cbx', {'binary': (OPRR(BinToDec('00111010100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('chx', {'binary': (OPRR(BinToDec('00111010101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('cwx', {'binary': (OPRR(BinToDec('00111010110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('cdx', {'binary': (OPRR(BinToDec('00111010111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('ah', {'binary': (OPRR(BinToDec('00011001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('a', {'binary': (OPRR(BinToDec('00011000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('sfh', {'binary': (OPRR(BinToDec('00001001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('sf', {'binary': (OPRR(BinToDec('00001000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('addx', {'binary': (OPRR(BinToDec('01101000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('cg', {'binary': (OPRR(BinToDec('00011000010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('cgx', {'binary': (OPRR(BinToDec('01101000010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('sfx', {'binary': (OPRR(BinToDec('01101000001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('bg', {'binary': (OPRR(BinToDec('00001000010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('bgx', {'binary': (OPRR(BinToDec('01101000011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('mpy', {'binary': (OPRR(BinToDec('01111000100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyu', {'binary': (OPRR(BinToDec('01111001100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyh', {'binary': (OPRR(BinToDec('01111000101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpys', {'binary': (OPRR(BinToDec('01111000111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyhh', {'binary': (OPRR(BinToDec('01111000110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyhha', {'binary': (OPRR(BinToDec('01101000110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyhhu', {'binary': (OPRR(BinToDec('01111001110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('mpyhhau', {'binary': (OPRR(BinToDec('01101001110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('clz', {'binary': (OPRR(BinToDec('01010100101')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 2, 0) }),
-  ('cntb', {'binary': (OPRR(BinToDec('01010110100')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 4, 0) }),
-  ('fsmb', {'binary': (OPRR(BinToDec('00110110110')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('fsmh', {'binary': (OPRR(BinToDec('00110110101')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('fsm', {'binary': (OPRR(BinToDec('00110110100')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('gbb', {'binary': (OPRR(BinToDec('00110110010')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('gbh', {'binary': (OPRR(BinToDec('00110110001')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('gb', {'binary': (OPRR(BinToDec('00110110000')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('avgb', {'binary': (OPRR(BinToDec('00011010011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('absdb', {'binary': (OPRR(BinToDec('00001010011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('sumb', {'binary': (OPRR(BinToDec('01001010011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('xsbh', {'binary': (OPRR(BinToDec('01010110110')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 2, 0) }),
-  ('xshw', {'binary': (OPRR(BinToDec('01010101110')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 2, 0) }),
-  ('xswd', {'binary': (OPRR(BinToDec('01010100110')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 2, 0) }),
-  ('and_', {'binary': (OPRR(BinToDec('00011000001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('andc', {'binary': (OPRR(BinToDec('01011000001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('or_', {'binary': (OPRR(BinToDec('00001000001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('orc', {'binary': (OPRR(BinToDec('01011001001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('orx', {'binary': (OPRR(BinToDec('00111110000')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('xor', {'binary': (OPRR(BinToDec('01001000001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('nand', {'binary': (OPRR(BinToDec('00011001001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('nor', {'binary': (OPRR(BinToDec('00001001001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('eqv', {'binary': (OPRR(BinToDec('01001001001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('shlh', {'binary': (OPRR(BinToDec('00001011111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('shl', {'binary': (OPRR(BinToDec('00001011011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('shlqbi', {'binary': (OPRR(BinToDec('00111011011')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('shlqby', {'binary': (OPRR(BinToDec('00111011111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('shlqbybi', {'binary': (OPRR(BinToDec('00111001111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('roth', {'binary': (OPRR(BinToDec('00001011100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('rot', {'binary': (OPRR(BinToDec('00001011000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('rotqby', {'binary': (OPRR(BinToDec('00111011100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rotqbybi', {'binary': (OPRR(BinToDec('00111001100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rotqbi', {'binary': (OPRR(BinToDec('00111011000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rothm', {'binary': (OPRR(BinToDec('00001011101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('rotm', {'binary': (OPRR(BinToDec('00001011001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('rotqmby', {'binary': (OPRR(BinToDec('00111011101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rotqmbybi', {'binary': (OPRR(BinToDec('00111001101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rotqmbi', {'binary': (OPRR(BinToDec('00111011001')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('rotmah', {'binary': (OPRR(BinToDec('00001011110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('rotma', {'binary': (OPRR(BinToDec('00001011010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 4, 0) }),
-  ('heq', {'binary': (OPRR(BinToDec('01111011000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('hgt', {'binary': (OPRR(BinToDec('01001011000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('hlgt', {'binary': (OPRR(BinToDec('01011011000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('ceqb', {'binary': (OPRR(BinToDec('01111010000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('ceqh', {'binary': (OPRR(BinToDec('01111001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('ceq', {'binary': (OPRR(BinToDec('01111000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('cgtb', {'binary': (OPRR(BinToDec('01001010000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('cgth', {'binary': (OPRR(BinToDec('01001001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('cgt', {'binary': (OPRR(BinToDec('01001000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('clgtb', {'binary': (OPRR(BinToDec('01011010000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('clgth', {'binary': (OPRR(BinToDec('01011001000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('clgt', {'binary': (OPRR(BinToDec('01011000000')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('bi', {'binary': (OPRR(BinToDec('00110101000')), '0', D, E, '0000', RA, '0000000'), 'asm': ASM_RA, 'cycles': (1, 4, 0) }),
-  ('iret', {'binary': (OPRR(BinToDec('00110101010')), '0', D, E, '0000', RA, R_RT), 'asm': ASM_RR, 'cycles': (1, 4, 0) }),
-  ('bisled', {'binary': (OPRR(BinToDec('00110101011')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('bisl', {'binary': (OPRR(BinToDec('00110101001')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('biz', {'binary': (OPRR(BinToDec('00100101000')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('binz', {'binary': (OPRR(BinToDec('00100101001')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('bihz', {'binary': (OPRR(BinToDec('00100101010')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('bihnz', {'binary': (OPRR(BinToDec('00100101011')), '0', D, E, '0000', RA, RT), 'asm': ASM_RR_Branch, 'cycles': (1, 4, 0) }),
-  ('hbr', {'binary': (OPRR(BinToDec('00110101100')), P, '0000', ROH, RA, ROL), 'asm': None, 'cycles': (1, 15, 0) }),
-  ('fa', {'binary': (OPRR(BinToDec('01011000100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 6, 0) }),
-  ('dfa', {'binary': (OPRR(BinToDec('01011001100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('fs', {'binary': (OPRR(BinToDec('01011000101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 6, 0) }),
-  ('dfs', {'binary': (OPRR(BinToDec('01011001101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('fm', {'binary': (OPRR(BinToDec('01011000110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 6, 0) }),
-  ('dfm', {'binary': (OPRR(BinToDec('01011001110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('dfma', {'binary': (OPRR(BinToDec('01101011100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('dfnms', {'binary': (OPRR(BinToDec('01101011110')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('dfms', {'binary': (OPRR(BinToDec('01101011101')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('dfnma', {'binary': (OPRR(BinToDec('01101011111')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 13, 6) }),
-  ('frest', {'binary': (OPRR(BinToDec('00110111000')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('frsqest', {'binary': (OPRR(BinToDec('00110111001')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (1, 4, 0) }),
-  ('fi', {'binary': (OPRR(BinToDec('01111010100')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 7, 0) }),
-  ('frds', {'binary': (OPRR(BinToDec('01110111001')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 13, 6) }),
-  ('fesd', {'binary': (OPRR(BinToDec('01110111000')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 13, 6) }),
-  ('fceq', {'binary': (OPRR(BinToDec('01111000010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('fcmeq', {'binary': (OPRR(BinToDec('01111001010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('fcgt', {'binary': (OPRR(BinToDec('01011000010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('fcmgt', {'binary': (OPRR(BinToDec('01011001010')), RB, RA, RT), 'asm': ASM_RR, 'cycles': (0, 2, 0) }),
-  ('fscrwr', {'binary': (OPRR(BinToDec('01110111010')), R_RB, RA, RT), 'asm': ASM_XR, 'cycles': (0, 7, 0) }),
-  ('fscrrd', {'binary': (OPRR(BinToDec('01110011000')), R_RB, R_RA, RT), 'asm': ASM_XX, 'cycles': (0, 13, 6) }),
-  ('stop', {'binary': (OPRR(BinToDec('00000000000')), R_RB, STOP_SIG), 'asm': (STOP_SIG,), 'cycles': (1, 4, 0) }),
-  ('stopd', {'binary': (OPRR(BinToDec('01010000000')), RB, RA, RC), 'asm': (RC, RA, RB), 'cycles': (1, 4, 0) }),
-  ('lnop', {'binary': (OPRR(BinToDec('0000000001')), R_RB, R_RA, RT), 'asm': ASM_XX, 'cycles': (1, 0, 0) }),
-  ('nop', {'binary': (OPRR(BinToDec('1000000001')),  R_RB, R_RA, RT), 'asm': ASM_XX, 'cycles': (0, 0, 0) }),
-  ('sync', {'binary': (OPRR(BinToDec('0000000010')), _C, '00000000000000000000'), 'asm': None, 'cycles': (1, 4, 0) }),
-  ('dsync', {'binary': (OPRR(BinToDec('0000000011')), R_RB, R_RA, R_RT), 'asm': None, 'cycles': (1, 4, 0) }),
-  ('mfspr', {'binary': (OPRR(BinToDec('00000001100')), R_RB, SA, RT), 'asm': (RT, SA), 'cycles': (1, 6, 0) }),
-  ('mtspr', {'binary': (OPRR(BinToDec('00100001100')), R_RB, SA, RT), 'asm': (SA, RT), 'cycles': (1, 6, 0) }),
-  ('rdch', {'binary': (OPRR(BinToDec('00000001101')), R_RB, CA, RT), 'asm': ASM_RR_Channel, 'cycles': (1, 6, 0) }),
-  ('rchcnt', {'binary': (OPRR(BinToDec('00000001111')), R_RB, CA, RT), 'asm': ASM_RR_Channel, 'cycles': (1, 6, 0) }),
-  ('wrch', {'binary': (OPRR(BinToDec('00100001101')), R_RB, CA, RT), 'asm': ASM_RR_Channel, 'cycles': (1, 6, 0) }),
-  
-  # OPRRR
-  ('mpya', {'binary': (OPRRR(BinToDec('1100')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 7, 0) }),
-  ('selb', {'binary': (OPRRR(BinToDec('1000')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 2, 0) }),
-  ('shufb', {'binary': (OPRRR(BinToDec('1011')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (1, 4, 0) }),
-  ('fma', {'binary': (OPRRR(BinToDec('1110')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
-  ('fnms', {'binary': (OPRRR(BinToDec('1101')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
-  ('fms', {'binary': (OPRRR(BinToDec('1111')), RRR_RT, RB, RA, RC), 'asm': ASM_RRR, 'cycles': (0, 6, 0) }),
+class stqx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':324}
+  cycles = (1, 6, 0)
 
-  # OPI7
-  ('cbd', {'binary': (OPI7(BinToDec('00111110100')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('chd', {'binary': (OPI7(BinToDec('00111110101')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('cwd', {'binary': (OPI7(BinToDec('00111110110')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('cdd', {'binary': (OPI7(BinToDec('00111110111')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('shlhi', {'binary': (OPI7(BinToDec('00001111111')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('shli', {'binary': (OPI7(BinToDec('00001111011')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('shlqbii', {'binary': (OPI7(BinToDec('00111111011')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('shlqbyi', {'binary': (OPI7(BinToDec('00111111111')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('rothi', {'binary': (OPI7(BinToDec('00001111100')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('roti', {'binary': (OPI7(BinToDec('00001111000')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('rotqbyi', {'binary': (OPI7(BinToDec('00111111100')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('rotqbii', {'binary': (OPI7(BinToDec('00111111000')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('rothmi', {'binary': (OPI7(BinToDec('00001111101')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('rotmi', {'binary': (OPI7(BinToDec('00001111001')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('rotqmbyi', {'binary': (OPI7(BinToDec('00111111101')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('rotqmbii', {'binary': (OPI7(BinToDec('00111111001')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (1, 4, 0) }),
-  ('rotmahi', {'binary': (OPI7(BinToDec('00001111110')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
-  ('rotmai', {'binary': (OPI7(BinToDec('00001111010')), I7, RA, RT), 'asm': ASM_I7, 'cycles': (0, 4, 0) }),
 
-  # OPI8
-  ('csflt', {'binary': (OPI8(BinToDec('0111011010')), I8, RA, RT), 'asm': ASM_I8, 'cycles': (0, 7, 0) }),
-  ('cflts', {'binary': (OPI8(BinToDec('0111011000')), I8, RA, RT), 'asm': ASM_I8, 'cycles': (0, 7, 0) }),
-  ('cuflt', {'binary': (OPI8(BinToDec('0111011011')), I8, RA, RT), 'asm': ASM_I8, 'cycles': (0, 7, 0) }),
-  ('cfltu', {'binary': (OPI8(BinToDec('0111011001')), I8, RA, RT), 'asm': ASM_I8, 'cycles': (0, 7, 0) }),
+class cbx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':468}
+  cycles = (1, 4, 0)
 
-  # OPI10
-  ('lqd', {'binary': (OPI10(BinToDec('00110100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (1, 6, 0) }),
-  ('stqd', {'binary': (OPI10(BinToDec('00100100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (1, 6, 0) }),
-  ('ahi', {'binary': (OPI10(BinToDec('00011101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('ai', {'binary': (OPI10(BinToDec('00011100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('sfhi', {'binary': (OPI10(BinToDec('00001101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('sfi', {'binary': (OPI10(BinToDec('00001100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('mpyi', {'binary': (OPI10(BinToDec('01110100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 7, 0) }),
-  ('mpyui', {'binary': (OPI10(BinToDec('01110101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 7, 0) }),
-  ('andbi', {'binary': (OPI10(BinToDec('00010110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('andhi', {'binary': (OPI10(BinToDec('00010101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('andi', {'binary': (OPI10(BinToDec('00010100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('orbi', {'binary': (OPI10(BinToDec('00000110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('orhi', {'binary': (OPI10(BinToDec('00000101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('ori', {'binary': (OPI10(BinToDec('00000100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('xorbi', {'binary': (OPI10(BinToDec('01000110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('xorhi', {'binary': (OPI10(BinToDec('01000101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('xori', {'binary': (OPI10(BinToDec('01000100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('heqi', {'binary': (OPI10(BinToDec('01111111')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('hgti', {'binary': (OPI10(BinToDec('01001111')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('hlgti', {'binary': (OPI10(BinToDec('01011111')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('ceqbi', {'binary': (OPI10(BinToDec('01111110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('ceqhi', {'binary': (OPI10(BinToDec('01111101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('ceqi', {'binary': (OPI10(BinToDec('01111100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('cgtbi', {'binary': (OPI10(BinToDec('01001110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('cgthi', {'binary': (OPI10(BinToDec('01001101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('cgti', {'binary': (OPI10(BinToDec('01001100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('clgtbi', {'binary': (OPI10(BinToDec('01011110')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('clgthi', {'binary': (OPI10(BinToDec('01011101')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
-  ('clgti', {'binary': (OPI10(BinToDec('01011100')), I10, RA, RT), 'asm': ASM_I10, 'cycles': (0, 2, 0) }),
 
-  
-  ('lqa', {'binary': (OPI16(BinToDec('001100001')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 6, 0) }),
-  ('lqr', {'binary': (OPI16(BinToDec('001100111')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 6, 0) }),
-  ('stqa', {'binary': (OPI16(BinToDec('001000001')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 6, 0) }),
-  ('stqr', {'binary': (OPI16(BinToDec('001000111')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 6, 0) }),
-  ('ilh', {'binary': (OPI16(BinToDec('010000011')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
-  ('ilhu', {'binary': (OPI16(BinToDec('010000010')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
-  ('il', {'binary': (OPI16(BinToDec('010000001')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
-  ('iohl', {'binary': (OPI16(BinToDec('011000001')), I16, RT), 'asm': ASM_I16, 'cycles': (0, 2, 0) }),
-  ('fsmbi', {'binary': (OPI16(BinToDec('001100101')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('br', {'binary': (OPI16(BinToDec('001100100')), I16, R_RT), 'asm': ASM_XI16, 'cycles': (1, 4, 0) }),
-  ('bra', {'binary': (OPI16(BinToDec('001100000')), I16, R_RT), 'asm': ASM_XI16, 'cycles': (1, 4, 0) }),
-  ('brsl', {'binary': (OPI16(BinToDec('001100110')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('brasl', {'binary': (OPI16(BinToDec('001100010')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('brnz', {'binary': (OPI16(BinToDec('001000010')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('brz', {'binary': (OPI16(BinToDec('001000000')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('brhnz', {'binary': (OPI16(BinToDec('001000110')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('brhz', {'binary': (OPI16(BinToDec('001000100')), I16, RT), 'asm': ASM_I16, 'cycles': (1, 4, 0) }),
-  ('hbra',  {'binary': (OPI18(BinToDec('0001000')), ROHA, I16, ROL), 'asm': None, 'cycles': (1, 15, 0) }),
-  ('hbrr', {'binary': (OPI18(BinToDec('0001001')), ROHA, I16, ROL), 'asm': None, 'cycles': (1, 15, 0) }),
-   
-  ('ila', {'binary': (OPI18(BinToDec('0100001')), I18, RT), 'asm': ASM_I18, 'cycles': (0, 2, 0) })
-)
+class chx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':469}
+  cycles = (1, 4, 0)
 
-SynthesizeISA(SPU_ISA, globals(), None)
+
+class cwx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':470}
+  cycles = (1, 4, 0)
+
+
+class cdx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':471}
+  cycles = (1, 4, 0)
+
+
+class ah(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':200}
+  cycles = (0, 2, 0)
+
+
+class a(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':192}
+  cycles = (0, 2, 0)
+
+
+class sfh(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':72}
+  cycles = (0, 2, 0)
+
+
+class sf(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':64}
+  cycles = (0, 2, 0)
+
+
+class addx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':832}
+  cycles = (0, 2, 0)
+
+
+class cg(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':194}
+  cycles = (0, 2, 0)
+
+
+class cgx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':834}
+  cycles = (0, 2, 0)
+
+
+class sfx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':833}
+  cycles = (0, 2, 0)
+
+
+class bg(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':66}
+  cycles = (0, 2, 0)
+
+
+class bgx(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':835}
+  cycles = (0, 2, 0)
+
+
+class mpy(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':964}
+  cycles = (0, 7, 0)
+
+
+class mpyu(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':972}
+  cycles = (0, 7, 0)
+
+
+class mpyh(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':965}
+  cycles = (0, 7, 0)
+
+
+class mpys(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':967}
+  cycles = (0, 7, 0)
+
+
+class mpyhh(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':966}
+  cycles = (0, 7, 0)
+
+
+class mpyhha(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':838}
+  cycles = (0, 7, 0)
+
+
+class mpyhhu(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':974}
+  cycles = (0, 7, 0)
+
+
+class mpyhhau(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':846}
+  cycles = (0, 7, 0)
+
+
+class clz(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':677}
+  cycles = (0, 2, 0)
+
+
+class cntb(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':692}
+  cycles = (0, 4, 0)
+
+
+class fsmb(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':438}
+  cycles = (1, 4, 0)
+
+
+class fsmh(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':437}
+  cycles = (1, 4, 0)
+
+
+class fsm(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':436}
+  cycles = (1, 4, 0)
+
+
+class gbb(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':434}
+  cycles = (1, 4, 0)
+
+
+class gbh(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':433}
+  cycles = (1, 4, 0)
+
+
+class gb(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':432}
+  cycles = (1, 4, 0)
+
+
+class avgb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':211}
+  cycles = (0, 4, 0)
+
+
+class absdb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':83}
+  cycles = (0, 4, 0)
+
+
+class sumb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':595}
+  cycles = (0, 4, 0)
+
+
+class xsbh(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':694}
+  cycles = (0, 2, 0)
+
+
+class xshw(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':686}
+  cycles = (0, 2, 0)
+
+
+class xswd(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':678}
+  cycles = (0, 2, 0)
+
+
+class and_(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':193}
+  cycles = (0, 2, 0)
+
+
+class andc(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':705}
+  cycles = (0, 2, 0)
+
+
+class or_(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':65}
+  cycles = (0, 2, 0)
+
+
+class orc(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':713}
+  cycles = (0, 2, 0)
+
+
+class orx(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':496}
+  cycles = (1, 4, 0)
+
+
+class xor(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':577}
+  cycles = (0, 2, 0)
+
+
+class nand(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':201}
+  cycles = (0, 2, 0)
+
+
+class nor(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':73}
+  cycles = (0, 2, 0)
+
+
+class eqv(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':585}
+  cycles = (0, 2, 0)
+
+
+class shlh(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':95}
+  cycles = (0, 4, 0)
+
+
+class shl(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':91}
+  cycles = (0, 4, 0)
+
+
+class shlqbi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':475}
+  cycles = (1, 4, 0)
+
+
+class shlqby(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':479}
+  cycles = (1, 4, 0)
+
+
+class shlqbybi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':463}
+  cycles = (1, 4, 0)
+
+
+class roth(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':92}
+  cycles = (0, 4, 0)
+
+
+class rot(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':88}
+  cycles = (0, 4, 0)
+
+
+class rotqby(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':476}
+  cycles = (1, 4, 0)
+
+
+class rotqbybi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':460}
+  cycles = (1, 4, 0)
+
+
+class rotqbi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':472}
+  cycles = (1, 4, 0)
+
+
+class rothm(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':93}
+  cycles = (0, 4, 0)
+
+
+class rotm(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':89}
+  cycles = (0, 4, 0)
+
+
+class rotqmby(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':477}
+  cycles = (1, 4, 0)
+
+
+class rotqmbybi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':461}
+  cycles = (1, 4, 0)
+
+
+class rotqmbi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':473}
+  cycles = (1, 4, 0)
+
+
+class rotmah(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':94}
+  cycles = (0, 4, 0)
+
+
+class rotma(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':90}
+  cycles = (0, 4, 0)
+
+
+class heq(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':984}
+  cycles = (0, 2, 0)
+
+
+class hgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':600}
+  cycles = (0, 2, 0)
+
+
+class hlgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':728}
+  cycles = (0, 2, 0)
+
+
+class ceqb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':976}
+  cycles = (0, 2, 0)
+
+
+class ceqh(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':968}
+  cycles = (0, 2, 0)
+
+
+class ceq(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':960}
+  cycles = (0, 2, 0)
+
+
+class cgtb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':592}
+  cycles = (0, 2, 0)
+
+
+class cgth(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':584}
+  cycles = (0, 2, 0)
+
+
+class cgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':576}
+  cycles = (0, 2, 0)
+
+
+class clgtb(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':720}
+  cycles = (0, 2, 0)
+
+
+class clgth(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':712}
+  cycles = (0, 2, 0)
+
+
+class clgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':704}
+  cycles = (0, 2, 0)
+
+
+class bi(SPUInstruction):
+  machine_inst = OPCD_A_D_E
+  params = {'OPCD':424}
+  cycles = (1, 4, 0)
+
+
+class iret(SPUInstruction):
+  machine_inst = OPCD_A_D_E
+  params = {'OPCD':426}
+  cycles = (1, 4, 0)
+
+
+class bisled(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':427}
+  cycles = (1, 4, 0)
+
+
+class bisl(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':425}
+  cycles = (1, 4, 0)
+
+
+class biz(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':296}
+  cycles = (1, 4, 0)
+
+
+class binz(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':297}
+  cycles = (1, 4, 0)
+
+
+class bihz(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':294}
+  cycles = (1, 4, 0)
+
+
+class bihnz(SPUInstruction):
+  machine_inst = OPCD_A_T_D_E
+  params = {'OPCD':299}
+  cycles = (1, 4, 0)
+
+
+# TODO - can we check that if P is set then RO is zero as required?
+class hbr(SPUDispatchInstruction):
+  cycles = (1, 15, 0)
+  dispatch = (
+    (OPCD_RO_A_P,   {'OPCD':428}),
+    (OPCD_LBL9_A_P, {'OPCD':428}))
+
+
+class fa(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':708}
+  cycles = (0, 6, 0)
+
+
+class dfa(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':716}
+  cycles = (0, 13, 6)
+
+
+class fs(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':709}
+  cycles = (0, 6, 0)
+
+
+class dfs(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':717}
+  cycles = (0, 13, 6)
+
+
+class fm(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':710}
+  cycles = (0, 6, 0)
+
+
+class dfm(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':718}
+  cycles = (0, 13, 6)
+
+
+class dfma(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':860}
+  cycles = (0, 13, 6)
+
+
+class dfnms(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':862}
+  cycles = (0, 13, 6)
+
+
+class dfms(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':861}
+  cycles = (0, 13, 6)
+
+
+class dfnma(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':863}
+  cycles = (0, 13, 6)
+
+
+class frest(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':440}
+  cycles = (1, 4, 0)
+
+
+class frsqest(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':441}
+  cycles = (1, 4, 0)
+
+
+class fi(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':980}
+  cycles = (0, 7, 0)
+
+
+class frds(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':953}
+  cycles = (0, 13, 6)
+
+
+class fesd(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':952}
+  cycles = (0, 13, 6)
+
+
+class fceq(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':962}
+  cycles = (0, 2, 0)
+
+
+class fcmeq(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':970}
+  cycles = (0, 2, 0)
+
+
+class fcgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':706}
+  cycles = (0, 2, 0)
+
+
+class fcmgt(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':714}
+  cycles = (0, 2, 0)
+
+
+class fscrwr(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':954}
+  cycles = (0, 7, 0)
+
+
+class fscrrd(SPUInstruction):
+  machine_inst = OPCD_T
+  params = {'OPCD':920}
+  cycles = (0, 13, 6)
+
+
+class stop(SPUInstruction):
+  machine_inst = OPCD_STOP_SIG
+  params = {'OPCD':0}
+  cycles = (1, 4, 0)
+
+
+class stopd(SPUInstruction):
+  machine_inst = OPCD_B_A_T
+  params = {'OPCD':320}
+  cycles = (1, 4, 0)
+
+
+class lnop(SPUInstruction):
+  machine_inst = OPCD
+  params = {'OPCD':1}
+  cycles = (1, 0, 0)
+
+
+class nop(SPUInstruction):
+  machine_inst = OPCD_T
+  params = {'OPCD':513}
+  cycles = (0, 0, 0)
+
+
+class sync(SPUInstruction):
+  machine_inst = OPCD_CF
+  params = {'OPCD':2}
+  cycles = (1, 4, 0)
+
+
+class dsync(SPUInstruction):
+  machine_inst = OPCD
+  params = {'OPCD':3}
+  cycles = (1, 4, 0)
+
+
+class mfspr(SPUInstruction):
+  machine_inst = OPCD_SA_T
+  params = {'OPCD':12}
+  cycles = (1, 6, 0)
+
+
+class mtspr(SPUInstruction):
+  machine_inst = OPCD_SA_T
+  params = {'OPCD':268}
+  cycles = (1, 6, 0)
+
+
+class rdch(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':13}
+  cycles = (1, 6, 0)
+
+
+class rchcnt(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':15}
+  cycles = (1, 6, 0)
+
+
+class wrch(SPUInstruction):
+  machine_inst = OPCD_A_T
+  params = {'OPCD':269}
+  cycles = (1, 6, 0)
+
+
+class mpya(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':12}
+  cycles = (0, 7, 0)
+
+
+class selb(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':8}
+  cycles = (0, 2, 0)
+
+
+class shufb(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':11}
+  cycles = (1, 4, 0)
+
+
+class fma(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':14}
+  cycles = (0, 6, 0)
+
+
+class fnms(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':13}
+  cycles = (0, 6, 0)
+
+
+class fms(SPUInstruction):
+  machine_inst = OPCD_T_B_A_C
+  params = {'OPCD':15}
+  cycles = (0, 6, 0)
+
+
+class cbd(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':500}
+  cycles = (1, 4, 0)
+
+
+class chd(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':501}
+  cycles = (1, 4, 0)
+
+
+class cwd(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':502}
+  cycles = (1, 4, 0)
+
+
+class cdd(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':503}
+  cycles = (1, 4, 0)
+
+
+class shlhi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':127}
+  cycles = (0, 4, 0)
+
+
+class shli(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':123}
+  cycles = (0, 4, 0)
+
+
+class shlqbii(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':507}
+  cycles = (1, 4, 0)
+
+
+class shlqbyi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':511}
+  cycles = (1, 4, 0)
+
+
+class rothi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':124}
+  cycles = (0, 4, 0)
+
+
+class roti(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':120}
+  cycles = (0, 4, 0)
+
+
+class rotqbyi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':508}
+  cycles = (1, 4, 0)
+
+
+class rotqbii(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':504}
+  cycles = (1, 4, 0)
+
+
+class rothmi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':125}
+  cycles = (0, 4, 0)
+
+
+class rotmi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':121}
+  cycles = (0, 4, 0)
+
+
+class rotqmbyi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':509}
+  cycles = (1, 4, 0)
+
+
+class rotqmbii(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':505}
+  cycles = (1, 4, 0)
+
+
+class rotmahi(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':126}
+  cycles = (0, 4, 0)
+
+
+class rotmai(SPUInstruction):
+  machine_inst = OPCD_I7_A_T
+  params = {'OPCD':122}
+  cycles = (0, 4, 0)
+
+
+class csflt(SPUInstruction):
+  machine_inst = OPCD_I8_A_T
+  params = {'OPCD':474}
+  cycles = (0, 7, 0)
+
+
+class cflts(SPUInstruction):
+  machine_inst = OPCD_I8_A_T
+  params = {'OPCD':472}
+  cycles = (0, 7, 0)
+
+
+class cuflt(SPUInstruction):
+  machine_inst = OPCD_I8_A_T
+  params = {'OPCD':475}
+  cycles = (0, 7, 0)
+
+
+class cfltu(SPUInstruction):
+  machine_inst = OPCD_I8_A_T
+  params = {'OPCD':473}
+  cycles = (0, 7, 0)
+
+
+class lqd(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':52}
+  cycles = (1, 6, 0)
+
+
+class stqd(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':36}
+  cycles = (1, 6, 0)
+
+
+class ahi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':29}
+  cycles = (0, 2, 0)
+
+
+class ai(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':28}
+  cycles = (0, 2, 0)
+
+
+class sfhi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':13}
+  cycles = (0, 2, 0)
+
+
+class sfi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':12}
+  cycles = (0, 2, 0)
+
+
+class mpyi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':116}
+  cycles = (0, 7, 0)
+
+
+class mpyui(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':117}
+  cycles = (0, 7, 0)
+
+
+class andbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':22}
+  cycles = (0, 2, 0)
+
+
+class andhi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':21}
+  cycles = (0, 2, 0)
+
+
+class andi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':20}
+  cycles = (0, 2, 0)
+
+
+class orbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':6}
+  cycles = (0, 2, 0)
+
+
+class orhi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':5}
+  cycles = (0, 2, 0)
+
+
+class ori(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':4}
+  cycles = (0, 2, 0)
+
+
+class xorbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':70}
+  cycles = (0, 2, 0)
+
+
+class xorhi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':69}
+  cycles = (0, 2, 0)
+
+
+class xori(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':68}
+  cycles = (0, 2, 0)
+
+
+class heqi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':127}
+  cycles = (0, 2, 0)
+
+
+class hgti(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':79}
+  cycles = (0, 2, 0)
+
+
+class hlgti(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':95}
+  cycles = (0, 2, 0)
+
+
+class ceqbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':126}
+  cycles = (0, 2, 0)
+
+
+class ceqhi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':125}
+  cycles = (0, 2, 0)
+
+
+class ceqi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':124}
+  cycles = (0, 2, 0)
+
+
+class cgtbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':78}
+  cycles = (0, 2, 0)
+
+
+class cgthi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':77}
+  cycles = (0, 2, 0)
+
+
+class cgti(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':76}
+  cycles = (0, 2, 0)
+
+
+class clgtbi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':94}
+  cycles = (0, 2, 0)
+
+
+class clgthi(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':93}
+  cycles = (0, 2, 0)
+
+
+class clgti(SPUInstruction):
+  machine_inst = OPCD_I10_A_T
+  params = {'OPCD':92}
+  cycles = (0, 2, 0)
+
+
+class lqa(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':97}
+  cycles = (1, 6, 0)
+
+
+class lqr(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':103}
+  cycles = (1, 6, 0)
+
+
+class stqa(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':65}
+  cycles = (1, 6, 0)
+
+
+class stqr(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':71}
+  cycles = (1, 6, 0)
+
+
+class ilh(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':131}
+  cycles = (0, 2, 0)
+
+
+class ilhu(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':130}
+  cycles = (0, 2, 0)
+
+
+class il(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':129}
+  cycles = (0, 2, 0)
+
+
+class iohl(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':193}
+  cycles = (0, 2, 0)
+
+
+class fsmbi(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':101}
+  cycles = (1, 4, 0)
+
+
+class br(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16,    {'OPCD':100}),
+    (OPCD_LBL16,  {'OPCD':100}))
+
+
+# TODO - how can I do absolute branches?
+class bra(SPUInstruction):
+  machine_inst = OPCD_I16
+  params = {'OPCD':96}
+  cycles = (1, 4, 0)
+
+
+class brsl(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16,    {'OPCD':102}),
+    (OPCD_LBL16,  {'OPCD':102}))
+
+
+class brasl(SPUInstruction):
+  machine_inst = OPCD_I16_T
+  params = {'OPCD':98}
+  cycles = (1, 4, 0)
+
+
+class brnz(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16_T,    {'OPCD':66}),
+    (OPCD_LBL16_T,  {'OPCD':66}))
+
+
+class brz(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16_T,    {'OPCD':64}),
+    (OPCD_LBL16_T,  {'OPCD':64}))
+
+
+class brhnz(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16,    {'OPCD':70}),
+    (OPCD_LBL16,  {'OPCD':70}))
+
+
+class brhz(SPUDispatchInstruction):
+  cycles = (1, 4, 0)
+  dispatch = (
+    (OPCD_I16,    {'OPCD':68}),
+    (OPCD_LBL16,  {'OPCD':68}))
+
+
+class hbra(SPUInstruction):
+  machine_inst = OPCD_ROA_I16
+  params = {'OPCD':8}
+  cycles = (1, 15, 0)
+
+
+class hbrr(SPUDispatchInstruction):
+  cycles = (1, 15, 0)
+  dispatch = (
+    (OPCD_ROA_I16,     {'OPCD':9}),
+    (OPCD_LBL9_LBL16,  {'OPCD':9}))
+
+
+class ila(SPUInstruction):
+  machine_inst = OPCD_I18_T
+  params = {'OPCD':33}
+  cycles = (0, 2, 0)
+
 
