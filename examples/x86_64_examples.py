@@ -28,13 +28,11 @@
 
 import array
 
-import corepy.arch.x86_64.isa as x86_isa
+import corepy.arch.x86_64.isa as x86
 from corepy.arch.x86_64.types.registers import *
-#import corepy.arch.sse.isa as sse_isa
-#from corepy.arch.sse.types import *
-
 import corepy.arch.x86_64.platform as env
 from corepy.arch.x86_64.lib.memory import MemRef
+import corepy.lib.extarray as extarray
 
 def Test():
     code = env.InstructionStream()
@@ -48,18 +46,18 @@ def Test():
     lbl1 = code.get_label("lbl1")
     lbl2 = code.get_label("lbl2")
 
-    code.add(x86_isa.xor(rax, rax))
+    code.add(x86.xor(rax, rax))
 
-    code.add(x86_isa.cmp(rax, 1))
-    code.add(x86_isa.jne(lbl1))
+    code.add(x86.cmp(rax, 1))
+    code.add(x86.jne(lbl1))
 
-    code.add(x86_isa.ud2())
-    code.add(x86_isa.ud2())
+    code.add(x86.ud2())
+    code.add(x86.ud2())
 
     code.add(lbl1)
-    code.add(x86_isa.cmp(rax, 1))
-    code.add(x86_isa.je(lbl2))
-    code.add(x86_isa.add(rax, 12))
+    code.add(x86.cmp(rax, 1))
+    code.add(x86.je(lbl2))
+    code.add(x86.add(rax, 12))
     code.add(lbl2)
     
     ret = proc.execute(code)
@@ -69,17 +67,17 @@ def Test():
 
     code.reset()
 
-    code.add(x86_isa.xor(rax, rax))
+    code.add(x86.xor(rax, rax))
 
-    code.add(x86_isa.cmp(rax, 1))
-    code.add(x86_isa.jne(32))
+    code.add(x86.cmp(rax, 1))
+    code.add(x86.jne(32))
 
-    code.add(x86_isa.ud2())
-    code.add(x86_isa.ud2())
+    code.add(x86.ud2())
+    code.add(x86.ud2())
 
-    code.add(x86_isa.cmp(eax, 1))
-    code.add(x86_isa.je(41))
-    code.add(x86_isa.add(rax, 12))
+    code.add(x86.cmp(eax, 1))
+    code.add(x86.je(41))
+    code.add(x86.add(rax, 12))
    
     code.print_code(hex = True, pro = True, epi = True) 
     ret = proc.execute(code)
@@ -91,14 +89,14 @@ def Test():
 
     call_lbl = code.get_label("call_fn")
 
-    code.add(x86_isa.xor(rax, rax))
-    code.add(x86_isa.call(call_lbl))
-    code.add(x86_isa.jmp(code.lbl_epilogue))
-    code.add(x86_isa.mov(rax, 75))
-    code.add(x86_isa.mov(rax, 42))
+    code.add(x86.xor(rax, rax))
+    code.add(x86.call(call_lbl))
+    code.add(x86.jmp(code.lbl_epilogue))
+    code.add(x86.mov(rax, 75))
+    code.add(x86.mov(rax, 42))
     code.add(call_lbl)
-    code.add(x86_isa.mov(rax, 15))
-    code.add(x86_isa.ret())
+    code.add(x86.mov(rax, 15))
+    code.add(x86.ret())
 
     code.print_code()
     ret = proc.execute(code)
@@ -111,12 +109,12 @@ def Test():
     fwd_lbl = code.get_label("FORWARD")
     bck_lbl = code.get_label("BACKWARD")
 
-    code.add(x86_isa.xor(rax, rax))
+    code.add(x86.xor(rax, rax))
     code.add(bck_lbl)
-    code.add(x86_isa.cmp(rax, 1))
-    code.add(x86_isa.jne(fwd_lbl))
+    code.add(x86.cmp(rax, 1))
+    code.add(x86.jne(fwd_lbl))
     for i in xrange(0, 65):
-      code.add(x86_isa.pop(r15))
+      code.add(x86.pop(r15))
     code.add(fwd_lbl)
 
     ret = proc.execute(code, mode = 'int')
@@ -129,27 +127,27 @@ def Test():
     out_lbl = code.get_label("OUT")
     skip_lbl = code.get_label("SKIP")
 
-    code.add(x86_isa.xor(rax, rax))
+    code.add(x86.xor(rax, rax))
     code.add(loop_lbl)
     for i in range(0, 1):
       for i in xrange(0, 24):
-        code.add(x86_isa.add(r15, MemRef(rsp, 4)))
+        code.add(x86.add(r15, MemRef(rsp, 4)))
 
-      code.add(x86_isa.add(rax, 4))
-      code.add(x86_isa.cmp(rax, 20))
-      code.add(x86_isa.je(out_lbl))
+      code.add(x86.add(rax, 4))
+      code.add(x86.cmp(rax, 20))
+      code.add(x86.je(out_lbl))
 
       for i in xrange(0, 24):
-        code.add(x86_isa.add(r15, MemRef(rsp, 4)))
+        code.add(x86.add(r15, MemRef(rsp, 4)))
 
-      code.add(x86_isa.cmp(rax, 32))
-      code.add(x86_isa.jne(loop_lbl))
+      code.add(x86.cmp(rax, 32))
+      code.add(x86.jne(loop_lbl))
 
     code.add(out_lbl)
 
-    code.add(x86_isa.jmp(skip_lbl))
+    code.add(x86.jmp(skip_lbl))
     for i in xrange(0, 2):
-      code.add(x86_isa.add(r15, MemRef(rsp, 4)))
+      code.add(x86.add(r15, MemRef(rsp, 4)))
     code.add(skip_lbl)
 
     ret = proc.execute(code, mode = 'int')
@@ -163,29 +161,29 @@ def Test():
     else_lbl = code.get_label("ELSE")
     finish_lbl = code.get_label("finish")
 
-    code.add(x86_isa.mov(rax, 0))
-    code.add(x86_isa.mov(rdx, 0))
+    code.add(x86.mov(rax, 0))
+    code.add(x86.mov(rdx, 0))
 
     code.add(loop_lbl)
 
-    code.add(x86_isa.add(rax, 1))
-    code.add(x86_isa.cmp(rax, 16))
-    code.add(x86_isa.jge(finish_lbl))
+    code.add(x86.add(rax, 1))
+    code.add(x86.cmp(rax, 16))
+    code.add(x86.jge(finish_lbl))
 
-    code.add(x86_isa.add(rdx, rax))
-    code.add(x86_isa.mov(r8, rdx))
-    code.add(x86_isa.and_(r8, 0x1))
-    code.add(x86_isa.jnz(else_lbl))
+    code.add(x86.add(rdx, rax))
+    code.add(x86.mov(r8, rdx))
+    code.add(x86.and_(r8, 0x1))
+    code.add(x86.jnz(else_lbl))
 
-    code.add(x86_isa.add(rdx, 1))
-    code.add(x86_isa.jmp(loop_lbl))
+    code.add(x86.add(rdx, 1))
+    code.add(x86.jmp(loop_lbl))
 
     code.add(else_lbl)
-    code.add(x86_isa.add(rdx, r8))
-    code.add(x86_isa.jmp(loop_lbl))
+    code.add(x86.add(rdx, r8))
+    code.add(x86.jmp(loop_lbl))
 
     code.add(finish_lbl)
-    code.add(x86_isa.mov(rax, rdx))
+    code.add(x86.mov(rax, rdx))
 
     ret = proc.execute(code, mode = 'int')
     print "ret", ret
@@ -196,15 +194,15 @@ def Test():
 
     loop_lbl = code.get_label("LOOP")
 
-    code.add(x86_isa.xor(rax, rax))
-    code.add(x86_isa.xor(rcx, rcx))
-    code.add(x86_isa.mov(rdx, 1))
+    code.add(x86.xor(rax, rax))
+    code.add(x86.xor(rcx, rcx))
+    code.add(x86.mov(rdx, 1))
 
     code.add(loop_lbl)
-    code.add(x86_isa.inc(rax))
-    code.add(x86_isa.cmp(rax, 7))
-    code.add(x86_isa.cmove(rcx, rdx))
-    code.add(x86_isa.jrcxz(loop_lbl))
+    code.add(x86.inc(rax))
+    code.add(x86.cmp(rax, 7))
+    code.add(x86.cmove(rcx, rdx))
+    code.add(x86.jrcxz(loop_lbl))
 
     code.print_code(hex = True)
     ret = proc.execute(code, mode = 'int')
@@ -214,11 +212,11 @@ def Test():
 
     code.reset()
 
-    code.add(x86_isa.mov(rax, MemRef(rbp, 16)))
-    code.add(x86_isa.xor(rbx, rbx))
-    code.add(x86_isa.mov(rbx, -1))
-    code.add(x86_isa.mov(cl, 1))
-    code.add(x86_isa.shld(rax,rbx,cl))
+    code.add(x86.mov(rax, MemRef(rbp, 16)))
+    code.add(x86.xor(rbx, rbx))
+    code.add(x86.mov(rbx, -1))
+    code.add(x86.mov(cl, 1))
+    code.add(x86.shld(rax,rbx,cl))
     ret = proc.execute(code, params = params, mode = 'int')
     print "ret", ret
     assert(ret == 7)
@@ -226,25 +224,25 @@ def Test():
     code.reset()
 
 
-    code.add(x86_isa.add(eax, 200))
-    code.add(x86_isa.xor(eax, eax))
-    code.add(x86_isa.add(al, 32))
-    code.add(x86_isa.add(bl, 32))
-    code.add(x86_isa.xor(bl, bl))
-    code.add(x86_isa.mov(mr8, al))
-    code.add(x86_isa.add(mr32, 0))
-    code.add(x86_isa.mov(eax, mr32))
-    code.add(x86_isa.mov(al, mr8))
+    code.add(x86.add(eax, 200))
+    code.add(x86.xor(eax, eax))
+    code.add(x86.add(al, 32))
+    code.add(x86.add(bl, 32))
+    code.add(x86.xor(bl, bl))
+    code.add(x86.mov(mr8, al))
+    code.add(x86.add(mr32, 0))
+    code.add(x86.mov(eax, mr32))
+    code.add(x86.mov(al, mr8))
 
-    code.add(x86_isa.imul(ax, ax, 4))
-    code.add(x86_isa.imul(eax, ebx, 10))
-    code.add(x86_isa.mov(cx, 1232))
-    code.add(x86_isa.sub(ax, cx))
-    code.add(x86_isa.xor(eax,eax))
-    code.add(x86_isa.mov(eax,ebx))
-    code.add(x86_isa.clc())
-    code.add(x86_isa.rcl(eax, 1))
-    code.add(x86_isa.rcr(eax, 1))
+    code.add(x86.imul(ax, ax, 4))
+    code.add(x86.imul(eax, ebx, 10))
+    code.add(x86.mov(cx, 1232))
+    code.add(x86.sub(ax, cx))
+    code.add(x86.xor(eax,eax))
+    code.add(x86.mov(eax,ebx))
+    code.add(x86.clc())
+    code.add(x86.rcl(eax, 1))
+    code.add(x86.rcr(eax, 1))
 
 
     #ret = proc.execute(code, debug = True, params = params)
@@ -263,22 +261,22 @@ def Test():
 
     code.reset()
 
-    code.add(x86_isa.fldpi())
-    code.add(x86_isa.pxor(xmm0, xmm0))
-    code.add(x86_isa.fld1())
-    code.add(x86_isa.fadd(st0, st0))
-    code.add(x86_isa.fmulp())
-    code.add(x86_isa.fsin())
-    code.add(x86_isa.fcos())
-    code.add(x86_isa.fld1())
-    code.add(x86_isa.fyl2xp1())
+    code.add(x86.fldpi())
+    code.add(x86.pxor(xmm0, xmm0))
+    code.add(x86.fld1())
+    code.add(x86.fadd(st0, st0))
+    code.add(x86.fmulp())
+    code.add(x86.fsin())
+    code.add(x86.fcos())
+    code.add(x86.fld1())
+    code.add(x86.fyl2xp1())
 
     # x86_64 now uses xmm0 to return floats, not st0.  So here, just make room
     # on the stack, convert the FP result to an int and store it on the stack,
     # then pop it into rax, the int return register.
-    code.add(x86_isa.push(rax))
-    code.add(x86_isa.fistp(MemRef(rsp)))
-    code.add(x86_isa.pop(rax))
+    code.add(x86.push(rax))
+    code.add(x86.fistp(MemRef(rsp)))
+    code.add(x86.pop(rax))
 
     code.print_code(hex = True)
     ret = proc.execute(code, params = params, mode = 'int')
@@ -289,30 +287,30 @@ def Test():
     code.reset()
 
     lbl_ok = code.get_label("OK")
-    code.add(x86_isa.emms())
-    code.add(x86_isa.movd(xmm0, mr32))
-    code.add(x86_isa.mov(ebx, mr32))
+    code.add(x86.emms())
+    code.add(x86.movd(xmm0, mr32))
+    code.add(x86.mov(ebx, mr32))
 
-    code.add(x86_isa.cmp(ebx, 3))
-    code.add(x86_isa.je(lbl_ok))
-    code.add(x86_isa.movd(eax, xmm0))
-    code.add(x86_isa.cmp(eax, 3))
-    code.add(x86_isa.je(lbl_ok))
-    code.add(x86_isa.ud2())
+    code.add(x86.cmp(ebx, 3))
+    code.add(x86.je(lbl_ok))
+    code.add(x86.movd(eax, xmm0))
+    code.add(x86.cmp(eax, 3))
+    code.add(x86.je(lbl_ok))
+    code.add(x86.ud2())
 
     code.add(lbl_ok)
-    code.add(x86_isa.xor(eax, eax))
-    code.add(x86_isa.movd(xmm1, ebx))
-    code.add(x86_isa.paddq(xmm0, xmm1))
-    code.add(x86_isa.pextrw(ecx, xmm0, 0))
-    code.add(x86_isa.pinsrw(mm1, ecx, 0))
-    code.add(x86_isa.movq2dq(xmm0, mm1))
-    code.add(x86_isa.movdq2q(mm2, xmm0))
-    code.add(x86_isa.movd(edx,mm2))
-    code.add(x86_isa.movd(xmm5,edx))
-    code.add(x86_isa.movd(ecx, xmm5))
-    code.add(x86_isa.pinsrw(xmm6, ecx, 0))
-    code.add(x86_isa.movd(eax, xmm6))
+    code.add(x86.xor(eax, eax))
+    code.add(x86.movd(xmm1, ebx))
+    code.add(x86.paddq(xmm0, xmm1))
+    code.add(x86.pextrw(ecx, xmm0, 0))
+    code.add(x86.pinsrw(mm1, ecx, 0))
+    code.add(x86.movq2dq(xmm0, mm1))
+    code.add(x86.movdq2q(mm2, xmm0))
+    code.add(x86.movd(edx,mm2))
+    code.add(x86.movd(xmm5,edx))
+    code.add(x86.movd(ecx, xmm5))
+    code.add(x86.pinsrw(xmm6, ecx, 0))
+    code.add(x86.movd(eax, xmm6))
 
     code.print_code(hex = True)
     ret = proc.execute(code, params = params, mode = 'int')
@@ -323,22 +321,22 @@ def Test():
     code.reset()
 
     # Test immediate size encodings
-    code.add(x86_isa.add(eax, 300))
-    code.add(x86_isa.add(ax, 300))
-    code.add(x86_isa.add(ax, 30))
-    code.add(x86_isa.mov(eax, 16))
-    code.add(x86_isa.mov(eax, 300))
+    code.add(x86.add(eax, 300))
+    code.add(x86.add(ax, 300))
+    code.add(x86.add(ax, 30))
+    code.add(x86.mov(eax, 16))
+    code.add(x86.mov(eax, 300))
 
     code.reset()
-    code.add(x86_isa.add(eax, 0xDEADBEEF))
-    code.add(x86_isa.add(ebx, 0xDEADBEEF))
+    code.add(x86.add(eax, 0xDEADBEEF))
+    code.add(x86.add(ebx, 0xDEADBEEF))
     code.print_code(hex = True)
 
     # Try the LOCK prefix
     code.reset()
-    code.add(x86_isa.xor(eax, eax))
-    code.add(x86_isa.add(mr32, eax))
-    code.add(x86_isa.add(mr32, eax, lock = True))
+    code.add(x86.xor(eax, eax))
+    code.add(x86.add(mr32, eax))
+    code.add(x86.add(mr32, eax, lock = True))
     #code.print_code(hex = True)
 
     proc.execute(code, params = params)
@@ -346,9 +344,9 @@ def Test():
 
     code.reset()
 
-    code.add(x86_isa.mov(edx, 0x1234))
-    code.add(x86_isa.mov(eax, 0xFFFF))
-    code.add(x86_isa.xchg(edx, eax))
+    code.add(x86.mov(edx, 0x1234))
+    code.add(x86.mov(eax, 0xFFFF))
+    code.add(x86.xchg(edx, eax))
 
     code.print_code(hex = True)
     ret = proc.execute(code, params = params)
@@ -358,16 +356,37 @@ def Test():
 
     code.reset()
 
-    code.add(x86_isa.mov(rax, rsp))
-    code.add(x86_isa.pushfq())
-    code.add(x86_isa.sub(rax, rsp))
-    code.add(x86_isa.add(rsp, rax))
+    code.add(x86.mov(rax, rsp))
+    code.add(x86.pushfq())
+    code.add(x86.sub(rax, rsp))
+    code.add(x86.add(rsp, rax))
 
     code.print_code(hex = True)
     ret = proc.execute(code, params = params)
     print "ret:", ret
     assert(ret == 8)
 
+
+    code.reset()
+
+    data = extarray.extarray('H', xrange(0, 16))
+
+    code.add(x86.mov(rdi, data.buffer_info()[0]))
+    code.add(x86.movaps(xmm1, MemRef(rdi, data_size = 128)))
+    code.add(x86.pextrw(rax, xmm1, 0))
+    code.add(x86.pextrw(rbx, xmm1, 1))
+    code.add(x86.pextrw(rcx, xmm1, 2))
+    code.add(x86.pextrw(rdx, xmm1, 3))
+    code.add(x86.shl(rbx, 16))
+    code.add(x86.shl(rcx, 32))
+    code.add(x86.shl(rdx, 48))
+    code.add(x86.or_(rax, rbx))
+    code.add(x86.or_(rax, rcx))
+    code.add(x86.or_(rax, rdx))
+
+    ret = proc.execute(code, mode = 'int')
+    print "ret %x" % ret
+    assert(ret == 0x0003000200010000)
     return
 
 Test()

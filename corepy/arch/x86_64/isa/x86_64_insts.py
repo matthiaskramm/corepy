@@ -560,6 +560,18 @@ class mem16_reg16_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
+class mem16_xmm_imm8(MachineInstruction):
+  signature = (mem16_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem16'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
 class mem228(MachineInstruction):
   signature = (mem228_t,)
   opt_kw = ()
@@ -697,6 +709,18 @@ class mem32_xmm(MachineInstruction):
   render = staticmethod(_render)
 
 
+class mem32_xmm_imm8(MachineInstruction):
+  signature = (mem32_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem32'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
 class mem512(MachineInstruction):
   signature = (mem512_t,)
   opt_kw = ()
@@ -823,6 +847,18 @@ class mem64_xmm(MachineInstruction):
   render = staticmethod(_render)
 
 
+class mem64_xmm_imm8(MachineInstruction):
+  signature = (mem64_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem64'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
 class mem752(MachineInstruction):
   signature = (mem752_t,)
   opt_kw = ()
@@ -878,6 +914,18 @@ class mem8_reg8(MachineInstruction):
     reg8 = operands['reg8']
 
     return common_memref(params['opcode'], operands['mem8'], reg8.reg << 3, reg8.rex << 2, (reg8 in reg8_rex_list))
+  render = staticmethod(_render)
+
+
+class mem8_xmm_imm8(MachineInstruction):
+  signature = (mem8_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem8'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
@@ -1430,7 +1478,7 @@ class reg32_mem16(MachineInstruction):
   
   def _render(params, operands):
     reg32 = operands['reg32']
-    return common_memref(params['opcode'], operands['mem16'], reg32.reg << 3, reg32.rex << 2)
+    return params['prefix'] + common_memref(params['opcode'], operands['mem16'], reg32.reg << 3, reg32.rex << 2)
   render = staticmethod(_render)
 
 
@@ -1490,7 +1538,7 @@ class reg32_mem8(MachineInstruction):
   
   def _render(params, operands):
     reg32 = operands['reg32']
-    return common_memref(params['opcode'], operands['mem8'], reg32.reg << 3, reg32.rex << 2)
+    return params['prefix'] + common_memref(params['opcode'], operands['mem8'], reg32.reg << 3, reg32.rex << 2)
   render = staticmethod(_render)      
 
 
@@ -1548,7 +1596,7 @@ class reg32_reg16(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | reg16.reg]
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | reg16.reg]
   render = staticmethod(_render)
 
   
@@ -1657,7 +1705,7 @@ class reg32_reg8(MachineInstruction):
     if rex == [0x40] and not reg8 in reg8_rex_list:
       rex = []
 
-    return rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | reg8.reg]
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | reg8.reg]
   render = staticmethod(_render)      
 
 
@@ -1669,13 +1717,43 @@ class reg32_xmm(MachineInstruction):
     reg32 = operands['reg32']
     xmm = operands['xmm']
     #rex = [0x40 | xmm.rex << 2 | reg32.rex]
-    rex = [0x40 | xmm.rex | reg32.rex << 2]
+    rex = [0x40 | xmm.rex | (reg32.rex << 2)]
     if rex == [0x40]:
       rex = []
 
     # great.. more reversed operands
     return params['prefix'] + rex + params['opcode'] + [0xC0 | xmm.reg | (reg32.reg << 3)]
     #return params['prefix'] + rex + params['opcode'] + [0xC0 | (xmm.reg << 3) | reg32.reg]
+  render = staticmethod(_render)
+
+
+class reg32_xmm_imm8(MachineInstruction):
+  signature = (reg32_t, xmm_t, imm8_t)
+  opt_kw = ()
+
+  def _render(params, operands):
+    reg32 = operands['reg32']
+    xmm = operands['xmm']
+    rex = [0x40 | xmm.rex | (reg32.rex << 2)]
+    if rex == [0x40]:
+      rex = []
+
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | xmm.reg] + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
+class reg32_xmm_imm8_rev(MachineInstruction):
+  signature = (reg32_t, xmm_t, imm8_t)
+  opt_kw = ()
+
+  def _render(params, operands):
+    reg32 = operands['reg32']
+    xmm = operands['xmm']
+    rex = [0x40 | xmm.rex << 2 | reg32.rex]
+    if rex == [0x40]:
+      rex = []
+
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | reg32.reg | (xmm.reg << 3)] + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
@@ -1695,21 +1773,6 @@ class reg32_xmm_rev(MachineInstruction):
     # great.. more reversed operands
     #return params['prefix'] + rex + params['opcode'] + [0xC0 | xmm.reg | (reg32.reg << 3)]
     return params['prefix'] + rex + params['opcode'] + [0xC0 | (xmm.reg << 3) | reg32.reg]
-  render = staticmethod(_render)
-
-
-class reg32_xmm_imm8(MachineInstruction):
-  signature = (reg32_t, xmm_t, imm8_t)
-  opt_kw = ()
-
-  def _render(params, operands):
-    reg32 = operands['reg32']
-    xmm = operands['xmm']
-    rex = [0x40 | xmm.rex | reg32.rex << 2]
-    if rex == [0x40]:
-      rex = []
-
-    return params['prefix'] + rex + params['opcode'] + [0xC0 | (reg32.reg << 3) | xmm.reg] + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
@@ -1866,7 +1929,7 @@ class reg64_mem8(MachineInstruction):
   
   def _render(params, operands):
     reg64 = operands['reg64']
-    return common_memref(params['opcode'], operands['mem8'], reg64.reg << 3, 0x08 | (reg64.rex << 2))
+    return params['prefix'] + common_memref(params['opcode'], operands['mem8'], reg64.reg << 3, 0x08 | (reg64.rex << 2))
   render = staticmethod(_render)      
 
 
@@ -1877,6 +1940,16 @@ class reg64_mmx(MachineInstruction):
   def _render(params, operands):
     reg64 = operands['reg64']
     return [0x48 | reg64.rex << 2] + params['opcode'] + [0xC0 | (reg64.reg << 3) | operands['mmx'].reg]
+  render = staticmethod(_render)
+
+
+class reg64_mmx_imm8(MachineInstruction):
+  signature = (reg64_t, mmx_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg64 = operands['reg64']
+    return [0x48 | reg64.rex << 2] + params['opcode'] + [0xC0 | (reg64.reg << 3) | operands['mmx'].reg] + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
@@ -2008,7 +2081,7 @@ class reg64_reg8(MachineInstruction):
   def _render(params, operands):
     reg64 = operands['reg64']
     reg8 = operands['reg8']
-    return [0x48 | reg64.rex << 2 | reg8.rex] + params['opcode'] + [0xC0 | (reg64.reg << 3) | reg8.reg]
+    return params['prefix'] + [0x48 | reg64.rex << 2 | reg8.rex] + params['opcode'] + [0xC0 | (reg64.reg << 3) | reg8.reg]
   render = staticmethod(_render)      
 
 
@@ -2020,6 +2093,29 @@ class reg64_xmm(MachineInstruction):
     reg64 = operands['reg64']
     xmm = operands['xmm']
     return params['prefix'] + [0x48 | (reg64.rex << 2) | xmm.rex] + params['opcode'] + [0xC0 | xmm.reg | (reg64.reg << 3)]
+  render = staticmethod(_render)
+
+
+class reg64_xmm_imm8(MachineInstruction):
+  signature = (reg64_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg64 = operands['reg64']
+    xmm = operands['xmm']
+    return params['prefix'] + [0x48 | (reg64.rex << 2) | xmm.rex] + params['opcode'] + [0xC0 | xmm.reg | (reg64.reg << 3)] + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
+# Reversed operands for extractps
+class reg64_xmm_imm8_rev(MachineInstruction):
+  signature = (reg64_t, xmm_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg64 = operands['reg64']
+    xmm = operands['xmm']
+    return params['prefix'] + [0x48 | reg64.rex | (xmm.rex << 2)] + params['opcode'] + [0xC0 | (xmm.reg << 3) | reg64.reg] + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
@@ -2265,6 +2361,18 @@ class xmm_mem128_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
+class xmm_mem16(MachineInstruction):
+  signature = (xmm_t, mem16_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem16'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret
+  render = staticmethod(_render)
+
+
 class xmm_mem16_imm8(MachineInstruction):
   signature = (xmm_t, mem16_t, imm8_t)
   opt_kw = ()
@@ -2349,6 +2457,18 @@ class xmm_mem64_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
+class xmm_mem8_imm8(MachineInstruction):
+  signature = (xmm_t, mem8_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    ret = common_memref(params['opcode'], operands['mem8'], xmm.reg << 3, xmm.rex << 2)
+    if ret != None:
+      return params['prefix'] + ret + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
 class xmm_mmx(MachineInstruction):
   signature = (xmm_t, mmx_t)
   opt_kw = ()
@@ -2400,6 +2520,17 @@ class xmm_reg64(MachineInstruction):
     reg64 = operands['reg64']
     xmm = operands['xmm']
     return params['prefix'] + [0x48 | reg64.rex | (xmm.rex << 2)] + params['opcode'] + [0xC0 | (xmm.reg << 3) | reg64.reg]
+  render = staticmethod(_render)
+
+
+class xmm_reg64_imm8(MachineInstruction):
+  signature = (xmm_t, reg64_t, imm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg64 = operands['reg64']
+    xmm = operands['xmm']
+    return params['prefix'] + [0x48 | reg64.rex | (xmm.rex << 2)] + params['opcode'] + [0xC0 | (xmm.reg << 3) | reg64.reg] + w8(operands['imm8'])
   render = staticmethod(_render)
 
 

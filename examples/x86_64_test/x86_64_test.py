@@ -156,12 +156,12 @@ def test_inst(code, inst):
     if corepy_rex - nasm_rex == 8 and (nasm_rex & 0xF0 == 0x40):
       print "WARNING CorePy is enabling 64bit for this inst, NASM is not"
       print "nasm output:   ", nasm_hex_str
-      print "corepy output:", corepy_hex_str
+      print "corepy output: ", corepy_hex_str
       return 'rex_pass'
     else:
       print "***************************  ERROR"
       print "nasm output:   ", nasm_hex_str
-      print "corepy output:", corepy_hex_str
+      print "corepy output: ", corepy_hex_str
       printer.PrintInstructionStream(code,
           printer.x86_64_Nasm(show_epilogue = False, show_prologue = False))
       return 'fail'
