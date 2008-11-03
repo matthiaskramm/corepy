@@ -2631,7 +2631,6 @@ class emms(x86Instruction):
 
 class extractps(x86DispatchInstruction):
   dispatch = (
-    (reg64_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}),
     (reg32_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}),
     (mem32_xmm_imm8,     {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}))
  # TODO - ugh, this make the printer not emit 'dword' for the mem32 case
