@@ -645,6 +645,15 @@ class cpuid(x86Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0xA2],       'modrm':None}
   
+class crc32(x86DispatchInstruction):
+  dispatch = (
+    (reg32_reg32, {'opcode':[0xF2, 0x0F, 0x38, 0xF1], 'modrm':None}),
+    (reg32_mem32, {'opcode':[0xF2, 0x0F, 0x38, 0xF1], 'modrm':None}),
+    (reg32_reg16, {'opcode':[0xF2, 0x0F, 0x38, 0xF1], 'modrm':None}),
+    (reg32_mem16, {'opcode':[0xF2, 0x0F, 0x38, 0xF1], 'modrm':None}),
+    (reg32_reg8,  {'opcode':[0xF2, 0x0F, 0x38, 0xF0], 'modrm':None}),
+    (reg32_mem8,  {'opcode':[0xF2, 0x0F, 0x38, 0xF0], 'modrm':None}))
+  
 class dec(x86DispatchInstruction):
   dispatch = (
     (reg32,               {'opcode':[0x48],             'modrm':None}),
@@ -1010,19 +1019,19 @@ class movsw(x86Instruction):
   
 class movsx(x86DispatchInstruction):
   dispatch = (
-    (reg32_reg8,          {'opcode':[0x0F, 0xBE],       'modrm':None}),
-    (reg32_mem8,          {'opcode':[0x0F, 0xBE],       'modrm':None}),
-    (reg32_reg16,         {'opcode':[0x0F, 0xBF],       'modrm':None}),
-    (reg32_mem16,         {'opcode':[0x0F, 0xBF],       'modrm':None}),
+    (reg32_reg8,          {'opcode':[0x0F, 0xBE], 'modrm':None}),
+    (reg32_mem8,          {'opcode':[0x0F, 0xBE], 'modrm':None}),
+    (reg32_reg16,         {'opcode':[0x0F, 0xBF], 'modrm':None}),
+    (reg32_mem16,         {'opcode':[0x0F, 0xBF], 'modrm':None}),
     (reg16_reg8,          {'opcode':[0x66, 0x0F, 0xBE], 'modrm':None}),
     (reg16_mem8,          {'opcode':[0x66, 0x0F, 0xBE], 'modrm':None}))
   
 class movzx(x86DispatchInstruction):
   dispatch = (
-    (reg32_reg8,          {'opcode':[0x0F, 0xB6],       'modrm':None}),
-    (reg32_mem8,          {'opcode':[0x0F, 0xB6],       'modrm':None}),
-    (reg32_reg16,         {'opcode':[0x0F, 0xB7],       'modrm':None}),
-    (reg32_mem16,         {'opcode':[0x0F, 0xB7],       'modrm':None}),
+    (reg32_reg8,          {'opcode':[0x0F, 0xB6], 'modrm':None}),
+    (reg32_mem8,          {'opcode':[0x0F, 0xB6], 'modrm':None}),
+    (reg32_reg16,         {'opcode':[0x0F, 0xB7], 'modrm':None}),
+    (reg32_mem16,         {'opcode':[0x0F, 0xB7], 'modrm':None}),
     (reg16_reg8,          {'opcode':[0x66, 0x0F, 0xB6], 'modrm':None}),
     (reg16_mem8,          {'opcode':[0x66, 0x0F, 0xB6], 'modrm':None}))
   
@@ -2190,6 +2199,30 @@ class andps(x86DispatchInstruction):
     (xmm_mem128,   {'opcode':[0x0F, 0x54], 'modrm':None}))
   arch_ext = 1
 
+class blendpd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0D], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0D], 'modrm':None}))
+  arch_ext = 4
+
+class blendps(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0C], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0C], 'modrm':None}))
+  arch_ext = 4
+
+class blendvpd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x15], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x15], 'modrm':None}))
+  arch_ext = 4
+
+class blendvps(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x14], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x14], 'modrm':None}))
+  arch_ext = 4
+
 class cmpeqpd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,    {'opcode':[0x66, 0x0F, 0xC2], 'modrm':None, 'imm':0}),
@@ -2579,10 +2612,30 @@ class divss(x86DispatchInstruction):
     (xmm_mem64,      {'opcode':[0xF3, 0x0F, 0x5E], 'modrm':None}))
   arch_ext = 1
 
+class dppd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x41], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x41], 'modrm':None}))
+  arch_ext = 4
+
+class dpps(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x40], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x40], 'modrm':None}))
+  arch_ext = 4
+
 class emms(x86Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x77],'modrm':None}
   arch_ext = 0
+
+class extractps(x86DispatchInstruction):
+  dispatch = (
+    (reg64_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}),
+    (reg32_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}),
+    (mem32_xmm_imm8,     {'opcode':[0x66, 0x0F, 0x3A, 0x17], 'modrm':None}))
+ # TODO - ugh, this make the printer not emit 'dword' for the mem32 case
+ #arch_ext = 4
 
 class haddpd(x86DispatchInstruction):
   dispatch = (
@@ -2607,6 +2660,12 @@ class hsubps(x86DispatchInstruction):
     (xmm_xmm,        {'opcode':[0xF2, 0x0F, 0x7D], 'modrm':None}),
     (xmm_mem128,     {'opcode':[0xF2, 0x0F, 0x7D], 'modrm':None}))
   arch_ext = 3
+
+class insertps(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x21], 'modrm':None}),
+    (xmm_mem32_imm8,  {'opcode':[0x66, 0x0F, 0x3A, 0x21], 'modrm':None}))
+  arch_ext = 4
 
 class lddqu(x86Instruction):
   machine_inst = xmm_mem128
@@ -2776,6 +2835,11 @@ class movntdq(x86Instruction):
   params = {'opcode':[0x66, 0x0F, 0xE7],'modrm':None}
   arch_ext = 2
 
+class movntdqa(x86Instruction):
+  machine_inst = xmm_mem128
+  params = {'opcode':[0x66, 0x0F, 0x38, 0x2A], 'modrm':None}
+  arch_ext = 4
+
 class movntpd(x86Instruction):
   machine_inst = mem128_xmm
   params = {'opcode':[0x66, 0x0F, 0x2B],'modrm':None}
@@ -2846,6 +2910,12 @@ class movups(x86DispatchInstruction):
     (mem128_xmm,     {'opcode':[0x0F, 0x11], 'modrm':None}))
   arch_ext = 1
 
+class mpsadbw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x42], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x42], 'modrm':None}))
+  arch_ext = 4
+
 class mulpd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0x59], 'modrm':None}),
@@ -2882,6 +2952,30 @@ class orps(x86DispatchInstruction):
     (xmm_mem128,     {'opcode':[0x0F, 0x56], 'modrm':None}))
   arch_ext = 1
 
+class pabsb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x1C], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x1C], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x1C], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x1C], 'modrm':None}))
+  arch_ext = 3
+
+class pabsd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x1E], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x1E], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x1E], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x1E], 'modrm':None}))
+  arch_ext = 3
+
+class pabsw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x1D], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x1D], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x1D], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x1D], 'modrm':None}))
+  arch_ext = 3
+
 class packssdw(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0x6B], 'modrm':None}),
@@ -2897,6 +2991,12 @@ class packsswb(x86DispatchInstruction):
     (mmx_mmx,        {'opcode':[0x0F, 0x63], 'modrm':None}),
     (mmx_mem64,      {'opcode':[0x0F, 0x63], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
+
+class packusdw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x2B], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x2B], 'modrm':None}))
+  arch_ext = 4
 
 class packuswb(x86DispatchInstruction):
   dispatch = (
@@ -2970,6 +3070,14 @@ class paddw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFD], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
+class palignr(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,   {'opcode':[0x66, 0x0F, 0x3A, 0x0F], 'modrm':None}),
+    (xmm_mem128_imm8,{'opcode':[0x66, 0x0F, 0x3A, 0x0F], 'modrm':None}),
+    (mmx_mmx_imm8,   {'opcode':[0x0F, 0x3A, 0x0F], 'modrm':None}),
+    (mmx_mem64_imm8, {'opcode':[0x0F, 0x3A, 0x0F], 'modrm':None}))
+  arch_ext = 3
+
 class pand(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0xDB], 'modrm':None}),
@@ -3002,6 +3110,18 @@ class pavgw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE3], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
+class pblendvb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x10], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x10], 'modrm':None}))
+  arch_ext = 4
+
+class pblendw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0E], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0E], 'modrm':None}))
+  arch_ext = 4
+
 class pcmpeqb(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0x74], 'modrm':None}),
@@ -3018,6 +3138,12 @@ class pcmpeqd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x76], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
+class pcmpeqq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x29], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x29], 'modrm':None}))
+  arch_ext = 4
+
 class pcmpeqw(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0x75], 'modrm':None}),
@@ -3025,6 +3151,18 @@ class pcmpeqw(x86DispatchInstruction):
     (mmx_mmx,        {'opcode':[0x0F, 0x75], 'modrm':None}),
     (mmx_mem64,      {'opcode':[0x0F, 0x75], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
+
+class pcmpestri(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x61], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x61], 'modrm':None}))
+  arch_ext = 4
+
+class pcmpestrm(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x60], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x60], 'modrm':None}))
+  arch_ext = 4
 
 class pcmpgtb(x86DispatchInstruction):
   dispatch = (
@@ -3050,11 +3188,114 @@ class pcmpgtw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x65], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
+class pcmpgtq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x37], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x37], 'modrm':None}))
+  arch_ext = 4
+
+class pcmpistri(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x63], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x63], 'modrm':None}))
+  arch_ext = 4
+
+class pcmpistrm(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x62], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x62], 'modrm':None}))
+  arch_ext = 4
+
+class pextrb(x86DispatchInstruction):
+  dispatch = (
+    (reg32_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x14], 'modrm':None}),
+    (mem8_xmm_imm8,  {'opcode':[0x66, 0x0F, 0x3A, 0x14], 'modrm':None}))
+  arch_ext = 4
+
+class pextrd(x86DispatchInstruction):
+  dispatch = (
+    (reg32_xmm_imm8_rev, {'opcode':[0x66, 0x0F, 0x3A, 0x16], 'modrm':None}),
+    (mem32_xmm_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x16], 'modrm':None}))
+  arch_ext = 4
+
 class pextrw(x86DispatchInstruction):
   dispatch = (
-    (reg32_xmm_imm8,     {'opcode':[0x66, 0x0F, 0xC5], 'modrm':None}),
-    (reg32_mmx_imm8,     {'opcode':[0x0F, 0xC5], 'modrm':None}))
+    (reg32_xmm_imm8, {'opcode':[0x66, 0x0F, 0xC5], 'modrm':None}),
+    (mem16_xmm_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x15], 'modrm':None}),
+    (reg32_mmx_imm8, {'opcode':[0x0F, 0xC5], 'modrm':None}))
   arch_ext = 1
+
+class phaddsw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x03], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x03], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x03], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x03], 'modrm':None}))
+  arch_ext = 3
+
+class phaddw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x01], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x01], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x01], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x01], 'modrm':None}))
+  arch_ext = 3
+
+class phaddd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x02], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x02], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x02], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x02], 'modrm':None}))
+  arch_ext = 3
+
+class phminposuw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x41], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x41], 'modrm':None}))
+  arch_ext = 4
+
+class phminposuw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x41], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x41], 'modrm':None}))
+  arch_ext = 4
+
+class phsubsw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x07], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x07], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x07], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x07], 'modrm':None}))
+  arch_ext = 3
+
+class phsubw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x05], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x05], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x05], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x05], 'modrm':None}))
+  arch_ext = 3
+
+class phsubd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x06], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x06], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x06], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x06], 'modrm':None}))
+  arch_ext = 3
+
+class pinsrb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_reg32_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x20], 'modrm':None}),
+    (xmm_mem8_imm8,  {'opcode':[0x66, 0x0F, 0x3A, 0x20], 'modrm':None}))
+  arch_ext = 4
+
+class pinsrd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_reg32_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x22], 'modrm':None}),
+    (xmm_mem32_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x22], 'modrm':None}))
+  arch_ext = 4
 
 class pinsrw(x86DispatchInstruction):
   dispatch = (
@@ -3064,6 +3305,14 @@ class pinsrw(x86DispatchInstruction):
     (mmx_mem16_imm8,     {'opcode':[0x0F, 0xC4], 'modrm':None}))
   arch_ext = 1
 
+class pmaddubsw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x04], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x04], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x04], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x04], 'modrm':None}))
+  arch_ext = 3
+
 class pmaddwd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0xF5], 'modrm':None}),
@@ -3071,6 +3320,18 @@ class pmaddwd(x86DispatchInstruction):
     (mmx_mmx,        {'opcode':[0x0F, 0xF5], 'modrm':None}),
     (mmx_mem64,      {'opcode':[0x0F, 0xF5], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
+
+class pmaxsb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3C], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3C], 'modrm':None}))
+  arch_ext = 4
+
+class pmaxsd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3D], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3D], 'modrm':None}))
+  arch_ext = 4
 
 class pmaxsw(x86DispatchInstruction):
   dispatch = (
@@ -3088,6 +3349,30 @@ class pmaxub(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDE], 'modrm':None}))
   arch_ext = 1
 
+class pmaxud(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3F], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3F], 'modrm':None}))
+  arch_ext = 4
+
+class pmaxuw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3E], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3E], 'modrm':None}))
+  arch_ext = 4
+
+class pminsb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x38], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x38], 'modrm':None}))
+  arch_ext = 4
+
+class pminsd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x39], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x39], 'modrm':None}))
+  arch_ext = 4
+
 class pminsw(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x66, 0x0F, 0xEA], 'modrm':None}),
@@ -3104,11 +3389,109 @@ class pminub(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDA], 'modrm':None}))
   arch_ext = 1
 
+class pminud(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3B], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3B], 'modrm':None}))
+  arch_ext = 4
+
+class pminuw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x3A], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x3A], 'modrm':None}))
+  arch_ext = 4
+
 class pmovmskb(x86DispatchInstruction):
   dispatch = (
     (reg32_xmm,     {'opcode':[0x66, 0x0F, 0xD7], 'modrm':None}),
     (reg32_mmx,     {'opcode':[0x0F, 0xD7], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 1
+
+class pmovsxbw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x20], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x20], 'modrm':None}))
+  arch_ext = 4
+
+class pmovsxbd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x21], 'modrm':None}),
+    (xmm_mem32, {'opcode':[0x66, 0x0F, 0x38, 0x21], 'modrm':None}))
+  arch_ext = 4
+
+class pmovsxbq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x22], 'modrm':None}),
+    (xmm_mem16, {'opcode':[0x66, 0x0F, 0x38, 0x22], 'modrm':None}))
+  arch_ext = 4
+
+class pmovsxwd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x23], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x23], 'modrm':None}))
+  arch_ext = 4
+
+class pmovsxwq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x24], 'modrm':None}),
+    (xmm_mem32, {'opcode':[0x66, 0x0F, 0x38, 0x24], 'modrm':None}))
+  arch_ext = 4
+
+class pmovsxdq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x25], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x25], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxbw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x30], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x30], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxbd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x31], 'modrm':None}),
+    (xmm_mem32, {'opcode':[0x66, 0x0F, 0x38, 0x31], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxbq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x32], 'modrm':None}),
+    (xmm_mem16, {'opcode':[0x66, 0x0F, 0x38, 0x32], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxwd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x33], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x33], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxwq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x34], 'modrm':None}),
+    (xmm_mem32, {'opcode':[0x66, 0x0F, 0x38, 0x34], 'modrm':None}))
+  arch_ext = 4
+
+class pmovzxdq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,   {'opcode':[0x66, 0x0F, 0x38, 0x35], 'modrm':None}),
+    (xmm_mem64, {'opcode':[0x66, 0x0F, 0x38, 0x35], 'modrm':None}))
+  arch_ext = 4
+
+class pmuldq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x28], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x28], 'modrm':None}))
+  arch_ext = 4
+
+class pmulhrsw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x0B], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x0B], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x0B], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x0B], 'modrm':None}))
+  arch_ext = 3
 
 class pmulhuw(x86DispatchInstruction):
   dispatch = (
@@ -3125,6 +3508,12 @@ class pmulhw(x86DispatchInstruction):
     (mmx_mmx,        {'opcode':[0x0F, 0xE5], 'modrm':None}),
     (mmx_mem64,      {'opcode':[0x0F, 0xE5], 'modrm':None}))
   arch_ext = 1
+
+class pmulld(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x40], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x40], 'modrm':None}))
+  arch_ext = 4
 
 class pmullw(x86DispatchInstruction):
   dispatch = (
@@ -3157,6 +3546,38 @@ class psadbw(x86DispatchInstruction):
     (mmx_mmx,        {'opcode':[0x0F, 0xF6], 'modrm':None}),
     (mmx_mem64,      {'opcode':[0x0F, 0xF6], 'modrm':None}))
   arch_ext = 1
+
+class psignb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x08], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x08], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x08], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x08], 'modrm':None}))
+  arch_ext = 3
+
+class psignd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x0A], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x0A], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x0A], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x0A], 'modrm':None}))
+  arch_ext = 3
+
+class psignw(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x09], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x09], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x09], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x09], 'modrm':None}))
+  arch_ext = 3
+
+class pshufb(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm,    {'opcode':[0x66, 0x0F, 0x38, 0x00], 'modrm':None}),
+    (xmm_mem128, {'opcode':[0x66, 0x0F, 0x38, 0x00], 'modrm':None}),
+    (mmx_mmx,    {'opcode':[0x0F, 0x38, 0x00], 'modrm':None}),
+    (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x00], 'modrm':None}))
+  arch_ext = 3
 
 class pshufd(x86DispatchInstruction):
   dispatch = (
@@ -3415,6 +3836,30 @@ class rcpss(x86DispatchInstruction):
     (xmm_xmm,        {'opcode':[0xF3, 0x0F, 0x53], 'modrm':None}),
     (xmm_mem32,      {'opcode':[0xF3, 0x0F, 0x53], 'modrm':None}))
   arch_ext = 2
+
+class roundpd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x09], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x09], 'modrm':None}))
+  arch_ext = 4
+
+class roundps(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x08], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x08], 'modrm':None}))
+  arch_ext = 4
+
+class roundsd(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0B], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0B], 'modrm':None}))
+  arch_ext = 4
+
+class roundss(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0A], 'modrm':None}),
+    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0A], 'modrm':None}))
+  arch_ext = 4
 
 class rsqrtps(x86DispatchInstruction):
   dispatch = (
