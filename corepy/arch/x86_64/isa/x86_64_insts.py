@@ -2321,7 +2321,21 @@ class xmm_imm8(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return params['prefix'] + rex + params['opcode'] + [0xC0 | params['modrm'] | operands['xmm'].reg] + w8(operands['imm8'])
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | params['modrm'] | xmm.reg] + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
+class xmm_imm8_imm8(MachineInstruction):
+  signature = (xmm_t, imm8_t('ia'), imm8_t('ib'))
+  opt_kw = ()
+  
+  def _render(params, operands):
+    xmm = operands['xmm']
+    rex = [0x40 | xmm.rex]
+    if rex == [0x40]:
+      rex = []
+
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | params['modrm'] | xmm.reg] + w8(operands['ia']) + w8(operands['ib'])
   render = staticmethod(_render)
 
 
@@ -2560,7 +2574,7 @@ class xmm_xmm_imm(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return params['prefix'] + rex + params['opcode'] + [0xC0 | (operands['rd'].reg << 3) | operands['ra'].reg] + w8(params['imm'])
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(params['imm'])
   render = staticmethod(_render)
 
 
@@ -2575,7 +2589,22 @@ class xmm_xmm_imm8(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return params['prefix'] + rex + params['opcode'] + [0xC0 | (operands['rd'].reg << 3) | operands['ra'].reg] + w8(operands['imm8'])
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
+class xmm_xmm_imm8_imm8(MachineInstruction):
+  signature = (xmm_t('rd'), xmm_t('ra'), imm8_t('ia'), imm8_t('ib'))
+  opt_kw = ()
+  
+  def _render(params, operands):
+    rd = operands['rd']
+    ra = operands['ra']
+    rex = [0x40 | (rd.rex << 2) | ra.rex]
+    if rex == [0x40]:
+      rex = []
+
+    return params['prefix'] + rex + params['opcode'] + [0xC0 | (operands['rd'].reg << 3) | operands['ra'].reg] + w8(operands['ia']) + w8(operands['ib'])
   render = staticmethod(_render)
 
 

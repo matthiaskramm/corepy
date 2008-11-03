@@ -3018,6 +3018,12 @@ class extractps(x86DispatchInstruction):
  # TODO - ugh, this make the printer not emit 'dword' for the mem32 case
  #arch_ext = 4
 
+class extrq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_imm8_imm8, {'opcode':[0x0F, 0x78], 'modrm':0x00, 'prefix':[0x66]}),
+    (xmm_xmm,       {'opcode':[0x0F, 0x79], 'modrm':None, 'prefix':[0x66]}))
+  arch_ext = 4
+
 class haddpd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x7C], 'modrm':None, 'prefix':[0x66]}),
@@ -3046,6 +3052,12 @@ class insertps(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x21], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32_imm8,  {'opcode':[0x0F, 0x3A, 0x21], 'modrm':None, 'prefix':[0x66]}))
+  arch_ext = 4
+
+class insertq(x86DispatchInstruction):
+  dispatch = (
+    (xmm_xmm_imm8_imm8, {'opcode':[0x0F, 0x78], 'modrm':None, 'prefix':[0xF2]}),
+    (xmm_xmm,           {'opcode':[0x0F, 0x79], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 4
 
 class lddqu(x86Instruction):
@@ -3244,6 +3256,16 @@ class movntq(x86Instruction):
   machine_inst = mem64_mmx
   params = {'opcode':[0x0F, 0xE7], 'modrm':None, 'prefix':[]}
   arch_ext = 1
+
+class movntsd(x86Instruction):
+  machine_inst = mem64_xmm
+  params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[0xF2]}
+  arch_ext = 4
+
+class movntss(x86Instruction):
+  machine_inst = mem32_xmm
+  params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[0xF3]}
+  arch_ext = 4
 
 class movq(x86DispatchInstruction):
   dispatch = (

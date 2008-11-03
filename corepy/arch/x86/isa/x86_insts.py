@@ -1542,6 +1542,15 @@ class xmm_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
+class xmm_imm8_imm8(MachineInstruction):
+  signature = (xmm_t, imm8_t('ia'), imm8_t('ib'))
+  opt_kw = ()
+  
+  def _render(params, operands):
+    return params['opcode'] + [0xC0 | params['modrm'] | operands['xmm'].reg] + w8(operands['ia']) + w8(operands['ib'])
+  render = staticmethod(_render)
+
+
 class xmm_mem128(MachineInstruction):
   signature = (xmm_t, mem128_t)
   opt_kw = ()
@@ -1721,6 +1730,18 @@ class xmm_xmm_imm8(MachineInstruction):
   
   def _render(params, operands):
     return params['opcode'] + [0xC0 | (operands['rd'].reg << 3) | operands['ra'].reg, operands['imm8']]
+  render = staticmethod(_render)
+
+
+class xmm_xmm_imm8_imm8(MachineInstruction):
+  signature = (xmm_t('rd'), xmm_t('ra'), imm8_t('ia'), imm8_t('ib'))
+  opt_kw = ()
+  
+  def _render(params, operands):
+    rd = operands['rd']
+    ra = operands['ra']
+
+    return params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['ia']) + w8(operands['ib'])
   render = staticmethod(_render)
 
 
