@@ -86,7 +86,7 @@ class x86ImmediateOperand(x86InstructionOperand):
 
   # This so instances with different names can be created, i.e. reg8_t('rd')
   def __call__(self, name):
-    return self.__class__(name, self.gp_equiv)
+    return self.__class__(name, self.range)
 
   def check(self, value):
     return self.fits(value)
