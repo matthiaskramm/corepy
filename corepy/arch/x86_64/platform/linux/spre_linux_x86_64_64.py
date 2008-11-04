@@ -87,8 +87,8 @@ class InstructionStream(spe.InstructionStream):
     self._prologue.append(x86.push(r14, ignore_active = True))
     self._prologue.append(x86.push(r13, ignore_active = True))
     self._prologue.append(x86.push(r12, ignore_active = True))
-    self._prologue.append(x86.push(rdi, ignore_active = True))
-    self._prologue.append(x86.push(rsi, ignore_active = True))
+    #self._prologue.append(x86.push(rdi, ignore_active = True))
+    #self._prologue.append(x86.push(rsi, ignore_active = True))
     self._prologue.append(x86.push(rbx, ignore_active = True))
     return
 
@@ -102,8 +102,8 @@ class InstructionStream(spe.InstructionStream):
 
     # Pop callee-save regs and clean up the stack frame
     self._epilogue.append(x86.pop(rbx, ignore_active = True))
-    self._epilogue.append(x86.pop(rsi, ignore_active = True))
-    self._epilogue.append(x86.pop(rdi, ignore_active = True))
+    #self._epilogue.append(x86.pop(rsi, ignore_active = True))
+    #self._epilogue.append(x86.pop(rdi, ignore_active = True))
     self._epilogue.append(x86.pop(r12, ignore_active = True))
     self._epilogue.append(x86.pop(r13, ignore_active = True))
     self._epilogue.append(x86.pop(r14, ignore_active = True))
