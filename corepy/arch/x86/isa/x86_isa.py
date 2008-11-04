@@ -2639,7 +2639,7 @@ class extractps(x86DispatchInstruction):
 class extrq(x86DispatchInstruction):
   dispatch = (
     (xmm_imm8_imm8, {'opcode':[0x66, 0x0F, 0x78], 'modrm':0x00}),
-    (xmm_xmm,       {'opcode':[9x66, 0x0F, 0x79], 'modrm':None}))
+    (xmm_xmm,       {'opcode':[0x66, 0x0F, 0x79], 'modrm':None}))
   arch_ext = 4
 
 class haddpd(x86DispatchInstruction):
