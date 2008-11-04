@@ -52,8 +52,10 @@ def get_nasm_output(code, inst):
   hex = ''.join(output.splitlines())
 
   # If the prolog/epilog change, these need to be updated
-  startstr = "554889e54157415641554154575653"
-  stopstr = "5b5e5f415c415d415e415fc9c3"
+  #startstr = "554889e54157415641554154575653"
+  startstr = "554889e5415741564155415453"
+  #stopstr = "5b5e5f415c415d415e415fc9c3"
+  stopstr = "5b415c415d415e415fc9c3"
   startpos = hex.find(startstr) + len(startstr)
   stoppos = hex.find(stopstr)
 
