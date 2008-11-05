@@ -120,47 +120,46 @@ class EditorWindow(wx.Frame):
   def OnToolClick(self, event):
     id = event.GetId()
 
+    step = None
     if id == 20: # Step
       # Make every instruction but the current one be a debug stop
       start = 0
       if self.editCtrl.exec_mark != None:
         start = self.editCtrl.exec_mark
-      line = start
+      step = start
     elif id == 10: # Execute
       # Execute from the beginning.. easy
       start = 0
-      line = None
     elif id == 30: # Continue
       # Execute from the current instruction
       start = 0
       if self.editCtrl.exec_mark != None:
         start = self.editCtrl.exec_mark
-      line = None
+
+    # Skip over comments/labels to the first instruction after the exec mark
+    # TODO - this works but it sucks
+    line = self.editCtrl.GetLine(start).strip()
+    while line != '' and (line[0] == '#' or line[-1] == ':'):
+      start += 1
+      line = self.editCtrl.GetLine(start).strip()
+    if step != None:
+      step = start
 
     # Generate & execute the stream
-    # TODO - start is passed here so we can avoid setting a breakpoint where
-    # execution starts.  But we could loop back again and in that case we want
-    # to hit the breakpoint -- how should this be dealt with?
-    print "start, line", start, line
-    code = self.GenerateStream(start, line)
+    code = self.GenerateStream(step)
     stop = self.app.ExecuteStream(code, start)
 
     # Update the execution mark
-    print "Setting exec mark", stop
     codelen = len(code) - 1
-    while(isinstance(code[stop + 1], spe.Label)):
+    while stop < codelen and isinstance(code[stop + 1], spe.Label):
       stop += 1
-
-      # Break out if the end of the code is reached
-      if stop == codelen:
-        break
 
     self.editCtrl.SetExecMark(stop)
     self.app.Update()
     return
 
 
-  def GenerateStream(self, cur = -1, line = None):
+  def GenerateStream(self, step = None):
     code = env.InstructionStream()
     txt = self.editCtrl.GetText().split('\n')
     txtlen = len(txt)
@@ -168,9 +167,8 @@ class EditorWindow(wx.Frame):
     for i in xrange(0, txtlen):
       # For the stop case, want all instructions except the current one to be
       # STOP instructions.
-      # TODO - don't want to replace labels with stops.. how?
       cmd = txt[i].strip()
-      if line != None and i != line:
+      if step != None and i != step:
         if cmd == "" or cmd[0] == '#':
           continue
         elif cmd[-1] == ":":
@@ -191,19 +189,15 @@ class EditorWindow(wx.Frame):
           inst = code.get_label(cmd[:-1])
         else:
           # Instruction
-          strcmd = "spu."
-          #strcmd += re.sub("Label\((.*?), .*?\)", "code.get_label(\\1)", cmd)
-          strcmd += re.sub("Label\((.*?)\)", "code.get_label('\\1')", cmd)
-          print "strcmd", strcmd
+          strcmd = re.sub("Label\((.*?)\)", "code.get_label('\\1')", cmd)
           try:
-            #inst = eval('spu.%s' % cmd)
-            inst = eval(strcmd)
+            inst = eval('spu.%s' % strcmd)
           except:
             print 'Error creating instruction: %s' % cmd
 
         code.add(inst)
     code.cache_code()
-    code.print_code(pro = True, epi = True)
+    #code.print_code()
     return code
 
 
@@ -673,25 +667,19 @@ class SPUApp(wx.App):
 
     offset = start
     for i in xrange(1, start + 1):
-      print "pre exec inst", code[i]
       if isinstance(code[i], spe.Label):
         offset -= 1
     
-    print "offset for exec", offset,start
-    # Subtract 2 because the prologue contains two labels which take no space
     exec_lsa = code_lsa + ((offset + len(code._prologue) - 1) * itemsize)
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
-    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 0)
+    offset = ((ret - code_lsa) / 4) - len(code._prologue)
 
-    # TODO - how do I account for the BODY label?
-    print "offset after exec", offset
-    off = 0
     if offset == 0:
-      print "offset 0, returning 0"
       return 0
 
+    off = 0
     for i in xrange(1, len(code)):
       inst = code[i]
       if not isinstance(inst, spe.Label):
@@ -699,14 +687,6 @@ class SPUApp(wx.App):
         if off == offset:
           return i
 
-    #for i, inst in enumerate(code._instructions):
-    #  print "post exec inst", type(inst)
-    #  if not isinstance(inst, spe.Label):
-    #    off += 1
-    #    if off == offset:
-    #      print "i, offset", i, offset
-    #      return i + 1
-    print "ERROR ERROR"
     return 0
 
 
@@ -721,6 +701,8 @@ if __name__=='__main__':
   code = env.InstructionStream()
   reg = code.acquire_register()
   foo = code.acquire_register(reg = 1)
+
+  code.add(code.get_label("FOO"))
   code.add(spu.il(foo, 0xCAFE))
   code.add(spu.ilhu(reg, 0xDEAD))
   code.add(spu.iohl(reg, 0xBEEF))
