@@ -141,11 +141,20 @@ class EditorWindow(wx.Frame):
     # TODO - start is passed here so we can avoid setting a breakpoint where
     # execution starts.  But we could loop back again and in that case we want
     # to hit the breakpoint -- how should this be dealt with?
+    print "start, line", start, line
     code = self.GenerateStream(start, line)
     stop = self.app.ExecuteStream(code, start)
 
     # Update the execution mark
-    print "Setting exec mark", stop - 1
+    print "Setting exec mark", stop
+    codelen = len(code)
+    while(isinstance(code[stop], spe.Label)):
+      stop += 1
+
+      # Break out if the end of the code is reached
+      if stop == codelen:
+        break
+
     self.editCtrl.SetExecMark(stop)
     self.app.Update()
     return
@@ -166,7 +175,7 @@ class EditorWindow(wx.Frame):
           continue
         elif cmd[-1] == ":":
           # Label - better parsing?
-          inst = code.get_label(cmd[:-1])
+          code.add(code.get_label(cmd[:-1]))
         else:
           code.add(spu.stop(0x2FFF))
         continue
@@ -662,19 +671,36 @@ class SPUApp(wx.App):
       code_len += 16 - (code_len % 16)
     code_lsa = 0x40000 - code_len
 
-    # Subtract 1 because the prologue contains a label which takes no space
-    exec_lsa = code_lsa + ((start + len(code._prologue) - 1) * itemsize)
+    offset = start
+    for i in xrange(0, start):
+      print "pre exec inst", code._instructions[i]
+      if isinstance(code._instructions[i], spe.Label):
+        offset -= 1
+    
+    print "offset for exec", offset,start
+    # Subtract 2 because the prologue contains two labels which take no space
+    exec_lsa = code_lsa + ((offset + len(code._prologue) - 2) * itemsize)
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
-    # TODO - better/faster way to do this
-    # count number of labels in the stream to adjust stop point properly
-    numlbls = -1
-    for inst in code._instructions:
-      if isinstance(inst, spe.Label):
-        numlbls += 1
-    print "run ret", ret, (ret - code_lsa) / 4 - len(code._prologue) + numlbls
-    return (ret - code_lsa) / 4 - len(code._prologue) + numlbls
+    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 1)
+
+    # TODO - how do I account for the BODY label?
+    print "offset after exec", offset
+    off = 0
+    if offset == 0:
+      print "offset 0, returning 0"
+      return 0
+
+    for i, inst in enumerate(code._instructions):
+      print "post exec inst", type(inst)
+      if not isinstance(inst, spe.Label):
+        off += 1
+        if off == offset:
+          print "i, offset", i, offset
+          return i + 1
+    print "ERROR ERROR"
+    return 0
 
 
   def Update(self):
