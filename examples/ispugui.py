@@ -147,8 +147,8 @@ class EditorWindow(wx.Frame):
 
     # Update the execution mark
     print "Setting exec mark", stop
-    codelen = len(code)
-    while(isinstance(code[stop], spe.Label)):
+    codelen = len(code) - 1
+    while(isinstance(code[stop + 1], spe.Label)):
       stop += 1
 
       # Break out if the end of the code is reached
@@ -256,7 +256,7 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     if column == 0:
       return "%d" % (item)
     elif column > 0 and column < 5:
-      return "0x%08X" % self._cur_regs[item * 4 + (column - 1)]
+      return "%08X" % self._cur_regs[item * 4 + (column - 1)]
     #elif column == 1:
     #  return "0x%08X %08X %08X %08X" % (self._cur_regs[item * 4],
     #                                    self._cur_regs[item * 4 + 1],
@@ -350,7 +350,7 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     if column == 0:
       return "0x%06X" % (item * 16)
     elif column > 0 and column < 5:
-      return "0x%08X" % self._cur_ls[item * 4 + (column - 1)]
+      return "%08X" % self._cur_ls[item * 4 + (column - 1)]
 
 
   def OnGetItemAttr(self, item):
@@ -508,7 +508,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
       return "0x%08X" % (addr)
     elif column < 5:
       self._array.set_memory(addr + (4 * (column - 1)))
-      return "0x%08X" % (self._array[0])
+      return "%08X" % (self._array[0])
     return ""
 
 
@@ -672,18 +672,18 @@ class SPUApp(wx.App):
     code_lsa = 0x40000 - code_len
 
     offset = start
-    for i in xrange(0, start):
-      print "pre exec inst", code._instructions[i]
-      if isinstance(code._instructions[i], spe.Label):
+    for i in xrange(1, start + 1):
+      print "pre exec inst", code[i]
+      if isinstance(code[i], spe.Label):
         offset -= 1
     
     print "offset for exec", offset,start
     # Subtract 2 because the prologue contains two labels which take no space
-    exec_lsa = code_lsa + ((offset + len(code._prologue) - 2) * itemsize)
+    exec_lsa = code_lsa + ((offset + len(code._prologue) - 1) * itemsize)
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
-    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 1)
+    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 0)
 
     # TODO - how do I account for the BODY label?
     print "offset after exec", offset
@@ -692,13 +692,20 @@ class SPUApp(wx.App):
       print "offset 0, returning 0"
       return 0
 
-    for i, inst in enumerate(code._instructions):
-      print "post exec inst", type(inst)
+    for i in xrange(1, len(code)):
+      inst = code[i]
       if not isinstance(inst, spe.Label):
         off += 1
         if off == offset:
-          print "i, offset", i, offset
-          return i + 1
+          return i
+
+    #for i, inst in enumerate(code._instructions):
+    #  print "post exec inst", type(inst)
+    #  if not isinstance(inst, spe.Label):
+    #    off += 1
+    #    if off == offset:
+    #      print "i, offset", i, offset
+    #      return i + 1
     print "ERROR ERROR"
     return 0
 
