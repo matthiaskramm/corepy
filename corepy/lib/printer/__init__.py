@@ -37,6 +37,8 @@ from x86_nasm import x86_Nasm
 
 
 def PrintInstructionStream(code, module, fd = sys.stdout):
+  code.cache_code()
+
   module.header(fd)
   if code._prologue != None and module.prologue(fd):
     for obj in code._prologue:

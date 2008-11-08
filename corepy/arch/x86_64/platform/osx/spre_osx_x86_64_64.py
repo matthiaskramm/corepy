@@ -64,6 +64,9 @@ class InstructionStream(spe.InstructionStream):
   default_register_type = GPRegister64
   instruction_type  = 'B'
   exec_module = x86_64_exec
+
+  gp_return = rax
+  fp_return = xmm0
  
   # ------------------------------
   # Execute/ABI support
