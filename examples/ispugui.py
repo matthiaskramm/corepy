@@ -46,9 +46,16 @@ class EditorCtrl(stc.StyledTextCtrl):
   def __init__(self, app, parent, id):
     stc.StyledTextCtrl.__init__(self, parent, id)
 
+    mask = stc.STC_MOD_INSERTTEXT | stc.STC_MOD_DELETETEXT
+    mask |= stc.STC_MOD_BEFOREINSERT | stc.STC_MOD_BEFOREDELETE
+    mask |= stc.STC_PERFORMED_USER|stc.STC_PERFORMED_UNDO|stc.STC_PERFORMED_REDO
+    self.SetModEventMask(mask)
+
     self.Bind(stc.EVT_STC_MARGINCLICK, self.OnMarginClick)
+    self.Bind(stc.EVT_STC_CHANGE, self.OnChange)
 
     self.exec_mark = None
+    self.line_count = 0
     return
 
   def OnMarginClick(self, event):
@@ -61,11 +68,29 @@ class EditorCtrl(stc.StyledTextCtrl):
     else:
       self.SetExecMark(self.LineFromPosition(event.GetPosition()))
 
+  def OnChange(self, event):
+    lc = self.GetLineCount()
+    if lc != self.line_count:
+      self.line_count = lc
+      cl = self.GetCurrentLine()
+      
+      # Update exec_mark
+      if self.exec_mark != None and self.exec_mark >= cl - 1:
+        for i in xrange(cl - 1, lc):
+          if (self.MarkerGet(i) & 2) != 0:
+            print "old exec_mark, new", self.exec_mark, i
+            self.SetExecMark(i)
+            break
+
+    return
+
   def SetExecMark(self, line):
     if self.exec_mark != None:
-      self.MarkerDelete(self.exec_mark, 1)
+        self.MarkerDelete(self.exec_mark, 1)
+    if line != None:
+        self.MarkerAdd(line, 1)
+
     self.exec_mark = line
-    self.MarkerAdd(line, 1)
     return
 
   def IsBreakSet(self, line):
@@ -91,6 +116,7 @@ class EditorWindow(wx.Frame):
     editCtrl.SetMarginSensitive(1, 1)
     editCtrl.MarkerDefine(0, stc.STC_MARK_CIRCLE, "#FF0000", "#FF0000")
     editCtrl.MarkerDefine(1, stc.STC_MARK_SHORTARROW, "#00AF00", "#00AF00")
+    editCtrl.MarkerDefine(2, stc.STC_MARK_SHORTARROW, "#AFAF00", "#AFAF00")
 
     # Toolbox stuff
     tsize = (24, 24)
@@ -137,22 +163,53 @@ class EditorWindow(wx.Frame):
         start = self.editCtrl.exec_mark
 
     # Skip over comments/labels to the first instruction after the exec mark
-    # TODO - this works but it sucks
+    # TODO wait what am I doing here?  this was written in case the user sets
+    # an exec mark on a blank/comment/label line -- we want to forward past it.
+    # But we also need to scale back any blank/comment lines..
     line = self.editCtrl.GetLine(start).strip()
-    while line != '' and (line[0] == '#' or line[-1] == ':'):
+    #while line != '' and (line[0] == '#' or line[-1] == ':'):
+    while line == '' or line[0] == '#' or line[-1] == ':':
       start += 1
       line = self.editCtrl.GetLine(start).strip()
+
+    for i in xrange(0, start):
+      line = self.editCtrl.GetLine(i)
+      if line == '' or line[0] == '#':
+        print "start decrement"
+        start -= 1
+
     if step != None:
       step = start
 
+    print "start step", start, step, self.editCtrl.exec_mark
+    print "start line", self.editCtrl.GetLine(start)
     # Generate & execute the stream
     code = self.GenerateStream(step)
+    code.print_code()
     stop = self.app.ExecuteStream(code, start)
 
     # Update the execution mark
-    codelen = len(code) - 1
-    while stop < codelen and isinstance(code[stop + 1], spe.Label):
+    #codelen = len(code) - 1
+    #while stop < codelen and isinstance(code[stop + 1], spe.Label):
+    #  stop += 1
+
+    # Move stop forward past any blank lines before it.. comments and labels too?
+    for i in xrange(0, stop):
+      line = self.editCtrl.GetLine(i)
+      if line == '' or line[0] == '#':
+        stop += 1
+
+    # Don't set stop to blank lines, comments, or labels
+    line = self.editCtrl.GetLine(stop).strip()
+    numlines = self.editCtrl.GetLineCount()
+    while stop < numlines and (line == '' or line[0] == '#' or line[-1] == ':'):
       stop += 1
+      line = self.editCtrl.GetLine(stop).strip()
+
+    if stop == numlines:
+      stop = None
+    else:
+      print "stop", stop, self.editCtrl.GetLine(stop)
 
     self.editCtrl.SetExecMark(stop)
     self.app.Update()
@@ -199,6 +256,50 @@ class EditorWindow(wx.Frame):
     code.cache_code()
     #code.print_code()
     return code
+
+#  def TextToStream(self, line):
+#    """Map a line in the text editor to an index in a generated stream"""
+#    # TODO - maybe use GetLine() instead of GetText()?
+#    txt = self.editCtrl.GetText().split('\n')
+#    txtlen = len(txt)
+#
+#    index = 0
+#    for i in xrange(0, line):
+#      t = txt[i].strip()
+#      # Blank lines and comments don't exist in an IS, skip them
+#      if t == "" or t[0] == '#':
+#        continue
+#      index += 1
+#
+#    return index
+#
+#  def StreamToText(self, index):
+#    """Map an index in the stream to a line in the text editor"""
+#    txt = self.editCtrl.GetText().split('\n')
+#    txtlen = len(txt)
+#
+#    if index == 0:
+#      # TODO - actually, this should never happen.. BODY label is always
+#      # at index 0, so will always be skipped.
+#      for i in xrange(0, txtlen):
+#        t = txt[i].strip()
+#        if t != "" and t[0] != '#' and t[-1] != ':':
+#          return i
+#
+#    # Count index instructions/labels in the text and return the result
+#    ind = 0
+#    for i in xrange(0, txtlen):
+#      t = txt[i].strip()
+#
+#      # if not a comment, count
+#      if t != "" and t[0] != '#':
+#        ind += 1
+#        if ind == index:
+#          return i
+#    return 0
+      
+
+      
 
 
   def AddInstruction(self, inst):
@@ -626,6 +727,8 @@ class SPUApp(wx.App):
     ls_frame = LocalStoreWindow(self, edit_frame, -1)
     mem_frame = MemoryWindow(self, edit_frame, -1)
 
+    edit_frame.SetFocus()
+
     self.edit_frame = edit_frame
     self.reg_frame = reg_frame
     self.ls_frame = ls_frame
@@ -671,6 +774,7 @@ class SPUApp(wx.App):
         offset -= 1
     
     exec_lsa = code_lsa + ((offset + len(code._prologue) - 1) * itemsize)
+    print "offset", offset
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
@@ -702,7 +806,7 @@ if __name__=='__main__':
   reg = code.acquire_register()
   foo = code.acquire_register(reg = 1)
 
-  code.add(code.get_label("FOO"))
+  #code.add(code.get_label("FOO"))
   code.add(spu.il(foo, 0xCAFE))
   code.add(spu.ilhu(reg, 0xDEAD))
   code.add(spu.iohl(reg, 0xBEEF))
