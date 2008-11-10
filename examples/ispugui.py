@@ -61,6 +61,7 @@ class EditorCtrl(stc.StyledTextCtrl):
   def OnMarginClick(self, event):
     line = self.LineFromPosition(event.GetPosition())
     if event.GetControl():
+      # TODO - move the BP down to the first non-label line
       if self.IsBreakSet(line):
         self.MarkerDelete(line, 0)
       else:
@@ -104,6 +105,21 @@ class EditorWindow(wx.Frame):
     editCtrl = EditorCtrl(app, self, -1)
     self.editCtrl = editCtrl
 
+    # Set up a status bar
+    statusCtrl = wx.StatusBar(self, -1)
+    self.statusCtrl = statusCtrl
+
+    statusCtrl.SetFieldsCount(1)
+    statusCtrl.SetStatusText("")
+
+    mainSizer = wx.BoxSizer(wx.VERTICAL)
+    mainSizer.Add(editCtrl, 1, wx.EXPAND | wx.ALL)
+    mainSizer.Add(statusCtrl, 0, wx.EXPAND)
+
+    mainSizer.Layout()
+
+    self.SetSizer(mainSizer)
+
     # make some styles
     editCtrl.StyleSetSpec(stc.STC_STYLE_DEFAULT, "face:Courier")
     editCtrl.StyleClearAll()
@@ -119,100 +135,169 @@ class EditorWindow(wx.Frame):
     editCtrl.MarkerDefine(2, stc.STC_MARK_SHORTARROW, "#AFAF00", "#AFAF00")
 
     # Toolbox stuff
-    tsize = (24, 24)
+    tsize = (16, 16)
+    quitbmp = wx.ArtProvider.GetBitmap('gtk-quit', wx.ART_TOOLBAR, tsize)
     execbmp = wx.ArtProvider.GetBitmap('gtk-execute', wx.ART_TOOLBAR, tsize)
     stepbmp = wx.ArtProvider.GetBitmap('gtk-go-forward', wx.ART_TOOLBAR, tsize)
     contbmp = wx.ArtProvider.GetBitmap('gtk-goto-last', wx.ART_TOOLBAR, tsize)
+    cancelbmp = wx.ArtProvider.GetBitmap('gtk-cancel', wx.ART_TOOLBAR, tsize)
+    clearbmp = wx.ArtProvider.GetBitmap('gtk-clear', wx.ART_TOOLBAR, tsize)
+    revertbmp = wx.ArtProvider.GetBitmap('gtk-revert-to-saved', wx.ART_TOOLBAR, tsize)
+    dndbmp = wx.ArtProvider.GetBitmap('gtk-dnd', wx.ART_TOOLBAR, tsize)
 
     tb = self.CreateToolBar(wx.NO_BORDER | wx.TB_FLAT | wx.TB_HORIZONTAL)
     tb.SetToolBitmapSize(tsize)
 
-    tb.AddLabelTool(10, "Execute", execbmp, shortHelp="Execute")
-    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=10)
+    tb.AddLabelTool(0x01, "Quit Debugger", quitbmp, shortHelp="Quit Debugger")
+    self.Bind(wx.EVT_TOOL, self.OnMiscClick, id=0x01)
 
-    tb.AddLabelTool(20, "Step", stepbmp, shortHelp="Step")
-    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=20)
+    tb.AddSeparator()
 
-    tb.AddLabelTool(30, "Continue", contbmp, shortHelp="Continue")
-    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=30)
+    tb.AddLabelTool(0x10, "Execute", execbmp, shortHelp="Execute")
+    self.Bind(wx.EVT_TOOL, self.OnExecClick, id=0x10)
+
+    tb.AddLabelTool(0x20, "Step", stepbmp, shortHelp="Step")
+    self.Bind(wx.EVT_TOOL, self.OnExecClick, id=0x20)
+
+    tb.AddLabelTool(0x30, "Continue", contbmp, shortHelp="Continue")
+    self.Bind(wx.EVT_TOOL, self.OnExecClick, id=0x30)
+
+    tb.AddSeparator()
+
+    tb.AddLabelTool(0x02, "Clear Breakpoints",
+        cancelbmp, shortHelp="Clear Breakpoints")
+    self.Bind(wx.EVT_TOOL, self.OnMiscClick, id=0x02)
+
+    tb.AddSeparator()
+
+    tb.AddLabelTool(0x57, "Reset All",
+        dndbmp, shortHelp="Reset code, registers, and local store")
+    self.Bind(wx.EVT_TOOL, self.OnResetClick, id=0x57)
+
+    tb.AddLabelTool(0x51, "Reset Code",
+        revertbmp, shortHelp="Reset code to initial stream")
+    self.Bind(wx.EVT_TOOL, self.OnResetClick, id=0x51)
+
+    tb.AddLabelTool(0x58, "Clear code",
+        clearbmp, shortHelp="Clear all code")
+    self.Bind(wx.EVT_TOOL, self.OnResetClick, id=0x58)
+
+    #tb.AddLabelTool(0x52, "Reset Registers",
+    #    clearbmp, shortHelp="Reset all register values to 0")
+    #self.Bind(wx.EVT_TOOL, self.OnResetClick, id=0x52)
+
+    #tb.AddLabelTool(0x54, "Reset Local Store",
+    #    clearbmp, shortHelp="Reset all local store values to 0")
+    #self.Bind(wx.EVT_TOOL, self.OnResetClick, id=0x54)
 
     self.app = app
 
-    self.Update()
+    #self.Update()
     self.Show(True)
     return
 
 
-  def OnToolClick(self, event):
+  def OnMiscClick(self, event):
+    id = event.GetId()
+
+    if id == 0x01:
+      # Exit the debugger
+      self.Close()
+    elif id == 0x02:
+      # Clear breakpoints
+      for i in xrange(0, self.editCtrl.GetLineCount()):
+        self.editCtrl.MarkerDelete(i, 0)
+    return
+        
+
+  def OnResetClick(self, event):
+    id = event.GetId()
+
+    if id & 0xF0 != 0x50:
+      return
+
+    if id & 0x1:  # Reset code
+      self.ResetCode()
+    if id & 0x2:  # Reset registers
+      self.app.reg_frame.listCtrl.ResetRegisters()
+    if id & 0x4:  # Reset local store
+      self.app.ls_frame.listCtrl.ResetLocalStore()
+    if id & 0x8:
+      self.editCtrl.ClearAll()
+    return
+
+  def OnExecClick(self, event):
     id = event.GetId()
 
     step = None
-    if id == 20: # Step
+    if id == 0x20: # Step
       # Make every instruction but the current one be a debug stop
       start = 0
       if self.editCtrl.exec_mark != None:
         start = self.editCtrl.exec_mark
       step = start
-    elif id == 10: # Execute
+    elif id == 0x10: # Execute
       # Execute from the beginning.. easy
       start = 0
-    elif id == 30: # Continue
+    elif id == 0x30: # Continue
       # Execute from the current instruction
       start = 0
       if self.editCtrl.exec_mark != None:
         start = self.editCtrl.exec_mark
 
-    # Skip over comments/labels to the first instruction after the exec mark
-    # TODO wait what am I doing here?  this was written in case the user sets
-    # an exec mark on a blank/comment/label line -- we want to forward past it.
-    # But we also need to scale back any blank/comment lines..
+
+    # Bail if we're on a blank line
     line = self.editCtrl.GetLine(start).strip()
-    #while line != '' and (line[0] == '#' or line[-1] == ':'):
-    while line == '' or line[0] == '#' or line[-1] == ':':
+    if line == '':
+      return
+
+    self.statusCtrl.SetStatusText("Executing...")
+
+    # Move the start point past any labels
+    while line[-1] == ':':
       start += 1
       line = self.editCtrl.GetLine(start).strip()
-
-    for i in xrange(0, start):
-      line = self.editCtrl.GetLine(i)
-      if line == '' or line[0] == '#':
-        print "start decrement"
-        start -= 1
 
     if step != None:
       step = start
 
-    print "start step", start, step, self.editCtrl.exec_mark
-    print "start line", self.editCtrl.GetLine(start)
-    # Generate & execute the stream
-    code = self.GenerateStream(step)
-    code.print_code()
-    stop = self.app.ExecuteStream(code, start)
+    # Starting on a line with a breakpoint on it? 
+    if self.editCtrl.IsBreakSet(start):
+      # If we're starting at a breakpoint, need to be able to step once,
+      # redo the IS, then continue.
 
-    # Update the execution mark
-    #codelen = len(code) - 1
-    #while stop < codelen and isinstance(code[stop + 1], spe.Label):
-    #  stop += 1
+      # Generate the code, making sure the start inst is enabled even if BP set
+      self.editCtrl.MarkerDelete(start, 0)
+      code = self.GenerateStream(start)
+      self.editCtrl.MarkerAdd(start, 0)
 
-    # Move stop forward past any blank lines before it.. comments and labels too?
-    for i in xrange(0, stop):
-      line = self.editCtrl.GetLine(i)
-      if line == '' or line[0] == '#':
+      stop = self.app.ExecuteStream(code, start)
+
+      codelen = len(code) - 1
+      while stop < codelen and isinstance(code[stop + 1], spe.Label):
         stop += 1
 
-    # Don't set stop to blank lines, comments, or labels
-    line = self.editCtrl.GetLine(stop).strip()
-    numlines = self.editCtrl.GetLineCount()
-    while stop < numlines and (line == '' or line[0] == '#' or line[-1] == ':'):
-      stop += 1
-      line = self.editCtrl.GetLine(stop).strip()
+      # Once the breakpoint is stepped, do a continue if we weren't already
+      # stepping.  Careful not to execute again if only a step was clicked!
+      if step == None:
+        start = stop
+        # Generate & execute the stream
+        code = self.GenerateStream()
+        stop = self.app.ExecuteStream(code, start)
 
-    if stop == numlines:
-      stop = None
     else:
-      print "stop", stop, self.editCtrl.GetLine(stop)
+      # Generate & execute the stream
+      code = self.GenerateStream(step)
+      stop = self.app.ExecuteStream(code, start)
+
+    # Update the execution mark
+    codelen = len(code) - 1
+    while stop < codelen and isinstance(code[stop + 1], spe.Label):
+      stop += 1
 
     self.editCtrl.SetExecMark(stop)
     self.app.Update()
+    self.statusCtrl.SetStatusText("")
     return
 
 
@@ -228,7 +313,7 @@ class EditorWindow(wx.Frame):
       if step != None and i != step:
         if cmd == "" or cmd[0] == '#':
           continue
-        elif cmd[-1] == ":":
+        if cmd[-1] == ":":
           # Label - better parsing?
           code.add(code.get_label(cmd[:-1]))
         else:
@@ -236,7 +321,6 @@ class EditorWindow(wx.Frame):
         continue
 
       if self.editCtrl.IsBreakSet(i):
-      #if self.editCtrl.IsBreakSet(i) and i != cur:
         code.add(spu.stop(0x2FFF))
         continue
 
@@ -254,56 +338,20 @@ class EditorWindow(wx.Frame):
 
         code.add(inst)
     code.cache_code()
-    #code.print_code()
     return code
 
-#  def TextToStream(self, line):
-#    """Map a line in the text editor to an index in a generated stream"""
-#    # TODO - maybe use GetLine() instead of GetText()?
-#    txt = self.editCtrl.GetText().split('\n')
-#    txtlen = len(txt)
-#
-#    index = 0
-#    for i in xrange(0, line):
-#      t = txt[i].strip()
-#      # Blank lines and comments don't exist in an IS, skip them
-#      if t == "" or t[0] == '#':
-#        continue
-#      index += 1
-#
-#    return index
-#
-#  def StreamToText(self, index):
-#    """Map an index in the stream to a line in the text editor"""
-#    txt = self.editCtrl.GetText().split('\n')
-#    txtlen = len(txt)
-#
-#    if index == 0:
-#      # TODO - actually, this should never happen.. BODY label is always
-#      # at index 0, so will always be skipped.
-#      for i in xrange(0, txtlen):
-#        t = txt[i].strip()
-#        if t != "" and t[0] != '#' and t[-1] != ':':
-#          return i
-#
-#    # Count index instructions/labels in the text and return the result
-#    ind = 0
-#    for i in xrange(0, txtlen):
-#      t = txt[i].strip()
-#
-#      # if not a comment, count
-#      if t != "" and t[0] != '#':
-#        ind += 1
-#        if ind == index:
-#          return i
-#    return 0
-      
 
-      
+  def ResetCode(self):
+    self.editCtrl.ClearAll()
 
+    fd = StringIO.StringIO()
+    printer.PrintInstructionStream(self.app.code, printer.Default(), fd = fd)
 
-  def AddInstruction(self, inst):
-    self.editCtrl.AddText(inst + '\n')
+    for line in fd.getvalue().split('\n'):
+       if line != "" and line != "BODY:":
+         self.editCtrl.AddText("%s\n" % line)
+    fd.close()
+
     return
 
 
@@ -337,21 +385,29 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
 
   def SetVirtualData(self, item, column, data):
-    self._cur_regs[item * 4 + (column - 1)] = int(data, 16)
+    self._cur_regs[item * 4 + (column - 1)] = int(data, self.base)
 
-    # Execute a single load instruction
     env.spu_exec.put_spu_registers(self.app.ctx, self._cur_regs.buffer_info()[0])
 
     self.app.reg_frame.Update()
-    self.app.ls_frame.Update()
+    self.app.ls_frame.Update()  # TODO - why?
     return
+
+
+  def ResetRegisters(self):
+    self._cur_regs.clear()
+    env.spu_exec.put_spu_registers(self.app.ctx, self._cur_regs.buffer_info()[0])
+    self.app.reg_frame.Update()
 
 
   def OnGetItemText(self, item, column):
     if column == 0:
       return "%d" % (item)
     elif column > 0 and column < 5:
-      return "%08X" % self._cur_regs[item * 4 + (column - 1)]
+      if self.base == 16:
+        return "%08X" % self._cur_regs[item * 4 + (column - 1)]
+      elif self.base == 10:
+        return "%010d" % self._cur_regs[item * 4 + (column - 1)]
     #elif column == 1:
     #  return "0x%08X %08X %08X %08X" % (self._cur_regs[item * 4],
     #                                    self._cur_regs[item * 4 + 1],
@@ -396,15 +452,52 @@ class RegisterWindow(wx.Frame):
 
     listCtrl.SetItemCount(128)
 
+    tsize = (16, 16)
+    clearbmp = wx.ArtProvider.GetBitmap('gtk-clear', wx.ART_TOOLBAR, tsize)
+    convertbmp = wx.ArtProvider.GetBitmap('gtk-convert', wx.ART_TOOLBAR, tsize)
+
+    tb = self.CreateToolBar(wx.NO_BORDER | wx.TB_FLAT | wx.TB_HORIZONTAL)
+    tb.SetToolBitmapSize(tsize)
+
+    tb.AddLabelTool(0x52, "Reset Registers",
+        clearbmp, shortHelp="Reset all register values to 0")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x52)
+
+    tb.AddSeparator()
+
+    tb.AddRadioLabelTool(0x100, "Hexadecimal",
+        convertbmp, shortHelp="Show values in hexadecimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x100)
+
+    tb.AddRadioLabelTool(0x101, "Decimal",
+        convertbmp, shortHelp="Show values in decimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x101)
+
+    self.listCtrl.base = 16
     self.app = app
     self.Update()
     self.Show(True)
     return
 
 
+  def OnToolClick(self, event):
+    id = event.GetId()
+
+    if id == 0x52:
+      self.listCtrl.ResetRegisters()
+    elif id == 0x100:
+      self.listCtrl.base = 16
+      self.listCtrl.RefreshItems(0, 128)
+    elif id == 0x101:
+      self.listCtrl.base = 10
+      self.listCtrl.RefreshItems(0, 128)
+    return
+
+
   def Update(self):
     env.spu_exec.get_spu_registers(self.app.ctx, self.listCtrl._cur_regs.buffer_info()[0])
     self.listCtrl.RefreshItems(0, 128)
+    return
 
 
 class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
@@ -423,6 +516,7 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
     self.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.OnBeginEdit)
 
+    self.base = 16
     self._cur_ls = app.localstore
     self.app = app
     #self._prev_ls = extarray.extarray('I', 16384 * 4)
@@ -436,16 +530,25 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
 
   def SetVirtualData(self, item, column, data):
-    self._cur_ls[item * 4 + (column - 1)] = int(data, 16)
+    self._cur_ls[item * 4 + (column - 1)] = int(data, self.base)
     self.app.mem_frame.Update()
     return
+
+
+  def ResetLocalStore(self):
+    self._cur_ls.clear()
+    self.app.ls_frame.Update()
+    self.app.mem_frame.Update()
 
 
   def OnGetItemText(self, item, column):
     if column == 0:
       return "0x%06X" % (item * 16)
     elif column > 0 and column < 5:
-      return "%08X" % self._cur_ls[item * 4 + (column - 1)]
+      if self.base == 16:
+        return "%08X" % self._cur_ls[item * 4 + (column - 1)]
+      elif self.base == 10:
+        return "%010d" % self._cur_ls[item * 4 + (column - 1)]
 
 
   def OnGetItemAttr(self, item):
@@ -485,7 +588,44 @@ class LocalStoreWindow(wx.Frame):
     listCtrl.SetColumnWidth(4, 80) #wx.LIST_AUTOSIZE)
 
     listCtrl.SetItemCount(16384)
+
+    tsize = (16, 16)
+    clearbmp = wx.ArtProvider.GetBitmap('gtk-clear', wx.ART_TOOLBAR, tsize)
+    convertbmp = wx.ArtProvider.GetBitmap('gtk-convert', wx.ART_TOOLBAR, tsize)
+
+    tb = self.CreateToolBar(wx.NO_BORDER | wx.TB_FLAT | wx.TB_HORIZONTAL)
+    tb.SetToolBitmapSize(tsize)
+
+    tb.AddLabelTool(0x52, "Reset local store",
+        clearbmp, shortHelp="Reset all local store values to 0")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x52)
+
+    tb.AddSeparator()
+
+    tb.AddRadioLabelTool(0x100, "Hexadecimal",
+        convertbmp, shortHelp="Show values in hexadecimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x100)
+
+    tb.AddRadioLabelTool(0x101, "Decimal",
+        convertbmp, shortHelp="Show values in decimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x101)
+
+    self.listCtrl.base = 16
     self.Show(True)
+    return
+
+
+  def OnToolClick(self, event):
+    id = event.GetId()
+
+    if id == 0x52:
+      self.listCtrl.ResetLocalStore()
+    elif id == 0x100:
+      self.listCtrl.base = 16
+      self.listCtrl.RefreshItems(0, 16384)
+    elif id == 0x101:
+      self.listCtrl.base = 10
+      self.listCtrl.RefreshItems(0, 16384)
     return
 
 
@@ -590,7 +730,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     addr = map[1] + ((item - map[0]) * 16)
 
     self._array.set_memory(addr + (4 * (column - 1)))
-    self._array[0] = int(data, 16)
+    self._array[0] = int(data, self.base)
     self.app.reg_frame.Update()
     self.app.ls_frame.Update()
     return
@@ -603,7 +743,10 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
       return "0x%08X" % (addr)
     elif column < 5:
       self._array.set_memory(addr + (4 * (column - 1)))
-      return "%08X" % (self._array[0])
+      if self.base == 16:
+        return "%08X" % (self._array[0])
+      elif self.base == 10:
+        return "%010d" % (self._array[0])
     return ""
 
 
@@ -617,7 +760,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
 class MemoryWindow(wx.Frame):
   def __init__(self, app, parent, id):
-    wx.Frame.__init__(self, parent, id, "SPU Debugger -- Memory")
+    wx.Frame.__init__(self, parent, id, "SPU Debugger -- Main Memory")
 
     listCtrl = MemoryListCtrl(app, self, -1,
         style = wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_EDIT_LABELS)
@@ -658,10 +801,40 @@ class MemoryWindow(wx.Frame):
     mainSizer.Layout()
 
     self.SetSizer(mainSizer)
-    self.Show(True)
 
     self.Bind(wx.EVT_TEXT_ENTER, self.OnExecute, id=txtCmd.GetId())
+
+    # Set up the tool bar
+    tsize = (16, 16)
+    convertbmp = wx.ArtProvider.GetBitmap('gtk-convert', wx.ART_TOOLBAR, tsize)
+
+    tb = self.CreateToolBar(wx.NO_BORDER | wx.TB_FLAT | wx.TB_HORIZONTAL)
+    tb.SetToolBitmapSize(tsize)
+
+    tb.AddRadioLabelTool(0x100, "Hexadecimal",
+        convertbmp, shortHelp="Show values in hexadecimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x100)
+
+    tb.AddRadioLabelTool(0x101, "Decimal",
+        convertbmp, shortHelp="Show values in decimal")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x101)
+
+    self.listCtrl.base = 16
+    self.Show(True)
     return
+
+
+  def OnToolClick(self, event):
+    id = event.GetId()
+
+    if id == 0x100:
+      self.listCtrl.base = 16
+      self.Update()
+    elif id == 0x101:
+      self.listCtrl.base = 10
+      self.Update()
+    return
+
 
   def OnExecute(self, event):
     try:
@@ -709,15 +882,7 @@ class SPUApp(wx.App):
     self._startSPU()
     self._buildGUI()
 
-    # Import the instruction stream into the instruction list
-    fd = StringIO.StringIO()
-    printer.PrintInstructionStream(self.code, printer.Default(), fd = fd)
-
-    for line in fd.getvalue().split('\n'):
-       if line != "" and line != "BODY:":
-         self.edit_frame.AddInstruction(line)
-    fd.close()
-
+    self.edit_frame.ResetCode()
     return True
 
 
@@ -774,7 +939,6 @@ class SPUApp(wx.App):
         offset -= 1
     
     exec_lsa = code_lsa + ((offset + len(code._prologue) - 1) * itemsize)
-    print "offset", offset
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
@@ -793,7 +957,6 @@ class SPUApp(wx.App):
 
     return 0
 
-
   def Update(self):
     self.reg_frame.Update()
     self.ls_frame.Update()
@@ -806,7 +969,7 @@ if __name__=='__main__':
   reg = code.acquire_register()
   foo = code.acquire_register(reg = 1)
 
-  #code.add(code.get_label("FOO"))
+  code.add(code.get_label("FOO"))
   code.add(spu.il(foo, 0xCAFE))
   code.add(spu.ilhu(reg, 0xDEAD))
   code.add(spu.iohl(reg, 0xBEEF))
