@@ -30,8 +30,6 @@ __doc__ = """
 Base classes for the Synthetic Programming Environment.
 """
 
-print "WARNING: CorePy is currently undergoing a major overhaul and may be unstable through Feb. 1"
-
 
 import inspect
 
@@ -1145,7 +1143,7 @@ class InstructionStream(object):
       if isinstance(inst, (Instruction, ExtendedInstruction)):
         render = inst.render()
         if self.instruction_type == 'I':
-          #offset += 4
+          offset += 4
           if binary or hexad:
             bin = DecToBin(render)
             hex = '%08x' % (render)
