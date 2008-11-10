@@ -69,22 +69,19 @@ class SPU_Asm(object):
     """ Allow the module to print a prologue header if desired.
         The return value should be a boolean indicating whether prologue
         instructions should be printed. """
-    if self.show_prologue:
-      print >>fd, "\nprologue:"
-
     return self.show_prologue
 
   def epilogue(self, fd):
     """ Allow the module to print a prologue header if desired.
         The return value should be a boolean indicating whether epilogue
         instructions should be printed. """
-    if self.show_epilogue:
-      print >>fd, "\nepilogue:"
-
     return self.show_epilogue
 
   def body(self, fd):
-    print >>fd, "\nbody:"
+    return
+
+  def label(self, fd, lbl):
+    print >>fd, "\n%s:" % lbl.name
     return
 
   def str_op(self, op):
@@ -100,7 +97,8 @@ class SPU_Asm(object):
     prefix = ""
     if isinstance(inst, (spu.stqd, spu.lqd)):
       ops = inst._supplied_operands
-      print >>fd, "\tstqd %s, %s(%s)" % (self.str_op(ops[0]), self.str_op(ops[2]), self.str_op(ops[1]))
+      name = inst.__class__.__name__
+      print >>fd, "\t%s %s, %s(%s)" % (name, self.str_op(ops[0]), self.str_op(ops[2]), self.str_op(ops[1]))
       return
     elif self.comment_chan == True and isinstance(inst, (spu.rdch, spu.wrch)):
       # Comment rdch/wrch instructions, spu_timing doesn't like them
