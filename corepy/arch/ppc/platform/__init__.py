@@ -39,7 +39,7 @@ platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
 if conf.OS == 'osx':
   platform_imports.append('array_address')
   
-print 'Platform:', platform_string
+print '# Platform:', platform_string
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 
 for cls in platform_imports:

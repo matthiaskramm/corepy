@@ -36,7 +36,7 @@ platform_imports = [
 platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
   'os': conf.OS, 'arch': conf.ARCH, 'bits': conf.BITS}
 
-print 'Platform:', platform_string
+print '# Platform:', platform_string
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 
 for cls in platform_imports:
