@@ -49,6 +49,10 @@
 #include <sched.h>
 #include "spufs.h"
 
+#ifdef HAS_LIBSPE2
+#include <libspe2.h>
+#endif
+
 //Define _DEBUG to get informational debug output
 //#define _DEBUG
 
@@ -323,7 +327,7 @@ void free_context(struct ThreadInfo* ti) {
 //   len      Length of code in bytes
 //   code_lsa Local store address to load code at
 //   exec_lsa Local store address to start execution at
-// Return: void
+// Return: LSA address following last SPU instruction executed
 // Description:
 //  Start SPU execution at the given LSA address, blocking until
 //  the SPU stops execution.  Assumes len and code_lsa are
@@ -403,10 +407,10 @@ int run_stream_async(struct ThreadInfo* ti, unsigned long addr, int len,
 
 
 // ------------------------------------------------------------
-// Function: run_stream_async
+// Function: wait_stream
 // Arguments:
-//   *ti     Execution context to run
-// Return: void
+//   *ti     Execution context to wait on
+// Return: LSA address following last SPU instruction executed
 // Description:
 //  Wait for an asynchronous SPU execution thread to complete.
 // ------------------------------------------------------------
@@ -509,7 +513,7 @@ long join_int(struct ThreadInfo* ti) {
 
 
 pthread_t execute_fp_async(long addr, struct ExecParams params) {
-  pthread_t t = NULL;
+  pthread_t t = (pthread_t)NULL;
 
   printf("Warning: execute_fp is not implemented for SPUs");
   return t;
@@ -682,6 +686,114 @@ unsigned int read_tag_status_all(struct ThreadInfo* ti, unsigned int mask) {
 
   return status;
 }
+
+
+// SPE Native Code execution
+// This allows a user to execute an SPE program in a separate binary via CorePy
+#ifdef HAS_LIBSPE2
+
+int run_native_code(char* filename, struct ExecParams params)
+{
+  spe_program_handle_t* prgm;
+  spe_context_ptr_t ctx;
+  spe_stop_info_t stopinfo;
+  unsigned int entry = SPE_DEFAULT_ENTRY;
+
+  ctx = spe_context_create(0, NULL);
+  if(ctx == NULL) {
+    perror("run_native_code spe_context_create");
+  }
+
+  prgm = spe_image_open(filename);
+  if(prgm == NULL) {
+    perror("run_native_code spe_image_open");
+  }
+
+  if(spe_program_load(ctx, prgm) == -1) {
+    perror("run_native_code spe_program_load");
+  }
+
+  spe_context_run(ctx, &entry, 0, (void*)&params, NULL, &stopinfo);
+
+  spe_image_close(prgm);  
+  spe_context_destroy(ctx);
+
+  return stopinfo.result.spe_exit_code;
+}
+
+
+struct NativeParams {
+  char* filename;
+  struct ExecParams params;
+};
+
+
+void *run_native_code_thread(void* arg) {
+  struct NativeParams* np = arg;
+
+  int rc = run_native_code(np->filename, np->params);
+
+  return (void*)rc;
+}
+
+
+pthread_t* run_native_code_async(char* filename, struct ExecParams params)
+{
+  pthread_t* th = malloc(sizeof(pthread_t));
+  struct NativeParams* np;
+  int rc;
+
+  np = (struct NativeParams*)malloc(sizeof(struct NativeParams));
+
+  np->filename = filename;
+  np->params = params;
+
+  rc = pthread_create(th, NULL, run_native_code_thread, (void*)np);
+  if(rc) {
+    printf("Error creating async stream: %d\n", rc);
+    free(np);
+    free(th);
+    return NULL;
+  }
+
+  return th;
+}
+
+
+int join_native_code(pthread_t* th)
+{
+  int rc;
+
+  pthread_join(*th, (void**)&rc);
+  free(th);
+  return rc;
+}
+
+
+#else
+
+
+void run_native_code(char* filename, struct ExecParams params)
+{
+  puts("ERROR run_native_code() not available; compile with libspe2 support");
+}
+
+
+pthread_t* run_native_code_async(char* filename, struct ExecParams params)
+{
+  puts("ERROR run_native_code_async() not available; compile with libspe2 support");
+  return NULL;
+}
+
+
+int join_native_code(pthread_t* th)
+{
+  puts("ERROR join_native_code() not available; compile with libspe2 support");
+  return 0;
+}
+
+
+#endif //HAS_LIBSPE2
 
 #endif // SPU_EXEC_H
 

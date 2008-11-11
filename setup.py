@@ -38,6 +38,7 @@
 from distutils.core import setup, Extension
 from distutils.util import get_platform
 from sys import maxint
+from os import path
 
 
 ext_modules = [Extension('corepy.lib.extarray._alloc',
@@ -52,12 +53,20 @@ if py_platform == "linux-ppc64":
   ARCH = 'ppc'
   BITS = '64'
 
-  # SPU's linux_spufs has no dependencies, so let's build it
+  # Enable more stuff if libspe2 is available
+  if path.exists("/usr/lib/libspe2.so"):
+    print "LibSPE2 is available; enabling native code execution support"
+    libraries = ['spe2']
+    define_macros = [('HAS_LIBSPE2', '1')]
+  else:
+    libraries = []
+    define_macros = []
+
   ext_modules.append(
       Extension('corepy.arch.spu.platform.linux_spufs._spu_exec',
                 sources=['corepy/arch/spu/platform/linux_spufs/spu_exec.i'],
-                ))
-                #language='c++'))
+                libraries = libraries, define_macros = define_macros))
+
 elif py_platform == "linux-x86_64":
   OS = 'linux'
   ARCH = 'x86_64'
@@ -85,16 +94,13 @@ else:
 # TODO - maybe rename the _exec files to not have the arch in them?
 ext_modules.append(
     Extension('corepy.arch.%s.platform.%s._%s_exec' % (ARCH, OS, ARCH),
-        sources=['corepy/arch/%s/platform/%s/%s_exec.i' % (ARCH, OS, ARCH)],
-#language='c++'))
-        ))
+        sources=['corepy/arch/%s/platform/%s/%s_exec.i' % (ARCH, OS, ARCH)]))
 
 print "CorePy platform:", ARCH, OS, BITS
 print
 
 # See http://www.nabble.com/C%2B%2B,-swig,-and-distutils-td1555651.html
 # for info on the options line below
-# TODO - this means extarray gets compiled as c++, would be nice for it to be C
 setup (name = 'CorePy',
        version = '0.1',
        author      = "AUTHORS",
