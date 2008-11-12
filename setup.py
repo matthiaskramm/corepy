@@ -42,7 +42,8 @@ from os import path
 
 
 ext_modules = [Extension('corepy.lib.extarray._alloc',
-                         sources=['corepy/lib/extarray/alloc.i'])]
+                         sources=['corepy/lib/extarray/alloc.i']),
+                         depends=['corepy/lib/extarray/alloc.h'])]
 
 
 py_platform = get_platform()
@@ -55,16 +56,18 @@ if py_platform == "linux-ppc64":
 
   # Enable more stuff if libspe2 is available
   if path.exists("/usr/lib/libspe2.so"):
-    print "LibSPE2 is available; enabling native code execution support"
+    print "LibSPE2 is available; enabling native SPU code execution support"
     libraries = ['spe2']
     define_macros = [('HAS_LIBSPE2', '1')]
   else:
+    print "LibSPE2 NOT available; disabling native SPU code execution support"
     libraries = []
     define_macros = []
 
   ext_modules.append(
       Extension('corepy.arch.spu.platform.linux_spufs._spu_exec',
                 sources=['corepy/arch/spu/platform/linux_spufs/spu_exec.i'],
+                depends=['corepy/arch/spu/platform/linux_spufs/spu_exec.h'],
                 libraries = libraries, define_macros = define_macros))
 
 elif py_platform == "linux-x86_64":
@@ -92,9 +95,11 @@ else:
   exit(-1)
 
 # TODO - maybe rename the _exec files to not have the arch in them?
+template = 'corepy/arch/%s/platform/%s/%s_exec.' % (ARCH, OS, ARCH)
 ext_modules.append(
     Extension('corepy.arch.%s.platform.%s._%s_exec' % (ARCH, OS, ARCH),
-        sources=['corepy/arch/%s/platform/%s/%s_exec.i' % (ARCH, OS, ARCH)]))
+        sources=['%s%s' % ('i')],
+        depends=['%s%s' % ('h')]))
 
 print "CorePy platform:", ARCH, OS, BITS
 print
@@ -103,8 +108,8 @@ print
 # for info on the options line below
 setup (name = 'CorePy',
        version = '0.1',
-       author      = "AUTHORS",
-       description = """CorePy!""",
+       author      = "Chris Mueller, Andrew Friedley, Andrew Lumsdaine",
+       description = """http://www.corepy.org""",
        ext_modules = ext_modules,
 #       py_modules = ["corepy"],
        options={'build_ext':{'swig_opts':'-O -Wall'}}
