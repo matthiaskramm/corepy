@@ -1,2 +1,81 @@
-See doc/synthetic-programming-intro.html for detailed installation
-instructions and the CorePy tutorial.
+Copyright (c) 2006-2008 The Trustees of Indiana University.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+- Neither the Indiana University nor the names of its contributors may be used
+  to endorse or promote products derived from this software without specific
+  prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Thank you for your interest in CorePy!
+
+
+General documentation for CorePy, including installation and getting started
+information, is primarily available online at the following URL:
+
+http://www.corepy.org/wiki
+
+
+Installation Instructions
+
+CorePy contains several OS- and CPU-specific SWIG (C++ language) Python modules
+that need to be compiled for CorePy to function properly. A setup.py script is
+provided at the top level of the source tree (same location as this INSTALL
+file) that will automatically compile the correct modules.
+
+After downloading CorePy, change to the root CorePy directory
+($PWD/corepy-trunk if you use a subversion checkout) and execute the setup.py
+script:
+
+$ cd $COREPY
+$ python setup.py build_ext -i -f
+
+$COREPY is the path to the root of the CorePy source tree. The -i parameter is
+a must -- this instructs setup.py to compile the modules 'in-place' in the
+source tree. Omitting this flag causes the compiled modules to be placed at the
+top of the source tree; CorePy won't be able to find the modules unless they
+are compiled 'in-place'.
+
+If setup.py does not recognize the OS and CPU it is running on as a supported
+architecture, it will abort with the following error message:
+
+Unsupported Python platform!  Aborting.
+
+If you see this and believe the OS/CPU you are running on should be supported
+(see the OS and CPU Architecture Support Matrix on the wiki), report the
+'Python platform' line from the setup.py output along with relevant information
+about your OS and CPU architecture to the corepy-devel mailing list.
+
+With the modules compiled, CorePy may be used by adding the source tree to your
+PYTHONPATH:
+
+export PYTHONPATH=$COREPY:$PYTHONPATH
+
+
+64-bit CorePy
+
+CorePy works on several 64-bit CPU architectures. To use CorePy on these
+platforms, a 64-bit Python binary is needed. On linux this is not a problem;
+most distributions provide 64-bit Python binaries by default. OS X, however,
+only provides 32-bit Python binaries.  Instructions for compiling 64-bit Python binaries may be found on the CorePy wiki.
+
