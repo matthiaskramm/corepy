@@ -42,7 +42,7 @@ from os import path
 
 
 ext_modules = [Extension('corepy.lib.extarray._alloc',
-                         sources=['corepy/lib/extarray/alloc.i']),
+                         sources=['corepy/lib/extarray/alloc.i'],
                          depends=['corepy/lib/extarray/alloc.h'])]
 
 
@@ -98,8 +98,8 @@ else:
 template = 'corepy/arch/%s/platform/%s/%s_exec.' % (ARCH, OS, ARCH)
 ext_modules.append(
     Extension('corepy.arch.%s.platform.%s._%s_exec' % (ARCH, OS, ARCH),
-        sources=['%s%s' % ('i')],
-        depends=['%s%s' % ('h')]))
+        sources=['%s%s' % (template, 'i')],
+        depends=['%s%s' % (template, 'h')]))
 
 print "CorePy platform:", ARCH, OS, BITS
 print

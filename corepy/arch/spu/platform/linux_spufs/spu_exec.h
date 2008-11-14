@@ -597,6 +597,28 @@ unsigned int stat_out_mbox(struct ThreadInfo* ti) {
 }
 
 
+unsigned int read_out_ibox(struct ThreadInfo* ti) {
+  unsigned int data = 0;
+
+  if(read(ti->spu_ctx->ibox_fd, &data, 4) != 4) {
+    perror("read_out_mbox read");
+  }
+
+  return data;
+}
+
+
+unsigned int stat_out_ibox(struct ThreadInfo* ti) {
+  unsigned int data = 0;
+
+  if(read(ti->spu_ctx->ibox_stat_fd, &data, 4) != 4) {
+    perror("stat_out_mbox read");
+  }
+
+  return data;
+}
+
+
 void write_in_mbox(struct ThreadInfo* ti, unsigned int data) {
   if(write(ti->spu_ctx->wbox_fd, &data, 4) != 4) {
     perror("write_in_mbox write");
@@ -630,7 +652,7 @@ void write_signal(struct ThreadInfo* ti, int which, unsigned int data) {
 }
 
 
-// MFC DMA Functions
+// MFC Proxy DMA Functions
 
 #ifndef SWIG
 void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
