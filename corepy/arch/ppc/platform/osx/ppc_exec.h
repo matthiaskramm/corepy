@@ -37,13 +37,8 @@
 #include <sys/mman.h>
 #include <errno.h>
 
-// Fix bug in carbon headers
-// http://aspn.activestate.com/ASPN/Mail/Message/wxPython-users/1808182
-
 #ifndef CELL
-#define scalb scalbn 
 
-#include <CoreServices/CoreServices.h>
 #include <pthread.h>
 #include <mach/thread_act.h>
 #include <signal.h>
@@ -112,7 +107,8 @@ int make_executable(long addr, long size) {
   // sys_icache_invalidate((char *)addr, size * 4);
 #ifdef __MACH__
 #ifdef __powerpc__
-  MakeDataExecutable((void *)addr, size * 4);
+  msync((void*)addr, size * 4, MS_INVALIDATE);
+  //MakeDataExecutable((void *)addr, size * 4);
 #endif
 #endif
   return 0;
