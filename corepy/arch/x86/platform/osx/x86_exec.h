@@ -139,7 +139,7 @@ int suspend_async(struct ThreadInfo* tinfo) {
 //   Not currently implemented
 // ------------------------------------------------------------
 
-int resume_async(struct ThreaDInfo* tinfo) {
+int resume_async(struct ThreadInfo* tinfo) {
   return -1;
 }
 
@@ -197,8 +197,8 @@ void *run_stream_fp(void *params) {
 struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
   int rc;
 
-  struct ThreadInfo* tinfo = malloc(sizeof(ThreadInfo));
-  struct ThreadParams* tparams = malloc(sizeof(ThreadParams));
+  struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
+  struct ThreadParams* tparams = malloc(sizeof(struct ThreadParams));
 
   tparams->addr = addr;
   tparams->params = params;
@@ -215,8 +215,8 @@ struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
 struct ThreadInfo* execute_fp_async(long addr, struct ExecParams params) {
   int rc;
 
-  struct ThreadInfo* tinfo = malloc(sizeof(ThreadInfo));
-  struct ThreadParams* tparams = malloc(sizeof(ThreadParams));
+  struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
+  struct ThreadParams* tparams = malloc(sizeof(struct ThreadParams));
 
   tparams->addr = addr;
   tparams->params = params;

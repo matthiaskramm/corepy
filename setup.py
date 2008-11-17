@@ -78,7 +78,7 @@ elif py_platform == "linux-i686":
   OS = 'linux'
   ARCH = 'x86'
   BITS = '32'
-elif py_platform[0:6] == 'macosx':
+elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
   OS = 'osx'
   if py_platform[-3:] == 'ppc':
     ARCH = 'ppc'
