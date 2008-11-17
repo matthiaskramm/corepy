@@ -170,6 +170,7 @@ class InstructionStream(spe.InstructionStream):
     self.fp_return = FPRegister(1, self)
     self.vx_return = VMXRegister(1, self)
     self.gp_return = GPRegister(3, self)
+    self._vrsave = GPRegister(31, self)
 
     return
 
@@ -257,9 +258,9 @@ class InstructionStream(spe.InstructionStream):
     # On the G4, someone stomps on registers < 20 ... save them all for now.
 
     # Save vrsave and put our value in it
-    self._prologue.append(ppc.mfvrsave(31, ignore_active = True))
-    self._load_word(self._prologue, 5, 0xFFFFFFFF)
-    self._prologue.append(ppc.mtvrsave(5, ignore_active = True))    
+    self._prologue.append(ppc.mfvrsave(self._vrsave, ignore_active = True))
+    self._load_word(self._prologue, r_addr, 0xFFFFFFFF)
+    self._prologue.append(ppc.mtvrsave(r_addr, ignore_active = True))    
     return
 
 
@@ -272,7 +273,7 @@ class InstructionStream(spe.InstructionStream):
     self._epilogue = [self.lbl_epilogue]
 
     # Restore vrsave
-    self._epilogue.append(ppc.mtvrsave(31))
+    self._epilogue.append(ppc.mtvrsave(self._vrsave))
 
     # Get the list of saved registers
     save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]

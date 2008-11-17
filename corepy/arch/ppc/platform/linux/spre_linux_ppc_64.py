@@ -79,7 +79,7 @@ gp_param_3 = 5
 #gp_return = 3
 
 # Callee save registers
-gp_save = [GPRegister(i, None) for i in range(14, 32)]
+gp_save = [GPRegister(i, None) for i in range(14, 31)]
 fp_save = [FPRegister(i, None) for i in range(14, 32)]
 vx_save = [VMXRegister(i, None) for i in range(20, 32)]  # !!! NOT SURE ABOUT VMX !!!
 #vx_save = [VMXRegister(i, None) for i in range(0, 32)]  # !!! NOT SURE ABOUT VMX !!!
@@ -108,7 +108,7 @@ class InstructionStream(spe.InstructionStream):
   """
 
   # Class attributes
-  RegisterFiles = (('gp', GPRegister, range(3,32)),
+  RegisterFiles = (('gp', GPRegister, range(3,31)),
                    ('fp', FPRegister, range(0,32)),
                    ('vector', VMXRegister, range(0,32)))
 
@@ -133,6 +133,7 @@ class InstructionStream(spe.InstructionStream):
     self.fp_return = FPRegister(1, self)
     self.vx_return = VMXRegister(1, self)
     self.gp_return = GPRegister(3, self)
+    self._vrsave = GPRegister(31, None)
 
     return
 
@@ -185,7 +186,6 @@ class InstructionStream(spe.InstructionStream):
     self._saved_gp_registers = array.array('I', range(len(save_gp)))
     self._saved_fp_registers = array.array('d', range(len(save_fp)))
     self._saved_vx_registers = array.array('I', range(len(save_vx)*4))
-    self._vrsave = self.acquire_register()
 
     # Add the instructions to save the registers
 
