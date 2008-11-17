@@ -175,7 +175,7 @@ class InstructionStream(spe.InstructionStream):
 
 
   def make_executable(self):
-    self.exec_module.make_executable(self._code.buffer_info()[0], len(self._code))
+    self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
     return 
 
   def create_register_files(self):
@@ -272,7 +272,7 @@ class InstructionStream(spe.InstructionStream):
     self._epilogue = [self.lbl_epilogue]
 
     # Restore vrsave
-    self._epilogue.add(ppc.mtvrsave(31))
+    self._epilogue.append(ppc.mtvrsave(31))
 
     # Get the list of saved registers
     save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]

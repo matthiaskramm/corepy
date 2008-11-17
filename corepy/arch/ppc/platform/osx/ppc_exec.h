@@ -106,12 +106,14 @@ typedef double (*Stream_func_fp)(struct ExecParams);
 // ------------------------------------------------------------
 
 int make_executable(long addr, long size) {
-#ifndef CELL
   // sys_icache_invalidate may be useful in the future for cache control. 
   // It will remove the dependency on carbon.  It's new to Leopard, so not
   // useful yet...
   // sys_icache_invalidate((char *)addr, size * 4);
+#ifdef __MACH__
+#ifdef __powerpc__
   MakeDataExecutable((void *)addr, size * 4);
+#endif
 #endif
   return 0;
 }
