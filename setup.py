@@ -37,7 +37,7 @@
 
 from distutils.core import setup, Extension
 from distutils.util import get_platform
-from sys import maxint
+import sys
 from os import path
 
 
@@ -84,7 +84,7 @@ elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
     ARCH = 'ppc'
     BITS = 32
   elif py_platform[-3:] == '386':
-    if maxint == 2**63 - 1: # 64bit python?
+    if sys.maxint == 2**63 - 1: # 64bit python?
       ARCH = 'x86_64'
       BITS = 64
     else: # assumed 32bit
@@ -104,14 +104,19 @@ ext_modules.append(
 print "CorePy platform:", ARCH, OS, BITS
 print
 
+# New enough python to support swig_opts?
+options={}
+if sys.version_info[0] >= 2 and sys.version_info[1] >= 4:
+  options={'build_ext':{'swig_opts':'-O -Wall'}}
+
 # See http://www.nabble.com/C%2B%2B,-swig,-and-distutils-td1555651.html
 # for info on the options line below
 setup (name = 'CorePy',
-       version = '0.1',
+       version = '1.0',
        author      = "Chris Mueller, Andrew Friedley, Andrew Lumsdaine",
        description = """http://www.corepy.org""",
        ext_modules = ext_modules,
 #       py_modules = ["corepy"],
-       options={'build_ext':{'swig_opts':'-O -Wall'}}
+       options=options
        )
 
