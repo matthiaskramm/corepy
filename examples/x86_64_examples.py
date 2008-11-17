@@ -64,26 +64,30 @@ def Test():
     print "ret", ret
     assert(ret == 12)
 
+    print "W00T"
 
     code.reset()
 
     code.add(x86.xor(rax, rax))
 
     code.add(x86.cmp(rax, 1))
-    code.add(x86.jne(32))
+    code.add(x86.jne(28))
 
     code.add(x86.ud2())
     code.add(x86.ud2())
 
     code.add(x86.cmp(eax, 1))
-    code.add(x86.je(41))
+    code.add(x86.je(37))
     code.add(x86.add(rax, 12))
    
     code.print_code(hex = True, pro = True, epi = True) 
+    print "a"
     ret = proc.execute(code)
+    print "b"
     print "ret", ret
     assert(ret == 12)
 
+    print "w00t 2"
 
     code.reset()
 
