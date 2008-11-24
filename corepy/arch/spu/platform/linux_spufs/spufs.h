@@ -60,6 +60,7 @@ extern "C" {
 
 #define SPUFS_PATH "/spu"
 #define SPULS_SIZE (256 * 1024)
+#define PSMAP_SIZE (128 * 1024)
 
 // SPU status codes from spu_run(2) man page
 #define SPU_STOP_SIGNAL 0x02
@@ -86,25 +87,28 @@ extern "C" {
 
 
 struct spufs_context {
+  void* mem_ptr;
+  void* psmap_ptr;
+
   int spu_fd;
   int mem_fd;
-  void* mem_ptr;
+  int psmap_fd;
   int regs_fd;
-  int mbox_fd;
+  //int mbox_fd;
   int ibox_fd;
-  int wbox_fd;
-  int mbox_stat_fd;
-  int ibox_stat_fd;
-  int wbox_stat_fd;
-  int signal1_fd;
-  int signal2_fd;
-  int mfc_fd;
+  //int wbox_fd;
+  //int mbox_stat_fd;
+  //int ibox_stat_fd;
+  //int wbox_stat_fd;
+  //int signal1_fd;
+  //int signal2_fd;
+  //int mfc_fd;
 };
 
 
 // MFC command struct, taken from spufs(7)
 struct mfc_dma_command {
-  int32_t pad;
+  uint32_t pad;
   uint32_t lsa;
   uint64_t ea;
   uint16_t size;
@@ -123,6 +127,9 @@ struct mfc_dma_command {
 static struct spufs_context* spufs_open_context(const char* basename) {
   struct spufs_context* ctx;
   char pathname[256] = {0};
+  //struct timeval tv_start = {0};
+  //struct timeval tv_stop = {0};
+  //float usec;
 
   snprintf(pathname, 256, "%s/%s-%d-%d",
       SPUFS_PATH, basename, getpid(), rand());
@@ -133,6 +140,10 @@ static struct spufs_context* spufs_open_context(const char* basename) {
     perror("spufs_open_context() malloc");
     return NULL;
   }
+
+#if 0
+  gettimeofday(&tv_start, NULL);
+#endif
 
   ctx->spu_fd = syscall(SYS_spu_create, pathname, 0, S_IRWXU);
   if(ctx->spu_fd == -1) {
@@ -153,17 +164,32 @@ static struct spufs_context* spufs_open_context(const char* basename) {
     goto fail_mem_mmap;
   }
 
+  ctx->psmap_fd = openat(ctx->spu_fd, "psmap", O_RDWR);
+  if(ctx->psmap_fd == -1) {
+    perror("spufs_open_context() open psmap");
+    goto fail_psmap;
+  }
+
+  ctx->psmap_ptr = mmap(NULL, PSMAP_SIZE,
+      PROT_READ | PROT_WRITE, MAP_SHARED, ctx->psmap_fd, 0);
+  if((void*)ctx->psmap_ptr == MAP_FAILED) {
+    perror("spufs_open_context() mmap psmap");
+    goto fail_psmap_mmap;
+  }
+
   ctx->regs_fd = openat(ctx->spu_fd, "regs", O_RDWR);
   if(ctx->regs_fd == -1) {
     perror("spufs_open_context() open regs");
     goto fail_regs;
   }
 
+#if 0
   ctx->mbox_fd = openat(ctx->spu_fd, "mbox", O_RDONLY);
   if(ctx->mbox_fd == -1) {
     perror("spufs_open_context() open mbox");
     goto fail_mbox;
   }
+#endif
 
   ctx->ibox_fd = openat(ctx->spu_fd, "ibox", O_RDONLY);
   if(ctx->ibox_fd == -1) {
@@ -171,6 +197,7 @@ static struct spufs_context* spufs_open_context(const char* basename) {
     goto fail_ibox;
   }
 
+#if 0
   ctx->wbox_fd = openat(ctx->spu_fd, "wbox", O_WRONLY);
   if(ctx->wbox_fd == -1) {
     perror("spufs_open_context() open wbox");
@@ -212,29 +239,40 @@ static struct spufs_context* spufs_open_context(const char* basename) {
     perror("spufs_open_context() open mfc");
     goto fail_mfc;
   }
+#endif
 
+#if 0
+  gettimeofday(&tv_stop, NULL);
 
+  usec = (tv_stop.tv_sec - tv_start.tv_sec) * 1000000.0;
+  usec += tv_stop.tv_usec - tv_start.tv_usec;
+  printf("time %0.5f us %0.5f ms\n", usec, usec / 1000.0);
+#endif
   return ctx;
 
-fail_mfc:
-  close(ctx->signal2_fd);
-fail_signal2:
-  close(ctx->signal1_fd);
-fail_signal1:
-  close(ctx->wbox_stat_fd);
-fail_wbox_stat:
-  close(ctx->ibox_stat_fd);
-fail_ibox_stat:
-  close(ctx->mbox_stat_fd);
-fail_mbox_stat:
-  close(ctx->wbox_fd);
-fail_wbox:
-  close(ctx->ibox_fd);
+//fail_mfc:
+//  close(ctx->signal2_fd);
+//fail_signal2:
+//  close(ctx->signal1_fd);
+//fail_signal1:
+//  close(ctx->wbox_stat_fd);
+//fail_wbox_stat:
+//  close(ctx->ibox_stat_fd);
+//fail_ibox_stat:
+//  close(ctx->mbox_stat_fd);
+//fail_mbox_stat:
+//  close(ctx->wbox_fd);
+//fail_wbox:
+//  close(ctx->ibox_fd);
 fail_ibox:
-  close(ctx->mbox_fd);
-fail_mbox:
+//  close(ctx->mbox_fd);
+//fail_mbox:
   close(ctx->regs_fd);
 fail_regs:
+  munmap(ctx->psmap_ptr, PSMAP_SIZE);
+fail_psmap_mmap:
+  close(ctx->psmap_fd);
+fail_psmap:
   munmap(ctx->mem_ptr, SPULS_SIZE);
 fail_mem_mmap:
   close(ctx->mem_fd);
@@ -247,16 +285,18 @@ fail:
 
 
 static void spufs_close_context(struct spufs_context* ctx) {
-  close(ctx->mfc_fd);
-  close(ctx->signal2_fd);
-  close(ctx->signal1_fd);
-  close(ctx->wbox_stat_fd);
-  close(ctx->ibox_stat_fd);
-  close(ctx->mbox_stat_fd);
-  close(ctx->wbox_fd);
+  //close(ctx->mfc_fd);
+  //close(ctx->signal2_fd);
+  //close(ctx->signal1_fd);
+  //close(ctx->wbox_stat_fd);
+  //close(ctx->ibox_stat_fd);
+  //close(ctx->mbox_stat_fd);
+  //close(ctx->wbox_fd);
   close(ctx->ibox_fd);
-  close(ctx->mbox_fd);
+  //close(ctx->mbox_fd);
   close(ctx->regs_fd);
+  munmap(ctx->psmap_ptr, PSMAP_SIZE);
+  close(ctx->psmap_fd);
   munmap(ctx->mem_ptr, SPULS_SIZE);
   close(ctx->mem_fd);
   close(ctx->spu_fd);

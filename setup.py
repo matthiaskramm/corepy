@@ -67,7 +67,8 @@ if py_platform == "linux-ppc64":
   ext_modules.append(
       Extension('corepy.arch.spu.platform.linux_spufs._spu_exec',
                 sources=['corepy/arch/spu/platform/linux_spufs/spu_exec.i'],
-                depends=['corepy/arch/spu/platform/linux_spufs/spu_exec.h'],
+                depends=['corepy/arch/spu/platform/linux_spufs/spu_exec.h',
+                         'corepy/arch/spu/platform/linux_spufs/spufs.h'],
                 libraries = libraries, define_macros = define_macros))
 
 elif py_platform == "linux-x86_64":

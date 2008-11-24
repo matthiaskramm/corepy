@@ -117,7 +117,8 @@ struct ExecParams {
 struct ThreadInfo {
   pthread_t th;
   struct spufs_context* spu_ctx;
-  unsigned long spuls; 
+  unsigned long spuls;        //Local store address 
+  unsigned long spups;        //Problem state address
 
   int spu_run_ret;
 
@@ -130,7 +131,7 @@ struct ThreadInfo {
 
 #ifndef SWIG
 struct ThreadParams {
-  struct ThreadInfo* ti;  //Execution Context
+  struct ThreadInfo* ti;    //Execution Context
   unsigned long addr;       //Main memory addr of associated stream
   int len;                  //Length of stream in bytes
   unsigned int code_lsa;    //Local store addr of associated stream
@@ -299,6 +300,7 @@ struct ThreadInfo* alloc_context(void) {
 
   ti->spu_ctx = spufs_open_context("corepy-spu");
   ti->spuls = (unsigned long)ti->spu_ctx->mem_ptr;
+  ti->spups = (unsigned long)ti->spu_ctx->psmap_ptr;
 
   return ti;
 }
@@ -576,6 +578,10 @@ void put_spu_params(struct ThreadInfo* ti) {
 
 
 unsigned int read_out_mbox(struct ThreadInfo* ti) {
+  //mbox is at 0x400C
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x4004);
+  return *addr;
+#if 0
   unsigned int data = 0;
 
   if(read(ti->spu_ctx->mbox_fd, &data, 4) != 4) {
@@ -583,21 +589,31 @@ unsigned int read_out_mbox(struct ThreadInfo* ti) {
   }
 
   return data;
+#endif
 }
 
 
 unsigned int stat_out_mbox(struct ThreadInfo* ti) {
-  unsigned int data = 0;
+  //unsigned int data = 0;
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x4014);
 
+  //data = (*addr & 0x700) >> 8;  //this is for inbound mbox
+  return *addr & 0x1;
+
+#if 0
   if(read(ti->spu_ctx->mbox_stat_fd, &data, 4) != 4) {
     perror("stat_out_mbox read");
   }
 
   return data;
+#endif
 }
 
 
 unsigned int read_out_ibox(struct ThreadInfo* ti) {
+  //Interrupt Mailbox register is Privilege level 2, meaning we cant read it
+  //unsigned int* addr = (unsigned int*)(ti->spups + 0x4000);
+  //return *addr;
   unsigned int data = 0;
 
   if(read(ti->spu_ctx->ibox_fd, &data, 4) != 4) {
@@ -609,46 +625,67 @@ unsigned int read_out_ibox(struct ThreadInfo* ti) {
 
 
 unsigned int stat_out_ibox(struct ThreadInfo* ti) {
-  unsigned int data = 0;
+  //unsigned int data = 0;
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x4014);
 
+  return ((*addr & 0x10000) >> 16);
+
+#if 0
   if(read(ti->spu_ctx->ibox_stat_fd, &data, 4) != 4) {
     perror("stat_out_mbox read");
   }
 
   return data;
+#endif
 }
 
 
 void write_in_mbox(struct ThreadInfo* ti, unsigned int data) {
+  //mbox is at 0x400C
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x400C);
+  *addr = data;
+#if 0
   if(write(ti->spu_ctx->wbox_fd, &data, 4) != 4) {
     perror("write_in_mbox write");
   }
+#endif
 }
 
 
 unsigned int stat_in_mbox(struct ThreadInfo* ti) {
-  unsigned int data = 0;
+  //unsigned int data = 0;
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x4014);
 
+  return ((*addr & 0x700) >> 8);
+
+#if 0
   if(read(ti->spu_ctx->wbox_stat_fd, &data, 4) != 4) {
     perror("stat_in_mbox read");
   }
 
   return data;
+#endif
 }
 
 
 void write_signal(struct ThreadInfo* ti, int which, unsigned int data) {
-  int fd;
+  //int fd;
+  unsigned int* addr;
 
   if(which == 1) {
-    fd = ti->spu_ctx->signal1_fd;
+    //fd = ti->spu_ctx->signal1_fd;
+    addr = (unsigned int*)(ti->spups + 0x1400C);
   } else { //if(which == 2) {
-    fd = ti->spu_ctx->signal2_fd;
+    //fd = ti->spu_ctx->signal2_fd;
+    addr = (unsigned int*)(ti->spups + 0x1C00C);
   }
 
+  *addr = data;
+#if 0
   if(write(fd, &data, 4) != 4) {
     perror("write_signal write");
   }
+#endif
 }
 
 
@@ -657,12 +694,26 @@ void write_signal(struct ThreadInfo* ti, int which, unsigned int data) {
 #ifndef SWIG
 void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
 {
+#if 0
   const int size = sizeof(struct mfc_dma_command);
+  int rc;
 
-  if(write(ti->spu_ctx->mfc_fd, &cmd, size) != size) {
-    perror("stat_in_mbox read");
+  if((rc = write(ti->spu_ctx->mfc_fd, cmd, size)) != size) {
+    printf("rc %d %d\n", rc, ti->spu_ctx->mfc_fd);
+    perror("write_mfc_cmd write");
   }
+#endif
+  unsigned int data;
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x3000);
+  memcpy(addr, cmd, sizeof(struct mfc_dma_command));
 
+  //Have to read the command status register to start the DMA
+  addr = (unsigned int*)(ti->spups + 0x3014);
+  data = *addr;
+#if 0
+  printf("DMA cmd result %x\n", data);
+  fflush(stdout);
+#endif
 } 
 #endif
 
@@ -699,14 +750,39 @@ void spu_getb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
 }
 
 
+unsigned int poll_tag_status(struct ThreadInfo* ti, unsigned int mask) {
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x321C);
+  *addr = mask;
+
+  addr = (unsigned int*)(ti->spups + 0x322C);
+  return *addr;
+}
+
 unsigned int read_tag_status_all(struct ThreadInfo* ti, unsigned int mask) {
   unsigned int status;
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x321C);
+  *addr = mask;
+
+  addr = (unsigned int*)(ti->spups + 0x322C);
+  status = *addr;
+  while(1) {
+    if(status != 0 && (status ^ mask) == 0) {
+      return status;
+    }
+  }
+
+  return 0;
+
+  //If nonzero, one of the tags has completed.  xor with mask to get full completion
+
+#if 0
 
   if(read(ti->spu_ctx->mfc_fd, &status, 4) != 4) {
     perror("read_tag_status_all read");
   }
 
   return status;
+#endif
 }
 
 
