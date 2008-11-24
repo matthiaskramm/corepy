@@ -94,15 +94,7 @@ struct spufs_context {
   int mem_fd;
   int psmap_fd;
   int regs_fd;
-  //int mbox_fd;
   int ibox_fd;
-  //int wbox_fd;
-  //int mbox_stat_fd;
-  //int ibox_stat_fd;
-  //int wbox_stat_fd;
-  //int signal1_fd;
-  //int signal2_fd;
-  //int mfc_fd;
 };
 
 
@@ -183,63 +175,11 @@ static struct spufs_context* spufs_open_context(const char* basename) {
     goto fail_regs;
   }
 
-#if 0
-  ctx->mbox_fd = openat(ctx->spu_fd, "mbox", O_RDONLY);
-  if(ctx->mbox_fd == -1) {
-    perror("spufs_open_context() open mbox");
-    goto fail_mbox;
-  }
-#endif
-
   ctx->ibox_fd = openat(ctx->spu_fd, "ibox", O_RDONLY);
   if(ctx->ibox_fd == -1) {
     perror("spufs_open_context() open ibox");
     goto fail_ibox;
   }
-
-#if 0
-  ctx->wbox_fd = openat(ctx->spu_fd, "wbox", O_WRONLY);
-  if(ctx->wbox_fd == -1) {
-    perror("spufs_open_context() open wbox");
-    goto fail_wbox;
-  }
-
-  ctx->mbox_stat_fd = openat(ctx->spu_fd, "mbox_stat", O_RDONLY);
-  if(ctx->mbox_stat_fd == -1) {
-    perror("spufs_open_context() open mbox_stat");
-    goto fail_mbox_stat;
-  }
-
-  ctx->ibox_stat_fd = openat(ctx->spu_fd, "ibox_stat", O_RDONLY);
-  if(ctx->ibox_stat_fd == -1) {
-    perror("spufs_open_context() open ibox_stat");
-    goto fail_ibox_stat;
-  }
-
-  ctx->wbox_stat_fd = openat(ctx->spu_fd, "wbox_stat", O_RDONLY);
-  if(ctx->wbox_stat_fd == -1) {
-    perror("spufs_open_context() open wbox_stat");
-    goto fail_wbox_stat;
-  }
-
-  ctx->signal1_fd = openat(ctx->spu_fd, "signal1", O_RDWR);
-  if(ctx->signal1_fd == -1) {
-    perror("spufs_open_context() open signal1");
-    goto fail_signal1;
-  }
-
-  ctx->signal2_fd = openat(ctx->spu_fd, "signal2", O_RDWR);
-  if(ctx->signal2_fd == -1) {
-    perror("spufs_open_context() open signal2");
-    goto fail_signal2;
-  }
-
-  ctx->mfc_fd = openat(ctx->spu_fd, "mfc", O_RDWR);
-  if(ctx->mfc_fd == -1) {
-    perror("spufs_open_context() open mfc");
-    goto fail_mfc;
-  }
-#endif
 
 #if 0
   gettimeofday(&tv_stop, NULL);
@@ -250,23 +190,7 @@ static struct spufs_context* spufs_open_context(const char* basename) {
 #endif
   return ctx;
 
-//fail_mfc:
-//  close(ctx->signal2_fd);
-//fail_signal2:
-//  close(ctx->signal1_fd);
-//fail_signal1:
-//  close(ctx->wbox_stat_fd);
-//fail_wbox_stat:
-//  close(ctx->ibox_stat_fd);
-//fail_ibox_stat:
-//  close(ctx->mbox_stat_fd);
-//fail_mbox_stat:
-//  close(ctx->wbox_fd);
-//fail_wbox:
-//  close(ctx->ibox_fd);
 fail_ibox:
-//  close(ctx->mbox_fd);
-//fail_mbox:
   close(ctx->regs_fd);
 fail_regs:
   munmap(ctx->psmap_ptr, PSMAP_SIZE);
@@ -285,15 +209,7 @@ fail:
 
 
 static void spufs_close_context(struct spufs_context* ctx) {
-  //close(ctx->mfc_fd);
-  //close(ctx->signal2_fd);
-  //close(ctx->signal1_fd);
-  //close(ctx->wbox_stat_fd);
-  //close(ctx->ibox_stat_fd);
-  //close(ctx->mbox_stat_fd);
-  //close(ctx->wbox_fd);
   close(ctx->ibox_fd);
-  //close(ctx->mbox_fd);
   close(ctx->regs_fd);
   munmap(ctx->psmap_ptr, PSMAP_SIZE);
   close(ctx->psmap_fd);
