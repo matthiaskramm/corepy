@@ -158,7 +158,7 @@ class ISPU:
   def load_regs(self):
     env.spu_exec.spu_putb(self.speid, 0x3F400, self.regs.buffer_info()[0],
                           128 * 16, 2, 0, 0)
-    env.spu_exec.read_tag_status_all(self.speid, 1 << 2)
+    env.spu_exec.read_tag_status(self.speid, 1 << 2)
     return
 
   def get_regs(self):

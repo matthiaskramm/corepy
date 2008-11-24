@@ -654,6 +654,22 @@ void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
 #endif
 
 
+void spu_put(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_PUT;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
 void spu_putb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
         unsigned int size, unsigned int tag, unsigned int tid,
         unsigned int rid) {
@@ -665,6 +681,38 @@ void spu_putb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
   cmd.tag = tag;
   cmd.xclass = (tid << 8) | rid;
   cmd.cmd = MFC_PUTB;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
+void spu_putf(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_PUTF;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
+void spu_get(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_GET;
 
   write_mfc_cmd(ti, &cmd);
 }
@@ -686,6 +734,22 @@ void spu_getb(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
 }
 
 
+void spu_getf(struct ThreadInfo* ti, unsigned int lsa, unsigned long ea,
+        unsigned int size, unsigned int tag, unsigned int tid,
+        unsigned int rid) {
+  struct mfc_dma_command cmd;
+
+  cmd.lsa = lsa;
+  cmd.ea = ea;
+  cmd.size = size;
+  cmd.tag = tag;
+  cmd.xclass = (tid << 8) | rid;
+  cmd.cmd = MFC_GETF;
+
+  write_mfc_cmd(ti, &cmd);
+}
+
+
 unsigned int poll_tag_status(struct ThreadInfo* ti, unsigned int mask) {
   unsigned int* addr = (unsigned int*)(ti->spups + 0x321C);
   *addr = mask;
@@ -695,7 +759,7 @@ unsigned int poll_tag_status(struct ThreadInfo* ti, unsigned int mask) {
 }
 
 
-unsigned int read_tag_status_all(struct ThreadInfo* ti, unsigned int mask) {
+unsigned int read_tag_status(struct ThreadInfo* ti, unsigned int mask) {
   unsigned int status;
   unsigned int* addr = (unsigned int*)(ti->spups + 0x321C);
   *addr = mask;

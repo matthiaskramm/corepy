@@ -77,8 +77,10 @@ extern "C" {
 // (CBE_Architecture_v101.pdf)
 #define MFC_PUT     0x20
 #define MFC_PUTB    0x21
+#define MFC_PUTF    0x22
 #define MFC_GET     0x40
 #define MFC_GETB    0x41
+#define MFC_GETF    0x42
 
 
 // ------------------------------------------------------------
