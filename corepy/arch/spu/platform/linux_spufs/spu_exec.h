@@ -634,6 +634,10 @@ void write_signal(struct ThreadInfo* ti, int which, unsigned int data) {
 }
 
 
+void set_signal_mode(struct ThreadInfo* ti, int which, int mode) {
+  spufs_set_signal_mode(ti->spu_ctx, which , mode);
+}
+
 // MFC Proxy DMA Functions
 
 #ifndef SWIG

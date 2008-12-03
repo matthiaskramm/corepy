@@ -226,6 +226,36 @@ static inline int spufs_run(struct spufs_context* ctx, unsigned int* lsa) {
   return syscall(SYS_spu_run, ctx->spu_fd, lsa, NULL);
 }
 
+static void spufs_set_signal_mode(struct spufs_context* ctx, int which, int mode) {
+  int fd;
+  char* file;
+  char* buf;
+
+  if(which == 1) {
+    file = "signal1_type";
+  } else {
+    file = "signal2_type";
+  }
+
+  fd = openat(ctx->spu_fd, file, O_WRONLY);
+  if(fd == -1) {
+    perror("spufs_set_signal_mode() open signal type");
+    return;
+  }
+
+  if(mode == 0) {
+    buf = "0\n";
+  } else {
+    buf = "1\n";
+  }
+
+  if(write(fd, buf, strlen(buf)) != strlen(buf)) {
+    perror("spufs_set_signal_mode write");
+  }
+
+  close(fd);
+}
+
 #ifdef __cplusplus
 }
 #endif
