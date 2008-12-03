@@ -763,7 +763,9 @@ class InstructionStream(object):
     
     # Storage holds references to objects created by synthesizers
     # that may otherwise get garbage collected
-    self._storage = None
+    self._storage_dict = None
+    self._storage_arr = None
+    #self._ref = None
 
     self._active_callback = None
     self.reset()
@@ -823,31 +825,48 @@ class InstructionStream(object):
     self._labels[name] = lbl
     return lbl
   
-  def add_storage(self, s):
+  def add_storage(self, key, val = None):
     """
     Add a reference to an object used during execution of the
     instruction stream.  This cache keeps locally allocated objects
     from being garbage collected once the stream is built.
     """
-    self._storage.append(s)
+    if val != None:
+      self._storage_dict[key] = val
+    else:
+      self._storage_arr.append(val)
     return
 
-  def remove_storage(self, s):
+  def remove_storage(self, key):
     """
     Add a reference to an object used during execution of the
     instruction stream.  This cache keeps locally allocated objects
     from being garbage collected once the stream is built.
     """
-    if s in self._storage:
-      self._storage.remove(s)
+    if key in self._storage_arr:
+      self._storage_arr.remove(key)
+    else:
+      try:
+        del self._storage_dict[key]
+      except KeyError:
+        pass
     return
+
+  def get_storage(self, key):
+    try:
+      return self._storage_dict[key]
+    except KeyError:
+      return None
+    
 
   def reset_storage(self):
     """
     Free the references to cached storage.
     """
-    self._storage = []
+    self._storage_dict = {}
+    self._storage_arr = []
     return
+
 
   def reset_code(self):
     """
@@ -872,6 +891,7 @@ class InstructionStream(object):
     """
     self.reset_code()
     self.reset_storage()
+#    self.reset_ref()
 
     for file in self._register_files.values():
       file.reset()
