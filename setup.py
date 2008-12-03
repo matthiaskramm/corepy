@@ -91,6 +91,14 @@ elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
     else: # assumed 32bit
       ARCH = 'x86'
       BITS = 32
+  elif py_platform[-3:] == 'fat':
+    # distutils says to build universal -- guess machine type from byte
+    # order; assume 32-bit?
+    BITS = 32
+    if sys.byteorder == 'little':
+        ARCH = 'x86'
+    else:
+        ARCH = 'ppc'
 else:
   print "Unsupported Python platform!  Aborting."
   exit(-1)
