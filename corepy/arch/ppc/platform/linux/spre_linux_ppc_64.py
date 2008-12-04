@@ -116,13 +116,16 @@ class InstructionStream(spe.InstructionStream):
   exec_module   = ppc_exec
   instruction_type  = WORD_TYPE
   
-  def __init__(self):
+  def __init__(self, enable_vmx=True):
     spe.InstructionStream.__init__(self)
+
+    self._enable_vmx = enable_vmx
     
     # Memory buffers for saved registers
     self._saved_gp_registers = None
     self._saved_fp_registers = None
-    self._saved_vx_registers = None
+    if self._enable_vmx:
+      self._saved_vx_registers = None
 
     # Return Register 'Constants'
     #   *_return can be used with a return register is needed.
@@ -130,10 +133,11 @@ class InstructionStream(spe.InstructionStream):
     #   Note that these do not reserve the register, but only identify
     #   the registers.  To reserve a return register, use:
     #     code.acquire_register(reg = code.gp_return)
-    self.fp_return = FPRegister(1, self)
-    self.vx_return = VMXRegister(1, self)
     self.gp_return = GPRegister(3, self)
-    self._vrsave = GPRegister(31, None)
+    self.fp_return = FPRegister(1, self)
+    if self._enable_vmx:
+      self.vx_return = VMXRegister(1, self)
+      self._vrsave = GPRegister(31, None)
 
     return
 
@@ -181,11 +185,14 @@ class InstructionStream(spe.InstructionStream):
     # Get the lists of registers to save
     save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
     save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
-    save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
     
     self._saved_gp_registers = array.array('I', range(len(save_gp)))
     self._saved_fp_registers = array.array('d', range(len(save_fp)))
-    self._saved_vx_registers = array.array('I', range(len(save_vx)*4))
+
+    if self._enable_vmx:
+      save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
+      self._saved_vx_registers = array.array('I', range(len(save_vx)*4))
+
 
     # Add the instructions to save the registers
 
@@ -213,21 +220,23 @@ class InstructionStream(spe.InstructionStream):
       #print 'saving fp:', reg, r_addr, i * WORD_SIZE
       self._prologue.append(ppc.stfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
 
-    self._load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
+    if self._enable_vmx:
+      self._load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
    
-    for i, reg in enumerate(save_vx):
-      #print 'saving vx:', reg, r_addr, i * WORD_SIZE * 4
-      self._load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
-      self._prologue.append(vmx.stvx(reg, r_idx, r_addr, ignore_active = True))
+      for i, reg in enumerate(save_vx):
+        #print 'saving vx:', reg, r_addr, i * WORD_SIZE * 4
+        self._load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
+        self._prologue.append(vmx.stvx(reg, r_idx, r_addr, ignore_active = True))
 
-    # Set up VRSAVE
-    # Currently, we save the old value of VRSAVE in r31.
-    # On the G4, someone stomps on registers < 20 ... save them all for now.
+      # Set up VRSAVE
+      # Currently, we save the old value of VRSAVE in r31.
+      # On the G4, someone stomps on registers < 20 ... save them all for now.
 
-    # Save vrsave and put our value in it
-    self._prologue.append(ppc.mfvrsave(self._vrsave, ignore_active = True))
-    self._load_word(self._prologue, r_addr, 0xFFFFFFFF)
-    self._prologue.append(ppc.mtvrsave(r_addr, ignore_active = True))    
+      # Save vrsave and put our value in it
+      self._prologue.append(ppc.mfvrsave(self._vrsave, ignore_active = True))
+      self._load_word(self._prologue, r_addr, 0xFFFFFFFF)
+      self._prologue.append(ppc.mtvrsave(r_addr, ignore_active = True))    
+
     return
 
 
@@ -240,22 +249,25 @@ class InstructionStream(spe.InstructionStream):
     self._epilogue = [self.lbl_epilogue]
 
     # Restore vrsave
-    self._epilogue.append(ppc.mtvrsave(self._vrsave))
-
-    # Get the list of saved registers
-    save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
-    save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
-    save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
+    if self._enable_vmx:
+      self._epilogue.append(ppc.mtvrsave(self._vrsave))
 
     r_addr = GPRegister(13, None) # Only available volatile register
     r_idx = GPRegister(14, None)  # Non-volatile; safe to use before restoring
 
-    self._load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
+    # Get the list of saved registers
+    save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
+    save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
 
-    for i, reg in enumerate(save_vx):
-      #print 'restoring vx:', reg, r_addr, i * WORD_SIZE * 4
-      self._load_word(self._epilogue, r_idx, i * WORD_SIZE * 4)
-      self._epilogue.append(vmx.lvx(reg, r_idx, r_addr, ignore_active = True))
+    if self._enable_vmx:
+      save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
+
+      self._load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
+
+      for i, reg in enumerate(save_vx):
+        #print 'restoring vx:', reg, r_addr, i * WORD_SIZE * 4
+        self._load_word(self._epilogue, r_idx, i * WORD_SIZE * 4)
+        self._epilogue.append(vmx.lvx(reg, r_idx, r_addr, ignore_active = True))
 
     self._load_word(self._epilogue, r_addr, self._saved_fp_registers.buffer_info()[0])
 
