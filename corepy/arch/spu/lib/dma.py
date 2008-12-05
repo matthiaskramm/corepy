@@ -172,6 +172,96 @@ def mem_put(code, lsa, mma, size, tag):
   return
 
 
+def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
+  """Write a 32bit message at a local LSA from this SPU to another.
+     psmap must contain the base address of the target SPU's PS map.
+     lsa must be 12 mod 16 for DMA alignment purposes.
+
+     This is a DMA operation; it must be completed using mem_complete() or
+     similar method."""
+
+  if isinstance(lsa, (int, long)):
+    if (lsa % 16) != 12:
+      print "ERROR LSA for mem_write_mbox() must be 12 mod 16"
+      assert(0)
+
+  ref = "__mem_write_in_mbox_mma_reg_%s" % (str(psmap))
+  r_mbox_mma = code.get_storage(ref)
+  if not isinstance(r_mbox_mma, spu.Register):
+    r_mbox_mma = code.acquire_register()
+    if isinstance(psmap, (int, long)):
+      util.load_word(code, r_mbox_mma, psmap + 0x400C)
+    else:
+      util.load_word(code, r_mbox_mma, 0x400C)
+      code.add(spu.a(r_mbox_mma, r_mbox_mma, psmap))
+
+    if cache:
+      code.add_storage(ref, r_mbox_mma)
+
+  ref = "_const_val_4"
+  r_size = code.get_storage(ref)
+  if not isinstance(r_size, spu.Register):
+    r_size = code.acquire_register()
+    util.load_word(code, r_size, 4)
+    if cache:
+      code.add_storage(ref, r_size)
+
+  mem_put(code, lsa, r_mbox_mma, r_size, tag)
+
+  if cache == False:
+    if not isinstance(psmap, (int, long)):
+      code.release_register(r_mbox_mma)
+    code.release_register(r_size)
+  return
+
+
+def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
+  """Write a 32bit message at a local LSA from this SPU to another.
+     psmap must contain the base address of the target SPU's PS map.
+     lsa must be 12 mod 16 for DMA alignment purposes.
+
+     This is a DMA operation; it must be completed using mem_complete() or
+     similar method."""
+
+  if isinstance(lsa, (int, long)):
+    if (lsa % 16) != 12:
+      print "ERROR LSA for mem_write_mbox() must be 12 mod 16"
+      assert(0)
+
+  addr = 0x1400C
+  if which == 2:
+    addr = 0x1C00C
+
+  ref = "__mem_write_signal_mma_reg_%d_%s" % (which, str(psmap))
+  r_sig_mma = code.get_storage(ref)
+  if not isinstance(r_sig_mma, spu.Register):
+    r_sig_mma = code.acquire_register()
+    if isinstance(psmap, (int, long)):
+      util.load_word(code, r_sig_mma, psmap + addr)
+    else:
+      util.load_word(code, r_sig_mma, addr)
+      code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
+
+    if cache:
+      code.add_storage(ref, r_sig_mma)
+
+  ref = "_const_val_4"
+  r_size = code.get_storage(ref)
+  if not isinstance(r_size, spu.Register):
+    r_size = code.acquire_register()
+    util.load_word(code, r_size, 4)
+    if cache:
+      code.add_storage(ref, r_size)
+
+  mem_put(code, lsa, r_sig_mma, r_size, tag)
+
+  if cache == False:
+    if not isinstance(psmap, (int, long)):
+      code.release_register(r_sig_mma)
+    code.release_register(r_size)
+  return
+
+
 def mem_complete(code, tag):
   """Complete a set of asynchronous DMA operations.
 
@@ -205,8 +295,12 @@ def MFC_CMD_WORD(tid, rid, cmd):
 # ------------------------------------------------------------
 
 def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
-  r_cmd = code.acquire_register()
-  util.load_word(code, r_cmd, cmd)
+  ref = "__spu_mfcdma32_cmd_%s" % str(cmd)
+  r_cmd = code.get_storage(ref)
+  if not isinstance(r_cmd, spu.Register):
+    r_cmd = code.acquire_register()
+    util.load_word(code, r_cmd, cmd)
+    code.add_storage(ref, r_cmd)
   
   code.add(spu.wrch(r_ls, MFC_LSA))
   code.add(spu.wrch(r_ea, MFC_EAL))
@@ -214,7 +308,7 @@ def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
   code.add(spu.wrch(r_tagid, MFC_TagID))
   last = code.add(spu.wrch(r_cmd, MFC_Cmd))
 
-  code.release_register(r_cmd)
+  #code.release_register(r_cmd)
   return last
 
 def spu_mfcdma64(code, r_ls, r_eah, r_eal, r_size, r_tagid, cmd):
