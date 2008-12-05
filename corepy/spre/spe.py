@@ -765,7 +765,6 @@ class InstructionStream(object):
     # that may otherwise get garbage collected
     self._storage_dict = None
     self._storage_arr = None
-    #self._ref = None
 
     self._active_callback = None
     self.reset()
@@ -834,7 +833,7 @@ class InstructionStream(object):
     if val != None:
       self._storage_dict[key] = val
     else:
-      self._storage_arr.append(val)
+      self._storage_arr.append(key)
     return
 
   def remove_storage(self, key):
@@ -891,7 +890,6 @@ class InstructionStream(object):
     """
     self.reset_code()
     self.reset_storage()
-#    self.reset_ref()
 
     for file in self._register_files.values():
       file.reset()
