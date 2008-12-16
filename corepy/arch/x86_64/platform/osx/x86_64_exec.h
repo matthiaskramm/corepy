@@ -263,7 +263,6 @@ float join_fp(struct ThreadInfo* tinfo) {
 
 
 long execute_int(long addr, struct ExecParams params) {
-  printf("params p1 %d\n", params.p1);
   return ((Stream_func_int)addr)(params);
 }
 

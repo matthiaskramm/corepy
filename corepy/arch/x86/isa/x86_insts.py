@@ -176,7 +176,7 @@ def common_memref_modrm(opcode, ref, modrm):
 
 def common_memref(opcode, ref, modrm):
   if ref.addr != None:  # Absolute address
-    return opcode + [0x04 | modrm, 0x25] + w32(ref.addr)
+    return opcode + [0x05 | modrm] + w32(ref.addr)
   elif ref.addr_size == 32: # 32bit modRM address
     return common_memref_modrm(opcode, ref, modrm)
   elif ref.addr_size == 16: # 16bit modRM address
