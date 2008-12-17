@@ -34,12 +34,11 @@ platform_imports = [
 
 
 if conf.OS == 'linux':
-  #platform_string = 'linux.spre_linux_spu'
   platform_string = 'linux_spufs.spre_linux_spu'
-elif conf.OS == 'linux_spufs':
-  platform_string = 'linux_spufs.spre_linux_spu'
-elif conf.OS == 'linux_spe1':
-  platform_string = 'linux_spe1.spre_linux_spu'
+#elif conf.OS == 'linux_spufs':
+#  platform_string = 'linux_spufs.spre_linux_spu'
+#elif conf.OS == 'linux_spe1':
+#  platform_string = 'linux_spe1.spre_linux_spu'
 else:
   platform_string = 'spre_dummy_spu'
 

@@ -33,8 +33,10 @@ platform_imports = [
   'WORD_SIZE', 'WORD_TYPE', 'ExecParams',
   ]
 
-platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
-  'os': conf.OS, 'arch': conf.ARCH, 'bits': conf.BITS}
+platform_string = '%(os)s.spre_%(os)s_%(arch)s' % {
+  'os': conf.OS, 'arch': conf.ARCH}
+#platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
+#  'os': conf.OS, 'arch': conf.ARCH, 'bits': conf.BITS}
 
 print '# Platform:', platform_string
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)

@@ -34,20 +34,20 @@ sys_info = os.uname()
 if sys_info[0] == 'Darwin' and sys_info[-1] == 'Power Macintosh':
   OS = 'osx'
   ARCH = 'ppc'
-  BITS = 32
+  #BITS = 32
 elif sys_info[0] == 'Darwin' and sys_info[-1] == 'i386':
   OS = 'osx'
   import sys
   if sys.maxint == 9223372036854775807: # 64bit python?
     ARCH = 'x86_64'
-    BITS = 64
+    #BITS = 64
   else: # assumed 32bit
     ARCH = 'x86'
-    BITS = 32
+    #BITS = 32
 elif sys_info[0] == 'Linux' and sys_info[-1] == 'ppc64':
   OS = 'linux'
   ARCH = 'ppc'
-  BITS = 64
+  #BITS = 64
 
   #cpus = [line.split(':')[1] for line in open('/proc/cpuinfo').readlines() if line[:3] == 'cpu']
   #if len(cpus) > 0 and cpus[0][:5] == ' Cell':
@@ -56,15 +56,15 @@ elif sys_info[0] == 'Linux' and sys_info[-1] == 'ppc64':
 elif sys_info[0] == 'Linux' and sys_info[-1] == 'i686':
   OS = 'linux'
   ARCH = 'x86'
-  BITS = 32
+  #BITS = 32
 elif sys_info[0] == 'Linux' and sys_info[-1] == 'x86_64':
   OS = 'linux'
   ARCH = 'x86_64'
-  BITS = 64
+  #BITS = 64
 else:
   print "Unsupported architecture: Using 'dummy' settings"
   OS = 'dummy'
   ARCH = 'dummy'
-  BITS = 0
+  #BITS = 0
 
 

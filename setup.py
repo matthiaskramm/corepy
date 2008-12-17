@@ -52,7 +52,7 @@ print "Python platform:", py_platform
 if py_platform == "linux-ppc64":
   OS = 'linux'
   ARCH = 'ppc'
-  BITS = '64'
+  #BITS = '64'
 
   # Enable more stuff if libspe2 is available
   if path.exists("/usr/lib/libspe2.so"):
@@ -71,30 +71,34 @@ if py_platform == "linux-ppc64":
                          'corepy/arch/spu/platform/linux_spufs/spufs.h'],
                 libraries = libraries, define_macros = define_macros))
 
+elif py_platform == "linux-ppc":
+  OS = 'linux'
+  ARCH = 'ppc'
+  #BITS = '32'
 elif py_platform == "linux-x86_64":
   OS = 'linux'
   ARCH = 'x86_64'
-  BITS = '64'
+  #BITS = '64'
 elif py_platform == "linux-i686":
   OS = 'linux'
   ARCH = 'x86'
-  BITS = '32'
+  #BITS = '32'
 elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
   OS = 'osx'
   if py_platform[-3:] == 'ppc':
     ARCH = 'ppc'
-    BITS = 32
+    #BITS = 32
   elif py_platform[-3:] == '386':
     if sys.maxint == 2**63 - 1: # 64bit python?
       ARCH = 'x86_64'
-      BITS = 64
+      #BITS = 64
     else: # assumed 32bit
       ARCH = 'x86'
-      BITS = 32
+      #BITS = 32
   elif py_platform[-3:] == 'fat':
     # distutils says to build universal -- guess machine type from byte
     # order; assume 32-bit?
-    BITS = 32
+    #BITS = 32
     if sys.byteorder == 'little':
         ARCH = 'x86'
     else:
@@ -110,7 +114,8 @@ ext_modules.append(
         sources=['%s%s' % (template, 'i')],
         depends=['%s%s' % (template, 'h')]))
 
-print "CorePy platform:", ARCH, OS, BITS
+#print "CorePy platform:", ARCH, OS, BITS
+print "CorePy platform:", ARCH, OS
 print
 
 # New enough python to support swig_opts?
