@@ -789,10 +789,6 @@ class InstructionStream(object):
   def set_active_callback(self, cb):
     self._active_callback = cb
   
-  def __del__(self):
-    print 'Destroying', self
-    return
-  
   def __setitem__(self, key, inst):
     """
     Allow the user to replace instructions by index.
