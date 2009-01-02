@@ -368,13 +368,13 @@ class syn_iter(object):
       util.load_word(self.code, self.r_step, self.step_size())
 
     # Label
-    self.start_label = self.code.get_label("SYN_ITER_START_%d" % random.randint(0, 2**32))
+    self.start_label = self.code.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
 
     # Create continue/branch labels so they can be referenced; they will be
     # added to the code in their appropriate locations.
-    self.branch_label = self.code.get_label("SYN_ITER_BRANCH_%d" % random.randint(0, 2**32))
-    self.continue_label = self.code.get_label("SYN_ITER_CONTINUE_%d" % random.randint(0, 2**32))
+    self.branch_label = self.code.get_unique_label("SYN_ITER_BRANCH")
+    self.continue_label = self.code.get_unique_label("SYN_ITER_CONTINUE")
     return
 
   def setup(self):
@@ -683,7 +683,7 @@ class stream_buffer(syn_range):
     self.code.add(spu.ceq(r_cmp, self.r_stop, self.r_count))
 
     # Create a skip label and add the branch
-    skip_label = self.code.get_label("STREAM_BUFFER_SKIP_%d" % random.randint(0, 2**32))
+    skip_label = self.code.get_unique_label("STREAM_BUFFER_SKIP")
     self.code.add(spu.brnz(r_cmp, skip_label))
 
     # Start the DMA get
@@ -781,7 +781,7 @@ class stream_buffer(syn_range):
       self._load_buffer()
   
     # Update the start label (make a new one and add it)
-    self.start_label = self.code.get_label("STREAM_BUFFER_START_%d" % random.randint(0, 2**32))
+    self.start_label = self.code.get_unique_label("STREAM_BUFFER_START")
     self.code.add(self.start_label)
     return
 
@@ -926,7 +926,7 @@ class parallel(object):
 #          code.add(spu.lnop(0))
         
     # Update the real iterator's label
-    self.obj.start_label = code.get_label("PARALLEL_START_%d" % random.randint(0, 2**32))
+    self.obj.start_label = code.get_unique_label("PARALLEL_START")
 
     # HACK end
     if hasattr(self.obj, '_start_post'):

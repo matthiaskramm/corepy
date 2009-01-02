@@ -199,7 +199,7 @@ class syn_iter(object):
 
     # Label
     #self.start_label = self.code.size() + 1
-    self.start_label = self.code.get_label("SYN_ITER_START_%d" % random.randint(0, 2**32))
+    self.start_label = self.code.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
 
     return
@@ -340,7 +340,7 @@ class parallel(object):
       
     # Update the real iterator's label
     #self.obj.start_label = code.size() + 1
-    self.obj.start_label = code.get_label("PARALLEL_START_%d" % random.randint(0, 2**32))
+    self.obj.start_label = code.get_unique_label("PARALLEL_START")
     code.add(self.obj.start_label)
 
     return 

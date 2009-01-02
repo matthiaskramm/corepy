@@ -32,6 +32,7 @@ Base classes for the Synthetic Programming Environment.
 
 
 import inspect
+import random
 
 import corepy.lib.extarray as extarray
 
@@ -700,6 +701,7 @@ class Label(object):
     self.code = code
     self.name = name
     self.position = None
+    self.added = False
     return
 
   def __str__(self):
@@ -819,6 +821,13 @@ class InstructionStream(object):
     lbl = Label(self, name)
     self._labels[name] = lbl
     return lbl
+
+  def get_unique_label(self, name = ""):
+    """
+    Generate a unique label name and create/return a label with that name.
+    """
+
+    return self.get_label("%s_%d" % (name, random.randint(0, 2**64)))
   
   def add_storage(self, key, val = None):
     """
@@ -961,6 +970,9 @@ class InstructionStream(object):
         if old_active is not self:
           inst.set_active_code(old_active)
     elif isinstance(inst, Label):
+      if inst.added == True:
+        raise Exception('Label has already been added to the instruction stream; labels may only be added once.')
+      inst.added = True
       self._instructions.append(inst)
     else:
       raise Exception('Unsupported instruction format: %s.  Instruction or int is required.' % type(inst))
