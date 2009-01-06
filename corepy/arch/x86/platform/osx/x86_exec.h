@@ -57,7 +57,7 @@ struct ExecParams {
 
 
 struct ThreadParams {
-  long addr;
+  unsigned long addr;
   struct ExecParams params;
   union {
     long l;
@@ -92,7 +92,7 @@ typedef double (*Stream_func_fp)(struct ExecParams);
 //   be a contiguous sequence of bytes, forming instructions.
 // ------------------------------------------------------------
 
-int make_executable(long addr, long size) {
+int make_executable(unsigned long addr, long size) {
   // TODO - AWF - should query for the page size instead of just masking
   if(mprotect((void *)(addr & 0xFFFFF000), size + (addr & 0xFFF), 
         PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
@@ -194,7 +194,7 @@ void *run_stream_fp(void *params) {
 // ------------------------------------------------------------
 
 
-struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_int_async(unsigned long addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -212,7 +212,7 @@ struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
 }
 
 
-struct ThreadInfo* execute_fp_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_fp_async(unsigned long addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -256,12 +256,12 @@ double join_fp(struct ThreadInfo* tinfo) {
 }
 
 
-long execute_int(long addr, struct ExecParams params) {
+long execute_int(unsigned long addr, struct ExecParams params) {
   return ((Stream_func_int)addr)(params);
 }
 
 
-double execute_fp(long addr, struct ExecParams params) {
+double execute_fp(unsigned long addr, struct ExecParams params) {
   return ((Stream_func_fp)addr)(params);
 }
 
