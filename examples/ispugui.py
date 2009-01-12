@@ -385,7 +385,11 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
 
   def SetVirtualData(self, item, column, data):
-    self._cur_regs[item * 4 + (column - 1)] = int(data, self.base)
+    if self._cur_regs.typecode == 'I':
+      self._cur_regs[item * 4 + (column - 1)] = int(data, self.base)
+    else:
+      self._cur_regs[item * 4 + (column - 1)] = float(data)
+
 
     env.spu_exec.put_spu_registers(self.app.ctx, self._cur_regs.buffer_info()[0])
 
@@ -407,7 +411,12 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
       if self.base == 16:
         return "%08X" % self._cur_regs[item * 4 + (column - 1)]
       elif self.base == 10:
-        return "%010d" % self._cur_regs[item * 4 + (column - 1)]
+        if self._cur_regs.typecode == 'I':
+          return "%010d" % self._cur_regs[item * 4 + (column - 1)]
+        else:
+          return str(self._cur_regs[item * 4 + (column - 1)])
+          return "%f" % self._cur_regs[item * 4 + (column - 1)]
+          
     #elif column == 1:
     #  return "0x%08X %08X %08X %08X" % (self._cur_regs[item * 4],
     #                                    self._cur_regs[item * 4 + 1],
@@ -465,13 +474,17 @@ class RegisterWindow(wx.Frame):
 
     tb.AddSeparator()
 
-    tb.AddRadioLabelTool(0x100, "Hexadecimal",
-        convertbmp, shortHelp="Show values in hexadecimal")
+    tb.AddRadioLabelTool(0x100, "Hexadecimal Integers",
+        convertbmp, shortHelp="Show values as hexadecimal integers")
     self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x100)
 
-    tb.AddRadioLabelTool(0x101, "Decimal",
-        convertbmp, shortHelp="Show values in decimal")
+    tb.AddRadioLabelTool(0x101, "Decimal Integers",
+        convertbmp, shortHelp="Show values as decimal integers")
     self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x101)
+
+    tb.AddRadioLabelTool(0x102, "Decimal Floats",
+        convertbmp, shortHelp="Show values as decimal floats")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x102)
 
     self.listCtrl.base = 16
     self.app = app
@@ -487,9 +500,15 @@ class RegisterWindow(wx.Frame):
       self.listCtrl.ResetRegisters()
     elif id == 0x100:
       self.listCtrl.base = 16
+      self.listCtrl._cur_regs.change_type('I')
       self.listCtrl.RefreshItems(0, 128)
     elif id == 0x101:
       self.listCtrl.base = 10
+      self.listCtrl._cur_regs.change_type('I')
+      self.listCtrl.RefreshItems(0, 128)
+    elif id == 0x102:
+      self.listCtrl.base = 10
+      self.listCtrl._cur_regs.change_type('f')
       self.listCtrl.RefreshItems(0, 128)
     return
 
