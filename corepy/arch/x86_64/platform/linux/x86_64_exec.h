@@ -43,6 +43,10 @@
 // Typedefs
 // ------------------------------------------------------------
 
+//Base address type -- integer that holds memory addresses
+typedef unsigned long addr_t;
+
+
 // Parameter passing structures
 struct ExecParams {
   unsigned long p1;
@@ -57,7 +61,7 @@ struct ExecParams {
 
 
 struct ThreadParams {
-  long addr;
+  addr_t addr;
   struct ExecParams params;
   union {
     long l;
@@ -92,7 +96,7 @@ typedef float (*Stream_func_fp)(struct ExecParams);
 //   be a contiguous sequence of bytes, forming instructions.
 // ------------------------------------------------------------
 
-int make_executable(long addr, long size) {
+int make_executable(addr_t addr, long size) {
   // TODO - AWF - should query for the page size instead of just masking
   if(mprotect((void *)(addr & 0xFFFFF000), size + (addr & 0xFFF), 
         PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
@@ -194,7 +198,7 @@ void *run_stream_fp(void *params) {
 // ------------------------------------------------------------
 
 
-struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_int_async(addr_t addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -212,7 +216,7 @@ struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
 }
 
 
-struct ThreadInfo* execute_fp_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_fp_async(addr_t addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -256,12 +260,12 @@ float join_fp(struct ThreadInfo* tinfo) {
 }
 
 
-long execute_int(long addr, struct ExecParams params) {
+long execute_int(addr_t addr, struct ExecParams params) {
   return ((Stream_func_int)addr)(params);
 }
 
 
-float execute_fp(long addr, struct ExecParams params) {
+float execute_fp(addr_t addr, struct ExecParams params) {
   return ((Stream_func_fp)addr)(params);
 }
 

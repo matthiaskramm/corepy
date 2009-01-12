@@ -50,6 +50,10 @@
 // Typedefs
 // ------------------------------------------------------------
 
+//Base address type -- integer that holds memory addresses
+typedef unsigned long addr_t;
+
+
 // Parameter passing structures
 struct ExecParams {
   unsigned long p1;
@@ -64,7 +68,7 @@ struct ExecParams {
 
 
 struct ThreadParams {
-  long addr;
+  addr_t addr;
   struct ExecParams params;
   union {
     long l;
@@ -100,7 +104,7 @@ typedef double (*Stream_func_fp)(struct ExecParams);
 //   be a contiguous sequence of bytes, forming instructions.
 // ------------------------------------------------------------
 
-int make_executable(long addr, long size) {
+int make_executable(addr_t addr, long size) {
   // sys_icache_invalidate may be useful in the future for cache control. 
   // It will remove the dependency on carbon.  It's new to Leopard, so not
   // useful yet...
@@ -224,7 +228,7 @@ void *run_stream_fp(void *params) {
 // ------------------------------------------------------------
 
 
-struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_int_async(addr_t addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -241,7 +245,7 @@ struct ThreadInfo* execute_int_async(long addr, struct ExecParams params) {
 }
 
 
-struct ThreadInfo* execute_fp_async(long addr, struct ExecParams params) {
+struct ThreadInfo* execute_fp_async(addr_t addr, struct ExecParams params) {
   int rc;
 
   struct ThreadInfo* tinfo = malloc(sizeof(struct ThreadInfo));
@@ -284,12 +288,12 @@ double join_fp(struct ThreadInfo* tinfo) {
 }
 
 
-long execute_int(long addr, struct ExecParams params) {
+long execute_int(addr_t addr, struct ExecParams params) {
   return ((Stream_func_int)addr)(params);
 }
 
 
-double execute_fp(long addr, struct ExecParams params) {
+double execute_fp(addr_t addr, struct ExecParams params) {
   return ((Stream_func_fp)addr)(params);
 }
 

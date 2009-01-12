@@ -88,13 +88,17 @@
 // Typedefs
 // ------------------------------------------------------------
 
+//Base address type -- integer that holds memory addresses
+typedef unsigned long addr_t;
+
+
 // Structure for putting parameters in the preferred slots of the
 // command parameters. The un-numbered field is the preferred slot 
 // for the parameter passed registers $r3-r5.
 
 struct ExecParams {
   // $r3
-  unsigned int addr;   // address of syn code
+  addr_t addr;   // address of syn code
   unsigned int p1;  
   unsigned int p2;  
   unsigned int p3;
@@ -117,8 +121,8 @@ struct ExecParams {
 struct ThreadInfo {
   pthread_t th;
   struct spufs_context* spu_ctx;
-  unsigned long spuls;        //Local store address 
-  unsigned long spups;        //Problem state address
+  addr_t spuls;        //Local store address 
+  addr_t spups;        //Problem state address
 
   int spu_run_ret;
 
@@ -132,10 +136,10 @@ struct ThreadInfo {
 #ifndef SWIG
 struct ThreadParams {
   struct ThreadInfo* ti;    //Execution Context
-  unsigned long addr;       //Main memory addr of associated stream
+  addr_t addr;           //Main memory addr of associated stream
   int len;                  //Length of stream in bytes
-  unsigned int code_lsa;    //Local store addr of associated stream
-  unsigned int exec_lsa;    //Local store addr to start execution
+  addr_t code_lsa;       //Local store addr of associated stream
+  addr_t exec_lsa;       //Local store addr to start execution
 };  
 #endif
 
@@ -224,7 +228,7 @@ class aligned_memory {
 
 // unsigned int __code_size;
 
-int make_executable(unsigned int addr, int size) {
+int make_executable(addr_t addr, int size) {
   // Note: At some point in the future, memory protection will 
   // be an issue on PPC Linux.  The commented out code sets
   // the execute bit on the memory pages.
@@ -265,7 +269,7 @@ int cancel_async(struct ThreadInfo* ti) {
 //   The native interface for suspending execution of an spu.
 // ------------------------------------------------------------
 
-int suspend_async(void* arg) {
+int suspend_async(addr_t arg) {
   return -1;
 }
 
@@ -279,7 +283,7 @@ int suspend_async(void* arg) {
 //   The native interface for resuming execution of an spu.
 // ------------------------------------------------------------
 
-int resume_async(void* arg) {
+int resume_async(addr_t arg) {
   return -1;
 }
 
@@ -299,8 +303,8 @@ struct ThreadInfo* alloc_context(void) {
   ti = (struct ThreadInfo*)malloc(sizeof(struct ThreadInfo));
 
   ti->spu_ctx = spufs_open_context("corepy-spu");
-  ti->spuls = (unsigned long)ti->spu_ctx->mem_ptr;
-  ti->spups = (unsigned long)ti->spu_ctx->psmap_ptr;
+  ti->spuls = (addr_t)ti->spu_ctx->mem_ptr;
+  ti->spups = (addr_t)ti->spu_ctx->psmap_ptr;
 
   return ti;
 }
@@ -336,8 +340,8 @@ void free_context(struct ThreadInfo* ti) {
 //  16-byte aligned.
 // ------------------------------------------------------------
 
-unsigned int run_stream(struct ThreadInfo* ti, unsigned long addr, int len,
-                        unsigned int code_lsa, unsigned int exec_lsa) {
+addr_t run_stream(struct ThreadInfo* ti, addr_t addr, int len,
+                        addr_t code_lsa, addr_t exec_lsa) {
 
   unsigned char* spuls = (unsigned char*)ti->spuls;
 
@@ -349,7 +353,7 @@ unsigned int run_stream(struct ThreadInfo* ti, unsigned long addr, int len,
   }
 
   DEBUG(("Starting SPU %p\n", ti->spu_ctx));
-  ti->spu_run_ret = spufs_run(ti->spu_ctx, &exec_lsa);
+  ti->spu_run_ret = spufs_run(ti->spu_ctx, (unsigned int*)&exec_lsa);
   DEBUG(("SPU %p finished executing, code %d\n", ti->spu_ctx, ti->spu_run_ret));
 
   return exec_lsa;
@@ -385,8 +389,8 @@ void *run_stream_thread(void* arg) {
 #endif
 
 
-int run_stream_async(struct ThreadInfo* ti, unsigned long addr, int len,
-                     unsigned int code_lsa, unsigned int exec_lsa) {
+int run_stream_async(struct ThreadInfo* ti, addr_t addr, int len,
+                     addr_t code_lsa, addr_t exec_lsa) {
   struct ThreadParams* tp;
   int rc;
 
@@ -417,9 +421,9 @@ int run_stream_async(struct ThreadInfo* ti, unsigned long addr, int len,
 //  Wait for an asynchronous SPU execution thread to complete.
 // ------------------------------------------------------------
 
-unsigned int wait_stream(struct ThreadInfo* ti)
+addr_t wait_stream(struct ThreadInfo* ti)
 {
-  unsigned int rc;
+  addr_t rc;
 
   pthread_join(ti->th, (void**)&rc);
   return rc;
@@ -455,9 +459,10 @@ int get_result(struct ThreadInfo* ti) {
 void put_spu_params(struct ThreadInfo* ti);
 #endif
 
-long execute_int(unsigned long addr, struct ExecParams params) {
+long execute_int(addr_t addr, struct ExecParams params) {
   struct ThreadInfo* ti;
-  int len, lsa;
+  int len;
+  addr_t lsa;
   long result;
 
   ti = alloc_context();
@@ -479,10 +484,11 @@ long execute_int(unsigned long addr, struct ExecParams params) {
 }
 
 
-struct ThreadInfo* execute_int_async(unsigned long addr,
+struct ThreadInfo* execute_int_async(addr_t addr,
                                      struct ExecParams params) {
   struct ThreadInfo* ti;
-  int len, lsa;
+  int len;
+  addr_t lsa;
 
   ti = alloc_context();
   ti->params = params;
