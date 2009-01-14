@@ -30,10 +30,6 @@ __doc__ = """
 Base classes for the Synthetic Programming Environment.
 """
 
-
-import inspect
-import random
-
 import corepy.lib.extarray as extarray
 
 from syn_util import *
@@ -768,6 +764,9 @@ class InstructionStream(object):
     self._storage_dict = None
     self._storage_arr = None
 
+    # Counter to use for generating unique labels
+    self.unique_counter = 0
+
     self._active_callback = None
     self.reset()
     return
@@ -826,8 +825,9 @@ class InstructionStream(object):
     """
     Generate a unique label name and create/return a label with that name.
     """
-
-    return self.get_label("%s_%d" % (name, random.randint(0, 2**64)))
+    nr = self.unique_counter
+    self.unique_counter += 1
+    return self.get_label("%s_%d" % (name, nr))
   
   def add_storage(self, key, val = None):
     """
@@ -956,6 +956,7 @@ class InstructionStream(object):
         self._instructions.append(inst)
 
         if self._debug:
+          import inspect
           self._stack_info.append(_extract_stack_info(inspect.stack()))
         
     elif isinstance(inst, ExtendedInstruction):

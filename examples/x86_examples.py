@@ -231,6 +231,7 @@ def Test():
     code.add(x86_isa.movd(ecx, xmm5))
     code.add(x86_isa.pinsrw(xmm6, ecx, 0))
     code.add(x86_isa.movd(eax, xmm6))
+    code.add(x86_isa.emms())
 
     code.print_code(hex = True)
     ret = proc.execute(code, params = params, mode = 'int')
