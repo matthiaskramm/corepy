@@ -2154,7 +2154,7 @@ class addps(x86DispatchInstruction):
 class addsd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0xF2, 0x0F, 0x58], 'modrm':None}),
-    (xmm_mem128,   {'opcode':[0xF2, 0x0F, 0x58], 'modrm':None}))
+    (xmm_mem64,   {'opcode':[0xF2, 0x0F, 0x58], 'modrm':None}))
   arch_ext = 2
 
 class addss(x86DispatchInstruction):
@@ -3873,7 +3873,7 @@ class roundps(x86DispatchInstruction):
 class roundsd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x66, 0x0F, 0x3A, 0x0B], 'modrm':None}),
-    (xmm_mem128_imm8, {'opcode':[0x66, 0x0F, 0x3A, 0x0B], 'modrm':None}))
+    (xmm_mem64_imm8,  {'opcode':[0x66, 0x0F, 0x3A, 0x0B], 'modrm':None}))
   arch_ext = 4
 
 class roundss(x86DispatchInstruction):
@@ -3921,7 +3921,7 @@ class sqrtps(x86DispatchInstruction):
 class sqrtsd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0xF2, 0x0F, 0x51], 'modrm':None}),
-    (xmm_mem128, {'opcode':[0xF2, 0x0F, 0x51], 'modrm':None}))
+    (xmm_mem64,  {'opcode':[0xF2, 0x0F, 0x51], 'modrm':None}))
   arch_ext = 2
 
 class sqrtss(x86DispatchInstruction):
@@ -3950,7 +3950,7 @@ class subps(x86DispatchInstruction):
 class subsd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0xF2, 0x0F, 0x5C], 'modrm':None}),
-    (xmm_mem128, {'opcode':[0xF2, 0x0F, 0x5C], 'modrm':None}))
+    (xmm_mem64,  {'opcode':[0xF2, 0x0F, 0x5C], 'modrm':None}))
   arch_ext = 2
 
 class subss(x86DispatchInstruction):
