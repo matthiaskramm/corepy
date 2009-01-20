@@ -7,10 +7,8 @@ sys.path.append("/home/paul/g/fetched/corepy-1.0")
 import time
 import array
 
-import corepy.arch.x86_64.platform as env
-import corepy.arch.x86_64.isa as x86
-import corepy.arch.x86_64.types.registers as r
-from corepy.arch.x86_64.lib.memory import MemRef
+import corepy.arch.ppc.platform as env
+import corepy.arch.ppc.isa as ppc
 from corepy.lib.nextarray import nextarray
 
 def timecmd(name, cmd, r):
@@ -26,13 +24,13 @@ def timecmd(name, cmd, r):
 
 reps = (1<<6)
 
-code = env.InstructionStream()
-code.add(x86.nop())
-def callasm():
-    for i in range(reps):
-        params = env.ExecParams()
-        env.Processor().execute(code)
-timecmd("callasm", callasm, reps)
+#code = env.InstructionStream()
+#code.add(x86.nop())
+#def callasm():
+#    for i in range(reps):
+#        params = env.ExecParams()
+#        env.Processor().execute(code)
+#timecmd("callasm", callasm, reps)
 
 datasize = (1<<14)
 

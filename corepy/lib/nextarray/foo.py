@@ -1,7 +1,8 @@
 import nextarray
 #import numpy
 
-ne = nextarray.nextarray('i')
+ne = nextarray.nextarray('I', range(0, 1))
+print ne
 nex = nextarray.nextarray('L', 16)
 nex[3] = 1
 nex[0] = 2
