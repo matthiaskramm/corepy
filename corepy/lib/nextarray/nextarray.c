@@ -1,12 +1,11 @@
 #include <Python.h>
 #include "structmember.h"
-//#include <Numeric/arrayobject.h>
 #include <stdio.h>
 #include "alloc.h"
 
-#ifndef _DEBUG
-#define _DEBUG 1
-#endif
+//#ifndef _DEBUG
+//#define _DEBUG 0
+//#endif
 
 typedef struct NextArray {
   PyObject_HEAD
@@ -120,13 +119,11 @@ static int alloc(NextArray* self, int length)
 
 
   if(self->alloc_len < size) {
-    if(self->memory == NULL) {
-      printf("alloc %d\n", size);
-      self->memory = self->alloc(size);
-    } else {
-      printf("realloc %d %d %p\n", size, self->alloc_len, self->memory);
+    //if(self->memory == NULL) {
+    //  self->memory = self->alloc(size);
+    //} else {
       self->memory = self->realloc(self->memory, self->alloc_len, size);
-    }
+    //}
 
     self->alloc_len = size;
     if(length < self->data_len) {
@@ -266,7 +263,7 @@ static PyObject* NextArray_buffer_info(NextArray* self, PyObject* val)
 {
   return PyTuple_Pack(2,
       PyLong_FromUnsignedLong((unsigned long)self->memory),
-      PyLong_FromLong(self->data_len));
+      PyInt_FromLong(self->data_len));
 }
 
 
@@ -552,11 +549,10 @@ static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
     ((unsigned long*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
     return 0;
   case 'f':
-    ((float*)na->memory)[ind] = PyLong_AsDouble(val);
-    printf("set ind %d val %f\n", ind, PyLong_AsDouble(val));
+    ((float*)na->memory)[ind] = PyFloat_AsDouble(val);
     return 0;
   case 'd':
-    ((double*)na->memory)[ind] = PyLong_AsDouble(val);
+    ((double*)na->memory)[ind] = PyFloat_AsDouble(val);
     return 0;
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
@@ -593,9 +589,9 @@ static PyObject* NextArray_getitem(PyObject* self, int ind)
   case 'L':
     return PyLong_FromUnsignedLong(((unsigned long*)na->memory)[ind]);
   case 'f':
-    return PyLong_FromDouble(((float*)na->memory)[ind]);
+    return PyFloat_FromDouble(((float*)na->memory)[ind]);
   case 'd':
-    return PyLong_FromDouble(((double*)na->memory)[ind]);
+    return PyFloat_FromDouble(((double*)na->memory)[ind]);
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
         "Unicode not supported by extarray");
@@ -610,7 +606,7 @@ static PyObject* NextArray_getitem(PyObject* self, int ind)
 
 static PyMemberDef NextArray_members[] = {
   {"typecode", T_CHAR, offsetof(NextArray, typecode), 0, "typecode"},
-  {"itemsize", T_INT, offsetof(NextArray, typecode), 0, "typecode"},
+  {"itemsize", T_INT, offsetof(NextArray, itemsize), 0, "itemsize"},
   {NULL}
 };
 

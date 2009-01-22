@@ -32,7 +32,7 @@
 #define ALLOC_H
 
 #define _XOPEN_SOURCE 600
-#define _DEBUG
+//#define _DEBUG
 
 #include <stdlib.h>
 
