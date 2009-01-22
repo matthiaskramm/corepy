@@ -19,6 +19,7 @@ typedef struct NextArray {
   int data_len;
   int alloc_len;
   int page_size;
+  int iter;
 
   void* memory;
 
@@ -44,11 +45,11 @@ NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
     self->lock = 0;
 
     self->itemsize = 0;
-    self->_data_len = 0;
+    self->data_len = 0;
     self->alloc_len = 0;
     self->page_size = 0;
 
-    self->_memory = NULL;
+    self->memory = NULL;
     self->alloc = NULL;
     self->realloc = NULL;
     self->free = NULL;
@@ -78,6 +79,12 @@ static int _set_type_fns(NextArray* self, char typecode)
   case 'L':
     self->itemsize = sizeof(long);
     break;
+  case 'f':
+    self->itemsize = sizeof(float);
+    break;
+  case 'd':
+    self->itemsize = sizeof(double);
+    break;
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
         "Unicode not supported by extarray");
@@ -98,7 +105,7 @@ static int alloc(NextArray* self, int length)
   int size;
   int m;
 
-  if(self->_lock == 1) {
+  if(self->lock == 1) {
     PyErr_SetString(PyExc_MemoryError,
         "Attempt to allocate with memory lock enabled");
     return -1;
@@ -111,8 +118,16 @@ static int alloc(NextArray* self, int length)
     size += self->page_size - m;
   }
 
+
   if(self->alloc_len < size) {
-    self->memory = self->realloc(self->memory, self->alloc_len, size);
+    if(self->memory == NULL) {
+      printf("alloc %d\n", size);
+      self->memory = self->alloc(size);
+    } else {
+      printf("realloc %d %d %p\n", size, self->alloc_len, self->memory);
+      self->memory = self->realloc(self->memory, self->alloc_len, size);
+    }
+
     self->alloc_len = size;
     if(length < self->data_len) {
       self->data_len = length;
@@ -142,7 +157,7 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
   }
 
   self->huge = huge;
-  self->_lock = 0;
+  self->lock = 0;
   self->alloc_len = 0;
   self->memory = NULL;
 
@@ -175,18 +190,21 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
   // int/long means allocate space for that many elements
   // sequence means copy the sequence elements into the array
   if(init == Py_None) {
-    self->_data_len = 0;
+    self->data_len = 0;
   } else if(PyInt_Check(init)) {
     self->data_len = PyInt_AsLong(init);
     alloc(self, self->data_len);
   } else if(PySequence_Check(init)) {
+    PyObject* item;
     int i;
 
     self->data_len = PySequence_Size(init);
     alloc(self, self->data_len);
 
-    for(i = 0; i < self->_data_len; i++) {
-      NextArray_setitem((PyObject*)self, i, PySequence_ITEM(init, i));
+    for(i = 0; i < self->data_len; i++) {
+      item = PySequence_ITEM(init, i);
+      NextArray_setitem((PyObject*)self, i, item);
+      Py_DECREF(item);
     }
   } else {
     // Throw an exception?
@@ -200,22 +218,56 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
 static void
 NextArray_dealloc(NextArray* self)
 {
-  if(self->_memory != NULL && self->_lock == 0) {
+  if(self->memory != NULL && self->lock == 0) {
 #ifdef _DEBUG
-    printf("Freeing memory at %p\n", self->_memory);
+    printf("Freeing memory at %p\n", self->memory);
 #endif
-    self->_free(self->_memory);
+    self->free(self->memory);
   }
 
   self->ob_type->tp_free((PyObject*)self);
 }
 
 
-static PyMemberDef NextArray_members[] = {
-  {"typecode", T_CHAR, offsetof(NextArray, typecode), 0, "typecode"},
-  {"itemsize", T_INT, offsetof(NextArray, typecode), 0, "typecode"},
-  {NULL}
-};
+static PyObject* NextArray_alloc(NextArray* self, PyObject* arg)
+{
+  int length;
+
+  if(!PyArg_ParseTuple(arg, "i", &length)) {
+    return NULL;
+  }
+
+  if(alloc(self, length) == -1) {
+    return NULL;
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_append(NextArray* self, PyObject* val)
+{
+  self->data_len++;
+  if(alloc(self, self->data_len) == -1) {
+    return NULL;
+  }
+
+  if(NextArray_setitem((PyObject*)self, self->data_len - 1, val) == -1) {
+    return NULL;
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_buffer_info(NextArray* self, PyObject* val)
+{
+  return PyTuple_Pack(2,
+      PyLong_FromUnsignedLong((unsigned long)self->memory),
+      PyLong_FromLong(self->data_len));
+}
 
 
 static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
@@ -260,13 +312,175 @@ static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
   }
   }
 
+  Py_INCREF(Py_None);
   return Py_None;
 }
 
-static PyMethodDef NextArray_methods[] = {
-  {"byteswap", (PyCFunction)NextArray_byteswap, METH_VARARGS, "byteswap"},
-  {NULL}
-};
+
+static PyObject* NextArray_changetype(NextArray* self, PyObject* arg)
+{
+  char typecode;
+  char oldcode = self->typecode;
+
+  //TODO - what about when changing from int to short?  should data_len change?
+  if(!PyArg_ParseTuple(arg, "c", &typecode)) {
+    return NULL;
+  }
+
+  _set_type_fns(self, typecode);
+
+  if((self->data_len * self->itemsize) % oldcode != 0) {
+    _set_type_fns(self, oldcode);
+    PyErr_SetString(PyExc_TypeError,
+        "Array length is not a multiple of new type");
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_clear(NextArray* self, PyObject* args)
+{
+  memset(self->memory, 0, self->alloc_len);
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
+{
+  char* buf;
+  int len;
+
+  if(PyString_AsStringAndSize(arg, &buf, &len) == -1) {
+    return NULL;
+  }
+
+  //TODO - what if this doesn't divide evenly?
+  self->data_len = len / self->itemsize;
+  self->alloc(self->data_len);
+
+  memcpy(self->memory, buf, len);
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
+{
+  int data_len = self->data_len;
+  int alloc_len = self->alloc_len;
+  PyObject* iter = PyObject_GetIter(arg);
+  PyObject* item;
+
+  if(iter == NULL) {
+    return NULL;
+  }
+
+  while((item = PyIter_Next(iter)) != NULL) {
+    self->alloc(self->data_len + 1);
+    if(NextArray_setitem((PyObject*)self, self->data_len, item) == -1) {
+      if(alloc_len < self->alloc_len) {
+        self->memory = self->realloc(self->memory, self->alloc_len, alloc_len);
+        self->alloc_len = alloc_len;
+        self->data_len = data_len;
+      }
+
+      Py_DECREF(item);
+      Py_DECREF(iter);
+      return NULL;
+    }
+
+    self->data_len++;
+    Py_DECREF(item);
+  }
+
+  Py_DECREF(iter);
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
+{
+  int data_len = self->data_len;
+  int alloc_len = self->alloc_len;
+  int len = PyList_Size(list);
+  int i;
+
+  self->alloc(self->data_len + len);
+
+  for(i = 0; i < len; i++) {
+    if(NextArray_setitem((PyObject*)self,
+        self->data_len, PyList_GET_ITEM(list, i)) == -1) {
+      if(alloc_len < self->alloc_len) {
+        self->memory = self->realloc(self->memory, self->alloc_len, alloc_len);
+        self->alloc_len = alloc_len;
+        self->data_len = data_len;
+      }
+
+      return NULL;
+    }
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_fromstring(NextArray* self, PyObject* list)
+{
+  return NextArray_fromlist(self, list);
+}
+
+
+static PyObject* NextArray_memory_lock(NextArray* self, PyObject* arg)
+{
+  if(arg == Py_False) {
+    self->lock = 0;
+  } else if(arg == Py_True) {
+    self->lock = 1;
+  }
+
+  return PyBool_FromLong(self->lock);
+}
+
+
+static PyObject* NextArray_synchronize(NextArray* self, PyObject* arg)
+{
+// TODO - other architectures
+#ifdef __powerpc__
+  asm("lwsync");
+#else
+#ifndef  SWIG
+//#error "No sync primitives for this platform"
+#endif
+#endif
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
+static PyObject* NextArray_iter(PyObject* self)
+{
+  ((NextArray*)self)->iter = 0;
+  Py_INCREF(self);
+  return self;
+}
+
+
+static PyObject* NextArray_iternext(PyObject* self)
+{
+   NextArray* na = (NextArray*)self;
+  if(na->iter == na->data_len) {
+    return NULL;
+  }
+
+  na->iter++;
+  return NextArray_getitem(self, na->iter - 1);
+}
 
 
 static PyObject* NextArray_str(PyObject* self)
@@ -282,7 +496,7 @@ static PyObject* NextArray_str(PyObject* self)
     int i;
 
     str = PyString_FromFormat("extarray('%c', [", na->typecode);
-    PyString_ConcatAndDel(&str, tmp->ob_type->tp_str(tmp));
+    PyString_ConcatAndDel(&str, PyObject_Str(tmp));
     Py_XDECREF(tmp);
 
     for(i = 1; i < na->data_len; i++) {
@@ -303,8 +517,9 @@ static PyObject* NextArray_str(PyObject* self)
 
 static int NextArray_length(PyObject* self)
 {
-  return ((NextArray*)self)->_data_len;
+  return ((NextArray*)self)->data_len;
 }
+
 
 static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
 {
@@ -313,28 +528,35 @@ static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
   switch(na->typecode) {
   case 'c':
   case 'b':
-    ((char*)na->_memory)[ind] = PyLong_AsLong(val);
+    ((char*)na->memory)[ind] = PyLong_AsLong(val);
     return 0;
   case 'B':
-    ((unsigned char*)na->_memory)[ind] = PyLong_AsUnsignedLong(val);
+    ((unsigned char*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
     return 0;
   case 'h':
-    ((short*)na->_memory)[ind] = PyLong_AsLong(val);
+    ((short*)na->memory)[ind] = PyLong_AsLong(val);
     return 0;
   case 'H':
-    ((unsigned short*)na->_memory)[ind] = PyLong_AsUnsignedLong(val);
+    ((unsigned short*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
     return 0;
   case 'i':
-    ((int*)na->_memory)[ind] = PyLong_AsLong(val);
+    ((int*)na->memory)[ind] = PyLong_AsLong(val);
     return 0;
   case 'I':
-    ((unsigned int*)na->_memory)[ind] = PyLong_AsUnsignedLong(val);
+    ((unsigned int*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
     return 0;
   case 'l':
-    ((long*)na->_memory)[ind] = PyLong_AsLong(val);
+    ((long*)na->memory)[ind] = PyLong_AsLong(val);
     return 0;
   case 'L':
-    ((unsigned long*)na->_memory)[ind] = PyLong_AsUnsignedLongMask(val);
+    ((unsigned long*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
+    return 0;
+  case 'f':
+    ((float*)na->memory)[ind] = PyLong_AsDouble(val);
+    printf("set ind %d val %f\n", ind, PyLong_AsDouble(val));
+    return 0;
+  case 'd':
+    ((double*)na->memory)[ind] = PyLong_AsDouble(val);
     return 0;
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
@@ -346,6 +568,7 @@ static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
     return -1;
   }
 }
+
 
 static PyObject* NextArray_getitem(PyObject* self, int ind)
 {
@@ -354,21 +577,25 @@ static PyObject* NextArray_getitem(PyObject* self, int ind)
   switch(na->typecode) {
   case 'c':
   case 'b':
-    return PyLong_FromLong(((char*)na->_memory)[ind]);
+    return PyLong_FromLong(((char*)na->memory)[ind]);
   case 'B':
-    return PyLong_FromUnsignedLong(((unsigned char*)na->_memory)[ind]);
+    return PyLong_FromUnsignedLong(((unsigned char*)na->memory)[ind]);
   case 'h':
-    return PyLong_FromLong(((short*)na->_memory)[ind]);
+    return PyLong_FromLong(((short*)na->memory)[ind]);
   case 'H':
-    return PyLong_FromUnsignedLong(((unsigned short*)na->_memory)[ind]);
+    return PyLong_FromUnsignedLong(((unsigned short*)na->memory)[ind]);
   case 'i':
-    return PyLong_FromLong(((int*)na->_memory)[ind]);
+    return PyLong_FromLong(((int*)na->memory)[ind]);
   case 'I':
-    return PyLong_FromUnsignedLong(((unsigned int*)na->_memory)[ind]);
+    return PyLong_FromUnsignedLong(((unsigned int*)na->memory)[ind]);
   case 'l':
-    return PyLong_FromLong(((long*)na->_memory)[ind]);
+    return PyLong_FromLong(((long*)na->memory)[ind]);
   case 'L':
-    return PyLong_FromUnsignedLong(((unsigned long*)na->_memory)[ind]);
+    return PyLong_FromUnsignedLong(((unsigned long*)na->memory)[ind]);
+  case 'f':
+    return PyLong_FromDouble(((float*)na->memory)[ind]);
+  case 'd':
+    return PyLong_FromDouble(((double*)na->memory)[ind]);
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
         "Unicode not supported by extarray");
@@ -379,6 +606,30 @@ static PyObject* NextArray_getitem(PyObject* self, int ind)
     return NULL;
   }
 }
+
+
+static PyMemberDef NextArray_members[] = {
+  {"typecode", T_CHAR, offsetof(NextArray, typecode), 0, "typecode"},
+  {"itemsize", T_INT, offsetof(NextArray, typecode), 0, "typecode"},
+  {NULL}
+};
+
+
+static PyMethodDef NextArray_methods[] = {
+  {"alloc", (PyCFunction)NextArray_alloc, METH_O, "alloc"},
+  {"append", (PyCFunction)NextArray_append, METH_O, "append"},
+  {"buffer_info", (PyCFunction)NextArray_buffer_info, METH_NOARGS, "buffer_info"},
+  {"byteswap", (PyCFunction)NextArray_byteswap, METH_NOARGS, "byteswap"},
+  {"change_type", (PyCFunction)NextArray_changetype, METH_VARARGS, "change_type"},
+  {"clear", (PyCFunction)NextArray_clear, METH_VARARGS, "clear"},
+  {"extend", (PyCFunction)NextArray_extend, METH_O, "extend"},
+  {"copy_direct", (PyCFunction)NextArray_copy_direct, METH_O, "copy_direct"},
+  {"fromlist", (PyCFunction)NextArray_fromlist, METH_O, "fromlist"},
+  {"fromstring", (PyCFunction)NextArray_fromstring, METH_O, "fromstring"},
+  {"memory_lock", (PyCFunction)NextArray_memory_lock, METH_O, "memory_lock"},
+  {"synchronize", (PyCFunction)NextArray_synchronize, METH_NOARGS, "synchronize"},
+  {NULL}
+};
 
 
 static PySequenceMethods NextArray_seqmethods = {
@@ -393,6 +644,7 @@ static PySequenceMethods NextArray_seqmethods = {
   0,                              /*sq_inplace_concat*/
   0                               /*sq_inplace_repeat*/
 };
+
 
 static PyTypeObject NextArrayType = {
   PyObject_HEAD_INIT(NULL)
@@ -421,8 +673,8 @@ static PyTypeObject NextArrayType = {
   0,                              /* tp_clear */
   0,                              /* tp_richcompare */
   0,                              /* tp_weaklistoffset */
-  0,                              /* tp_iter */
-  0,                              /* tp_iternext */
+  NextArray_iter,                 /* tp_iter */
+  NextArray_iternext,             /* tp_iternext */
   NextArray_methods,              /* tp_methods */
   NextArray_members,              /* tp_members */
   0,                              /* tp_getset */
