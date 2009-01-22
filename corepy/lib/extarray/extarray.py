@@ -184,7 +184,7 @@ class extarray(object):
     return
 
   def buffer_info(self):
-    return (self._memory, self._data_len)
+    return (long(self._memory), self._data_len)
 
   def byteswap(self):
     self._byteswap(self._memory, self._data_len)
