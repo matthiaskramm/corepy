@@ -22,7 +22,6 @@ typedef struct NextArray {
 
   void* memory;
 
-  //void* (*alloc)(int size);
   void* (*realloc)(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize);
   void (*free)(void* mem);
 } NextArray;
@@ -49,7 +48,6 @@ NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
     self->page_size = 0;
 
     self->memory = NULL;
-    //self->alloc = NULL;
     self->realloc = NULL;
     self->free = NULL;
   }
@@ -58,7 +56,7 @@ NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 }
 
 
-static int _set_type_fns(NextArray* self, char typecode)
+static int set_type_fns(NextArray* self, char typecode)
 {
   switch(typecode) {
   case 'c':
@@ -119,11 +117,7 @@ static int alloc(NextArray* self, Py_ssize_t length)
 
 
   if(self->alloc_len < size) {
-    //if(self->memory == NULL) {
-    //  self->memory = self->alloc(size);
-    //} else {
-      self->memory = self->realloc(self->memory, self->alloc_len, size);
-    //}
+    self->memory = self->realloc(self->memory, self->alloc_len, size);
 
     self->alloc_len = size;
     if(length < self->data_len) {
@@ -165,17 +159,15 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
     return -1;
   }
 
-  if(_set_type_fns(self, typecode) != 0) {
+  if(set_type_fns(self, typecode) != 0) {
     return -1;
   }
 
   if(huge == 1) {
-    //self->alloc = alloc_hugemem;
     self->realloc = realloc_hugemem;
     self->free = free_hugemem;
     self->page_size = get_hugepage_size();
   } else {
-    //self->alloc = alloc_mem;
     self->realloc = realloc_mem;
     self->free = free_mem;
     self->page_size = get_page_size();
@@ -324,10 +316,10 @@ static PyObject* NextArray_changetype(NextArray* self, PyObject* arg)
     return NULL;
   }
 
-  _set_type_fns(self, typecode);
+  set_type_fns(self, typecode);
 
   if((self->data_len * self->itemsize) % oldcode != 0) {
-    _set_type_fns(self, oldcode);
+    set_type_fns(self, oldcode);
     PyErr_SetString(PyExc_TypeError,
         "Array length is not a multiple of new type");
   }

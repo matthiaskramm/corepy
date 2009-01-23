@@ -116,7 +116,8 @@ static int _hugefs_find_mnt(void)
     return 0;
 }
 
-void* alloc_hugemem(int size)
+
+static void* alloc_hugemem(int size)
 {
     void* addr;
     char  filename[PATH_MAX + 1];
@@ -156,7 +157,7 @@ void* alloc_hugemem(int size)
 }
 
 
-void free_hugemem(void* addr)
+static void free_hugemem(void* addr)
 {
     int i;
 
@@ -174,7 +175,7 @@ void free_hugemem(void* addr)
 }
 
 
-void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
+static void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     void* oldaddr = (void*)mem;
     void* newaddr;
@@ -193,14 +194,15 @@ void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 }
 
 
-int get_hugepage_size(void)
+static int get_hugepage_size(void)
 {
     //TODO - do this right..
+    // do a system("cat /proc/meminfo |grep Hugepagesize") and cache it
     return 16 * 1024 * 1024;
 }
 
 
-int has_huge_pages(void)
+static int has_huge_pages(void)
 {
     //Can a mount path be found?
     if(_hugefs_mnt[0] == '\0' && !_hugefs_find_mnt()) {
@@ -213,26 +215,26 @@ int has_huge_pages(void)
 #else // not __linux__
 
 //Huge pages not supported on this platform
-int has_huge_pages(void)
+static int has_huge_pages(void)
 {
     return 0;
 }
 
-void* alloc_hugemem(int size)
+static void* alloc_hugemem(int size)
 {
     return 0;
 }
 
-void free_hugemem(void* addr)
+static void free_hugemem(void* addr)
 {
 }
 
-void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
+static void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     return 0;
 }
 
-int get_hugepage_size(void)
+static int get_hugepage_size(void)
 {
     return 0;
 }
@@ -240,40 +242,16 @@ int get_hugepage_size(void)
 #endif //__linux__
 
 
-int get_page_size(void)
+static int get_page_size(void)
 {
     return sysconf(_SC_PAGESIZE);
 }
 
 
-void synchronize(void)
-{
-// TODO - other architectures
-#ifdef __powerpc__
-  asm("lwsync");
-#else
-#ifndef  SWIG
-//#error "No sync primitives for this platform"
-#endif
-#endif
-}
-
-void* alloc_mem(int size)
+static void* alloc_mem(int size)
 {
 #ifdef __MACH__
-#if 0
-    //From http://stackoverflow.com/questions/196329?sort=votes
-    int pg_sz = sysconf(_SC_PAGESIZE);
-
-    void* mem = malloc(size + (pg_sz - 1) + sizeof(void*));
-    char* amem = ((char*)mem) + sizeof(void*);
-    amem += pg_sz - ((uintptr_t)amem & (pg_sz - 1));
-    ((void**)amem)[-1] = mem;
-    return (unsigned long)amem;
-#endif
-    void* addr = (void*)valloc(size);
-    return addr;
-    //return (unsigned long)valloc(size);
+    return (void*)valloc(size);
 #else
     void* addr;
 
@@ -284,37 +262,20 @@ void* alloc_mem(int size)
 }
 
 
-
-void* realloc_mem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
+static void* realloc_mem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     void* oldaddr = mem;
     void* newaddr = (void*)alloc_mem(newsize);
-    //posix_memalign(&newaddr, sysconf(_SC_PAGESIZE), newsize);
+
     memcpy(newaddr, oldaddr, oldsize < newsize ? oldsize : newsize);
     free(oldaddr);
     return newaddr;
 }
 
 
-void free_mem(void* addr)
+static void free_mem(void* addr)
 {
-#ifdef __MACH__
-    //free(((void**)addr)[-1]);
     free(addr);
-#else
-    free(addr);
-#endif
-}
-
-void zero_mem(void* addr, int size)
-{
-    memset(addr, 0, size);
-}
-
-
-void copy_direct(void* dst, char* src, int len)
-{
-    memcpy(dst, src, len);
 }
 
 #endif //ALLOC_H
