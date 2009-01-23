@@ -14,22 +14,22 @@ typedef struct NextArray {
   char huge;
   char lock;
 
-  int itemsize;
-  int data_len;
-  int alloc_len;
   int page_size;
-  int iter;
+  int itemsize;
+  Py_ssize_t data_len;
+  Py_ssize_t alloc_len;
+  Py_ssize_t iter;
 
   void* memory;
 
-  void* (*alloc)(int size);
-  void* (*realloc)(void* mem, int oldsize, int newsize);
+  //void* (*alloc)(int size);
+  void* (*realloc)(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize);
   void (*free)(void* mem);
 } NextArray;
 
 
-static int NextArray_setitem(PyObject* self, int ind, PyObject* val);
-static PyObject* NextArray_getitem(PyObject* self, int ind);
+static int NextArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val);
+static PyObject* NextArray_getitem(PyObject* self, Py_ssize_t ind);
 
 
 static PyObject*
@@ -49,7 +49,7 @@ NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
     self->page_size = 0;
 
     self->memory = NULL;
-    self->alloc = NULL;
+    //self->alloc = NULL;
     self->realloc = NULL;
     self->free = NULL;
   }
@@ -99,10 +99,10 @@ static int _set_type_fns(NextArray* self, char typecode)
 }
 
 
-static int alloc(NextArray* self, int length)
+static int alloc(NextArray* self, Py_ssize_t length)
 {
-  int size;
-  int m;
+  Py_ssize_t size;
+  Py_ssize_t m;
 
   if(self->lock == 1) {
     PyErr_SetString(PyExc_MemoryError,
@@ -170,12 +170,12 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
   }
 
   if(huge == 1) {
-    self->alloc = alloc_hugemem;
+    //self->alloc = alloc_hugemem;
     self->realloc = realloc_hugemem;
     self->free = free_hugemem;
     self->page_size = get_hugepage_size();
   } else {
-    self->alloc = alloc_mem;
+    //self->alloc = alloc_mem;
     self->realloc = realloc_mem;
     self->free = free_mem;
     self->page_size = get_page_size();
@@ -228,9 +228,9 @@ NextArray_dealloc(NextArray* self)
 
 static PyObject* NextArray_alloc(NextArray* self, PyObject* arg)
 {
-  int length;
+  Py_ssize_t length;
 
-  if(!PyArg_ParseTuple(arg, "i", &length)) {
+  if(!PyArg_ParseTuple(arg, "l", &length)) {
     return NULL;
   }
 
@@ -269,7 +269,7 @@ static PyObject* NextArray_buffer_info(NextArray* self, PyObject* val)
 
 static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
 {
-  int i;
+  Py_ssize_t i;
 
   //TODO - x86 has a bswap instruction, could use it :)
   switch(self->itemsize) {
@@ -348,7 +348,7 @@ static PyObject* NextArray_clear(NextArray* self, PyObject* args)
 static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
 {
   char* buf;
-  int len;
+  Py_ssize_t len;
 
   if(PyString_AsStringAndSize(arg, &buf, &len) == -1) {
     return NULL;
@@ -366,8 +366,8 @@ static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
 
 static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
 {
-  int data_len = self->data_len;
-  int alloc_len = self->alloc_len;
+  Py_ssize_t data_len = self->data_len;
+  Py_ssize_t alloc_len = self->alloc_len;
   PyObject* iter = PyObject_GetIter(arg);
   PyObject* item;
 
@@ -402,10 +402,10 @@ static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
 
 static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
 {
-  int data_len = self->data_len;
-  int alloc_len = self->alloc_len;
-  int len = PyList_Size(list);
-  int i;
+  Py_ssize_t data_len = self->data_len;
+  Py_ssize_t alloc_len = self->alloc_len;
+  Py_ssize_t len = PyList_Size(list);
+  Py_ssize_t i;
 
   alloc(self, self->data_len + len);
 
@@ -493,7 +493,7 @@ static PyObject* NextArray_str(PyObject* self)
   } else {
     PyObject* sep = PyString_FromString(", ");
     PyObject* tmp = NextArray_getitem(self, 0);
-    int i;
+    Py_ssize_t i;
 
     str = PyString_FromFormat("extarray('%c', [", na->typecode);
     PyString_ConcatAndDel(&str, PyObject_Str(tmp));
@@ -515,13 +515,13 @@ static PyObject* NextArray_str(PyObject* self)
 }
 
 
-static int NextArray_length(PyObject* self)
+static Py_ssize_t NextArray_length(PyObject* self)
 {
   return ((NextArray*)self)->data_len;
 }
 
 
-static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
+static int NextArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
 {
   NextArray* na = (NextArray*)self;
 
@@ -569,7 +569,7 @@ static int NextArray_setitem(PyObject* self, int ind, PyObject* val)
 }
 
 
-static PyObject* NextArray_getitem(PyObject* self, int ind)
+static PyObject* NextArray_getitem(PyObject* self, Py_ssize_t ind)
 {
   NextArray* na = (NextArray*)self;
 

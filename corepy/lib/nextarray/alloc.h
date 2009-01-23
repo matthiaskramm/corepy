@@ -34,6 +34,7 @@
 #define _XOPEN_SOURCE 600
 //#define _DEBUG
 
+#include <Python.h>
 #include <stdlib.h>
 
 
@@ -173,14 +174,15 @@ void free_hugemem(void* addr)
 }
 
 
-void* realloc_hugemem(void* mem, int oldsize, int newsize)
+void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     void* oldaddr = (void*)mem;
     void* newaddr;
 
 #ifdef _DEBUG
     if(oldaddr != NULL) {
-        puts("WARNING realloc'ing hugepages isn't smart and might fail");
+        //TODO - make this throw a python warning?
+        puts("WARNING realloc'ing hugepages might fail");
     }
 #endif
 
@@ -225,7 +227,7 @@ void free_hugemem(void* addr)
 {
 }
 
-void* realloc_hugemem(void* mem, size_t oldsize, size_t newsize)
+void* realloc_hugemem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     return 0;
 }
@@ -283,7 +285,7 @@ void* alloc_mem(int size)
 
 
 
-void* realloc_mem(void* mem, int oldsize, int newsize)
+void* realloc_mem(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize)
 {
     void* oldaddr = mem;
     void* newaddr = (void*)alloc_mem(newsize);
