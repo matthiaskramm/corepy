@@ -356,7 +356,7 @@ static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
 
   //TODO - what if this doesn't divide evenly?
   self->data_len = len / self->itemsize;
-  self->alloc(self->data_len);
+  alloc(self, self->data_len);
 
   memcpy(self->memory, buf, len);
   Py_INCREF(Py_None);
@@ -376,7 +376,8 @@ static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
   }
 
   while((item = PyIter_Next(iter)) != NULL) {
-    self->alloc(self->data_len + 1);
+    alloc(self, self->data_len + 1);
+
     if(NextArray_setitem((PyObject*)self, self->data_len, item) == -1) {
       if(alloc_len < self->alloc_len) {
         self->memory = self->realloc(self->memory, self->alloc_len, alloc_len);
@@ -406,7 +407,7 @@ static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
   int len = PyList_Size(list);
   int i;
 
-  self->alloc(self->data_len + len);
+  alloc(self, self->data_len + len);
 
   for(i = 0; i < len; i++) {
     if(NextArray_setitem((PyObject*)self,
@@ -419,6 +420,8 @@ static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
 
       return NULL;
     }
+
+    self->data_len++;
   }
 
   Py_INCREF(Py_None);
