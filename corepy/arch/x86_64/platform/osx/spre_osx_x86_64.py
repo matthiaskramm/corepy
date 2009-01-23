@@ -119,7 +119,6 @@ class InstructionStream(spe.InstructionStream):
 
 
   def make_executable(self):
-    print "make exec len", len(self.render_code)
     self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
 
   def create_register_files(self):
