@@ -84,7 +84,7 @@ class InstructionStream(spe.InstructionStream):
 
     # Set up the call frame and push callee-save registers
     # Note the stack is expected to remain 16-byte aligned, which is true here.
-    self._prologue.append(x86.mov(rax, rsp, ignore_active = True))
+    #self._prologue.append(x86.mov(rax, rsp, ignore_active = True))
     self._prologue.append(x86.push(rbp, ignore_active = True))
     self._prologue.append(x86.mov(rbp, rsp, ignore_active = True))
     self._prologue.append(x86.push(r15, ignore_active = True))
@@ -119,6 +119,7 @@ class InstructionStream(spe.InstructionStream):
 
 
   def make_executable(self):
+    print "make exec len", len(self.render_code)
     self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
 
   def create_register_files(self):

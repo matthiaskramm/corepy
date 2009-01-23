@@ -64,7 +64,6 @@ def Test():
     print "ret", ret
     assert(ret == 12)
 
-    print "W00T"
 
     code.reset()
 
@@ -81,13 +80,10 @@ def Test():
     code.add(x86.add(rax, 12))
    
     code.print_code(hex = True, pro = True, epi = True) 
-    print "a"
     ret = proc.execute(code)
-    print "b"
     print "ret", ret
     assert(ret == 12)
 
-    print "w00t 2"
 
     code.reset()
 
