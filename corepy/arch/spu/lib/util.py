@@ -28,20 +28,21 @@
 
 import corepy.spre.spe as spe
 import corepy.arch.spu.isa as spu
-import corepy.lib.extarray as extarray
+import corepy.lib.nextarray as nextarray
 
 def load_word(code, r_target, word, clear = False, zero = True):
   """If r0 is not set to 0, the zero parameter should be set to False"""
 
-  if zero and (-512 < word < 511):
-    code.add(spu.ai(r_target, code.r_zero, word))
-  elif (word & 0x7FFF) == word:
-    code.add(spu.il(r_target, word))
-  elif (word & 0x3FFFF) == word:
+  #if zero and (-512 < word < 511):
+  #  code.add(spu.ai(r_target, code.r_zero, word))
+  #elif (word & 0x7FFF) == word:
+  #  code.add(spu.il(r_target, word))
+  if (word & 0x3FFFF) == word:
     code.add(spu.ila(r_target, word))
   else:
     code.add(spu.ilhu(r_target, (word & 0xFFFF0000) >> 16))
-    code.add(spu.iohl(r_target, (word & 0xFFFF)))
+    if word & 0xFFFF != 0:
+      code.add(spu.iohl(r_target, (word & 0xFFFF)))
 
   if clear:
     code.add(spu.shlqbyi(r_target, r_target, 12))
@@ -49,7 +50,7 @@ def load_word(code, r_target, word, clear = False, zero = True):
 
 
 def load_float(code, reg, val):
-  data = extarray.extarray('f', (val,))
+  data = nextarray.nextarray('f', (val,))
   data.change_type('I')
 
   return load_word(code, reg, data[0])

@@ -31,10 +31,6 @@
 #          /opt/IBM/cell-sdk-1.1/sysroot/usr/lib/gcc/spu/4.0.2/include/spu_internals.h
 #          linux-2.6.16/include/asm-powerpc/spu.h
 
-import array
-import time
-import corepy.lib.extarray as extarray
-import corepy.arch.spu.platform as synspu 
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.lib.util as util
 import corepy.spre.spe as spe
@@ -185,9 +181,11 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
       print "ERROR LSA for mem_write_mbox() must be 12 mod 16"
       assert(0)
 
+  r_mbox_mma_cached = True
   ref = "__mem_write_in_mbox_mma_reg_%s" % (str(psmap))
   r_mbox_mma = code.get_storage(ref)
   if not isinstance(r_mbox_mma, spu.Register):
+    r_size_cached = False
     r_mbox_mma = code.acquire_register()
     if isinstance(psmap, (int, long)):
       util.load_word(code, r_mbox_mma, psmap + 0x400C)
@@ -195,23 +193,28 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
       util.load_word(code, r_mbox_mma, 0x400C)
       code.add(spu.a(r_mbox_mma, r_mbox_mma, psmap))
 
-    if cache:
+    if cache == True:
+      r_mbox_mma_cached = True
       code.add_storage(ref, r_mbox_mma)
 
+  r_size_cached = True
   ref = "_const_val_4"
   r_size = code.get_storage(ref)
   if not isinstance(r_size, spu.Register):
+    r_size_cached = False
     r_size = code.acquire_register()
     util.load_word(code, r_size, 4)
-    if cache:
+    if cache == True:
+      r_size_cached = True
       code.add_storage(ref, r_size)
 
   mem_put(code, lsa, r_mbox_mma, r_size, tag)
 
   if cache == False:
-    if not isinstance(psmap, (int, long)):
+    if not isinstance(psmap, (int, long)) and r_mbox_mma_cached == False:
       code.release_register(r_mbox_mma)
-    code.release_register(r_size)
+    if r_size_cached == False:
+      code.release_register(r_size)
   return
 
 
@@ -242,15 +245,18 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
       util.load_word(code, r_sig_mma, addr)
       code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
 
-    if cache:
+    if cache == True:
       code.add_storage(ref, r_sig_mma)
 
+  r_size_cached = True
   ref = "_const_val_4"
   r_size = code.get_storage(ref)
   if not isinstance(r_size, spu.Register):
+    r_size_cached = False
     r_size = code.acquire_register()
     util.load_word(code, r_size, 4)
-    if cache:
+    if cache == True:
+      r_size_cached = True
       code.add_storage(ref, r_size)
 
   mem_put(code, lsa, r_sig_mma, r_size, tag)
@@ -258,7 +264,8 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
   if cache == False:
     if not isinstance(psmap, (int, long)):
       code.release_register(r_sig_mma)
-    code.release_register(r_size)
+    if r_size_cached == False:
+      code.release_register(r_size)
   return
 
 
@@ -460,11 +467,14 @@ def spu_stop_decr(code):
 # ------------------------------------------------------------
 
 def TestMFC():
+  import corepy.lib.nextarray as nextarray
+  import corepy.arch.spu.platform as synspu 
+
   size = 32
   #data_array = array.array('I', range(size))
   #data = synspu.aligned_memory(size, typecode = 'I')
   #data.copy_to(data_array.buffer_info()[0], len(data_array))
-  data = extarray.extarray('I', range(size))
+  data = nextarray.nextarray('I', range(size))
   code = synspu.InstructionStream()
 
   r_zero    = code.acquire_register()
@@ -548,6 +558,7 @@ def TestMFC():
 
 
 def TestMbox():
+  import corepy.arch.spu.platform as synspu 
 
   code = synspu.InstructionStream()
 
@@ -576,6 +587,7 @@ def TestMbox():
 
 
 def TestSignal():
+  import corepy.arch.spu.platform as synspu 
 
   code = synspu.InstructionStream()
 
@@ -600,6 +612,8 @@ def TestSignal():
 
 
 def TestDecrementer():
+  import corepy.arch.spu.platform as synspu 
+  import time
 
   code = synspu.InstructionStream()
 

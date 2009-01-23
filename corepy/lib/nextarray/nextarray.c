@@ -306,9 +306,10 @@ static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
 }
 
 
-static PyObject* NextArray_changetype(NextArray* self, PyObject* arg)
+static PyObject* NextArray_change_type(NextArray* self, PyObject* arg)
 {
   char typecode;
+  char itemsize = self->itemsize;
   char oldcode = self->typecode;
 
   //TODO - what about when changing from int to short?  should data_len change?
@@ -318,10 +319,11 @@ static PyObject* NextArray_changetype(NextArray* self, PyObject* arg)
 
   set_type_fns(self, typecode);
 
-  if((self->data_len * self->itemsize) % oldcode != 0) {
+  if((self->data_len * self->itemsize) % itemsize != 0) {
     set_type_fns(self, oldcode);
     PyErr_SetString(PyExc_TypeError,
         "Array length is not a multiple of new type");
+    return NULL;
   }
 
   Py_INCREF(Py_None);
@@ -611,7 +613,7 @@ static PyMethodDef NextArray_methods[] = {
   {"append", (PyCFunction)NextArray_append, METH_O, "append"},
   {"buffer_info", (PyCFunction)NextArray_buffer_info, METH_NOARGS, "buffer_info"},
   {"byteswap", (PyCFunction)NextArray_byteswap, METH_NOARGS, "byteswap"},
-  {"change_type", (PyCFunction)NextArray_changetype, METH_VARARGS, "change_type"},
+  {"change_type", (PyCFunction)NextArray_change_type, METH_VARARGS, "change_type"},
   {"clear", (PyCFunction)NextArray_clear, METH_VARARGS, "clear"},
   {"extend", (PyCFunction)NextArray_extend, METH_O, "extend"},
   {"copy_direct", (PyCFunction)NextArray_copy_direct, METH_O, "copy_direct"},

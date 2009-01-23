@@ -29,17 +29,14 @@
 # SPU Iterator Hierarchy
 
 import array
-import time
-import random
 
 import corepy.spre.spe as spe
-import corepy.lib.extarray as extarray
+import corepy.lib.nextarray as nextarray
 import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
 import corepy.arch.spu.types.spu_types as var
 import corepy.arch.spu.lib.dma as dma
 import corepy.arch.spu.lib.util as util
-#synbuffer = env.synbuffer
 
 def _mi(cls):
   """
@@ -47,8 +44,6 @@ def _mi(cls):
   """
   return cls.machine_inst._machine_order
   
-# TODO: Clean up metaiter to be less dependent on synppc
-# from metaiter import memory_desc
 
 CTR = 0
 DEC = 1
@@ -59,10 +54,10 @@ INC = 2
 # ------------------------------------------------------------
 
 _array_type   = type(array.array('I', [1]))
-_extarray_type = type(extarray.extarray('I', [1]))
+_nextarray_type = type(nextarray.nextarray('I', [1]))
 
 def _typecode(a):
-  if type(a) in (_array_type, _extarray_type):
+  if type(a) in (_array_type, _nextarray_type):
     return a.typecode
   elif type(a) is memory_desc:
     return a.typecode
@@ -70,7 +65,7 @@ def _typecode(a):
     raise Exception('Unknown array type ' + type(a))
 
 def _array_address(a):
-  if type(a) in (_array_type, _extarray_type):
+  if type(a) in (_array_type, _nextarray_type):
     return a.buffer_info()[0]
   elif type(a) is memory_desc:
     return a.addr
@@ -513,7 +508,7 @@ class spu_vec_iter(syn_iter):
                addr_reg = None, save = True, type_cls = None):
     self.var_type = type_cls or var.array_spu_lu[data.typecode]
 
-    if type(data) not in (_array_type, _extarray_type, memory_desc):
+    if type(data) not in (_array_type, _nextarray_type, memory_desc):
       raise Exception('Unsupported array type')
 
     if _typecode(data) not in _vector_sizes.keys():
@@ -982,7 +977,7 @@ class parallel(object):
 
 def TestSPUIter():
   size = 32
-  data = extarray.extarray('I', range(size))
+  data = nextarray.nextarray('I', range(size))
   code = env.InstructionStream()
 
   r_zero    = code.acquire_register()
@@ -1069,6 +1064,7 @@ def TestSPUIter():
 
 
 def TestSPUParallelIter(data, size, n_spus = 6, buffer_size = 16, run_code = True):
+  import time
   # n_spus = 8
   # buffer_size = 16 # 16 ints/buffer
   # n_buffers   = 4  # 4 buffers/spu
@@ -1209,7 +1205,7 @@ def ParallelTests():
   max_exp = 16
   max_size = pow(2, max_exp)
   print 'Creating data...'
-  data = extarray.extarray('I', range(max_size))
+  data = nextarray.nextarray('I', range(max_size))
   
   print 'Executing Tests...'
   # t = TestSPUParallelIter(data, 8192, n_spus = 1, buffer_size = 128)
@@ -1238,7 +1234,7 @@ def ParallelTests():
 
 def TestStreamBufferSingle(n_spus = 1):
   n = 1024
-  a = extarray.extarray('I', range(n))
+  a = nextarray.nextarray('I', range(n))
   buffer_size = 128
 
   if n_spus > 1:  code = env.ParallelInstructionStream()
@@ -1286,7 +1282,7 @@ def TestStreamBufferSingle(n_spus = 1):
 
 def TestVecIter(n_spus = 1):
   n = 1024
-  a = extarray.extarray('I', range(n))
+  a = nextarray.nextarray('I', range(n))
   
   buffer_size = 16
 
@@ -1315,7 +1311,7 @@ def TestVecIter(n_spus = 1):
 
 def TestContinueLabel(n_spus = 1):
   n = 1024
-  a = extarray.extarray('I', range(n))
+  a = nextarray.nextarray('I', range(n))
   
   buffer_size = 16
 
@@ -1359,7 +1355,7 @@ def TestContinueLabel(n_spus = 1):
 
 def TestStreamBufferDouble(n_spus = 1):
   n = 2048
-  a = extarray.extarray('I', range(n))
+  a = nextarray.nextarray('I', range(n))
   
   buffer_size = 32
 
