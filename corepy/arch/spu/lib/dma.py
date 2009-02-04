@@ -159,7 +159,7 @@ def mem_put(code, lsa, mma, size, tag):
   r_size = util.get_param_reg(code, size, param_regs, copy = False)
   r_tag = util.get_param_reg(code, tag, param_regs, copy = False)
 
-  mfc_putf(code, r_lsa, r_mma, r_size, r_tag)
+  mfc_putb(code, r_lsa, r_mma, r_size, r_tag)
 
   util.put_param_reg(code, r_lsa, param_regs)
   util.put_param_reg(code, r_mma, param_regs)
@@ -181,21 +181,28 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
       print "ERROR LSA for mem_write_mbox() must be 12 mod 16"
       assert(0)
 
-  r_mbox_mma_cached = True
-  ref = "__mem_write_in_mbox_mma_reg_%s" % (str(psmap))
-  r_mbox_mma = code.get_storage(ref)
-  if not isinstance(r_mbox_mma, spu.Register):
-    r_size_cached = False
-    r_mbox_mma = code.acquire_register()
-    if isinstance(psmap, (int, long)):
-      util.load_word(code, r_mbox_mma, psmap + 0x400C)
-    else:
-      util.load_word(code, r_mbox_mma, 0x400C)
-      code.add(spu.a(r_mbox_mma, r_mbox_mma, psmap))
+#  r_mbox_mma_cached = True
+#  ref = "__mem_write_in_mbox_mma_reg_%s" % (str(psmap))
+#  r_mbox_mma = code.get_storage(ref)
+#  if not isinstance(r_mbox_mma, spu.Register):
+#    r_size_cached = False
+#    r_mbox_mma = code.acquire_register()
+#    if isinstance(psmap, (int, long)):
+#      util.load_word(code, r_mbox_mma, psmap + 0x400C)
+#    else:
+#      util.load_word(code, r_mbox_mma, 0x400C)
+#      code.add(spu.a(r_mbox_mma, r_mbox_mma, psmap))
+#
+#    if cache == True:
+#      r_mbox_mma_cached = True
+#      code.add_storage(ref, r_mbox_mma)
 
-    if cache == True:
-      r_mbox_mma_cached = True
-      code.add_storage(ref, r_mbox_mma)
+  r_mbox_mma = code.acquire_register()
+  if isinstance(psmap, (int, long)):
+    util.load_word(code, r_mbox_mma, psmap + 0x400C)
+  else:
+    util.load_word(code, r_mbox_mma, 0x400C)
+    code.add(spu.a(r_mbox_mma, r_mbox_mma, psmap))
 
   r_size_cached = True
   ref = "_const_val_4"
@@ -210,9 +217,9 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
 
   mem_put(code, lsa, r_mbox_mma, r_size, tag)
 
+  code.release_register(r_mbox_mma)
   if cache == False:
-    if not isinstance(psmap, (int, long)) and r_mbox_mma_cached == False:
-      code.release_register(r_mbox_mma)
+    #if not isinstance(psmap, (int, long)) and r_mbox_mma_cached == False:
     if r_size_cached == False:
       code.release_register(r_size)
   return
@@ -228,44 +235,58 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 
   if isinstance(lsa, (int, long)):
     if (lsa % 16) != 12:
-      print "ERROR LSA for mem_write_mbox() must be 12 mod 16"
+      print "ERROR LSA for mem_write_signal() must be 12 mod 16"
       assert(0)
 
   addr = 0x1400C
   if which == 2:
     addr = 0x1C00C
 
-  ref = "__mem_write_signal_mma_reg_%d_%s" % (which, str(psmap))
-  r_sig_mma = code.get_storage(ref)
-  if not isinstance(r_sig_mma, spu.Register):
-    r_sig_mma = code.acquire_register()
-    if isinstance(psmap, (int, long)):
-      util.load_word(code, r_sig_mma, psmap + addr)
-    else:
-      util.load_word(code, r_sig_mma, addr)
-      code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
+#  r_sig_mma_cached = True
+#  ref = "__mem_write_signal_mma_reg_%d_%s" % (which, str(psmap))
+#  r_sig_mma = code.get_storage(ref)
+#  if not isinstance(r_sig_mma, spu.Register):
+#    r_sig_mma_cached = False
+#    r_sig_mma = code.acquire_register()
+#    if isinstance(psmap, (int, long)):
+#      util.load_word(code, r_sig_mma, psmap + addr)
+#    else:
+#      util.load_word(code, r_sig_mma, addr)
+#      code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
+#
+#    if cache == True:
+#      r_sig_mma_cached = True
+#      code.add_storage(ref, r_sig_mma)
 
-    if cache == True:
-      code.add_storage(ref, r_sig_mma)
+  r_sig_mma = code.acquire_register()
+  if isinstance(psmap, (int, long)):
+    util.load_word(code, r_sig_mma, psmap + addr)
+  else:
+    util.load_word(code, r_sig_mma, addr)
+    code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
 
-  r_size_cached = True
-  ref = "_const_val_4"
-  r_size = code.get_storage(ref)
-  if not isinstance(r_size, spu.Register):
-    r_size_cached = False
-    r_size = code.acquire_register()
-    util.load_word(code, r_size, 4)
-    if cache == True:
-      r_size_cached = True
-      code.add_storage(ref, r_size)
+#  r_size_cached = True
+#  ref = "_const_val_4"
+#  r_size = code.get_storage(ref)
+#  if not isinstance(r_size, spu.Register):
+#    r_size_cached = False
+#    r_size = code.acquire_register()
+#    util.load_word(code, r_size, 4)
+#    if cache == True:
+#      r_size_cached = True
+#      code.add_storage(ref, r_size)
+
+  r_size = code.acquire_register()
+  util.load_word(code, r_size, 4)
 
   mem_put(code, lsa, r_sig_mma, r_size, tag)
+  code.release_register(r_size)
 
-  if cache == False:
-    if not isinstance(psmap, (int, long)):
-      code.release_register(r_sig_mma)
-    if r_size_cached == False:
-      code.release_register(r_size)
+  code.release_register(r_sig_mma)
+  #if cache == False:
+    #if not isinstance(psmap, (int, long)):
+    #if r_size_cached == False:
+    #  code.release_register(r_size)
   return
 
 
@@ -302,20 +323,23 @@ def MFC_CMD_WORD(tid, rid, cmd):
 # ------------------------------------------------------------
 
 def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
-  ref = "__spu_mfcdma32_cmd_%s" % str(cmd)
-  r_cmd = code.get_storage(ref)
-  if not isinstance(r_cmd, spu.Register):
-    r_cmd = code.acquire_register()
-    util.load_word(code, r_cmd, cmd)
-    code.add_storage(ref, r_cmd)
+#  ref = "__spu_mfcdma32_cmd_%s" % str(cmd)
+#  r_cmd = code.get_storage(ref)
+#  if not isinstance(r_cmd, spu.Register):
+#    r_cmd = code.acquire_register()
+#    util.load_word(code, r_cmd, cmd)
+#    code.add_storage(ref, r_cmd)
   
+  r_cmd = code.acquire_register()
+  util.load_word(code, r_cmd, cmd)
+
   code.add(spu.wrch(r_ls, MFC_LSA))
   code.add(spu.wrch(r_ea, MFC_EAL))
   code.add(spu.wrch(r_size, MFC_Size))
   code.add(spu.wrch(r_tagid, MFC_TagID))
   last = code.add(spu.wrch(r_cmd, MFC_Cmd))
 
-  #code.release_register(r_cmd)
+  code.release_register(r_cmd)
   return last
 
 def spu_mfcdma64(code, r_ls, r_eah, r_eal, r_size, r_tagid, cmd):
