@@ -58,8 +58,10 @@ one_t = x86ConstantOperand("one", 1)
 
 # Immediates
 imm8_t  = Imm8("imm8", (-128, 256))
+simm8_t  = Imm8("simm8", (-128, 128))
 imm16_t = Imm16("imm16", (-32768, 65536))
 imm32_t = Imm32("imm32", (-2147483648, 4294967296))
+simm32_t = Imm32("simm32", (-2147483648, 2147483648))
 
 # Memory
 mem_t   = x86MemoryOperand("mem", None)
@@ -146,19 +148,19 @@ def common_memref_modrm(opcode, ref, modrm):
     if ref.index != None:                 # [base+index*scale+disp]
       sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
 
-      if imm8_t.fits(ref.disp):
+      if simm8_t.fits(ref.disp):
         return opcode + [0x44 | modrm, sib] + w8(ref.disp)
-      elif imm32_t.fits(ref.disp):
+      elif simm32_t.fits(ref.disp):
         return opcode + [0x84 | modrm, sib] + w32(ref.disp)
     elif ref.index == None:                 # [base + disp]
       if ref.base == regs.esp:
-        if imm8_t.fits(ref.disp):           # [esp + disp]
+        if simm8_t.fits(ref.disp):           # [esp + disp]
           return opcode + [0x44 | modrm, 0x24] + w8(ref.disp)
-        elif imm32_t.fits(ref.disp):
+        elif simm32_t.fits(ref.disp):
           return opcode + [0x80 | modrm, 0x24] + w32(ref.disp)
-      elif imm8_t.fits(ref.disp):
+      elif simm8_t.fits(ref.disp):
         return opcode + [0x40 | modrm | ref.base.reg] + w8(ref.disp)
-      elif imm32_t.fits(ref.disp):
+      elif simm32_t.fits(ref.disp):
         return opcode + [0x80 | modrm | ref.base.reg] + w32(ref.disp)
   elif ref.index != None:
     sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg

@@ -43,10 +43,12 @@ import corepy.arch.x86_64.types.registers as regs
 one_t = x86ConstantOperand("one", 1)
 
 # Immediates
-imm8_t  = Imm8("imm8",  (-128, 256))      # return w8(value)
-imm16_t = Imm16("imm16", (-32768, 65536)) # return w16(value)
-imm32_t = Imm32("imm32", (-2147483648, 4294967296)) # return w32(value)
-imm64_t = Imm64("imm64", (-9223372036854775808, 18446744073709551616)) # return w64(value)
+imm8_t  = Imm8("imm8",  (-128, 256))
+simm8_t = Imm8("simm8", (-128, 128))
+imm16_t = Imm16("imm16", (-32768, 65536))
+imm32_t = Imm32("imm32", (-2147483648, 4294967296))
+simm32_t = Imm32("simm32", (-2147483648, 2147483648))
+imm64_t = Imm64("imm64", (-9223372036854775808, 18446744073709551616))
 
 # Memory
 mem_t   = x86MemoryOperand("mem", None)
@@ -129,9 +131,9 @@ def common_memref_modrm(opcode, ref, modrm, rex, force_rex):
       if rex == [0x40] and not force_rex:
         rex = []
 
-      if imm8_t.fits(ref.disp):
+      if simm8_t.fits(ref.disp):
         return rex + opcode + [0x44 | modrm, sib] + w8(ref.disp)
-      elif imm32_t.fits(ref.disp):
+      elif simm32_t.fits(ref.disp):
         return rex + opcode + [0x84 | modrm, sib] + w32(ref.disp)
     elif ref.index == None:                 # [base + disp]
       rex = [0x40 | ref.base.rex | rex]
@@ -139,13 +141,13 @@ def common_memref_modrm(opcode, ref, modrm, rex, force_rex):
         rex = []
 
       if ref.base in (regs.rsp, regs.r12, regs.esp):
-        if imm8_t.fits(ref.disp):           # [rsp + disp], [r12 + disp]
+        if simm8_t.fits(ref.disp):           # [rsp + disp], [r12 + disp]
           return rex + opcode + [0x44 | modrm, 0x24] + w8(ref.disp)
-        elif imm32_t.fits(ref.disp):
+        elif simm32_t.fits(ref.disp):
           return rex + opcode + [0x80 | modrm, 0x24] + w32(ref.disp)
-      elif imm8_t.fits(ref.disp):
+      elif simm8_t.fits(ref.disp):
         return rex + opcode + [0x40 | modrm | ref.base.reg] + w8(ref.disp)
-      elif imm32_t.fits(ref.disp):
+      elif simm32_t.fits(ref.disp):
         return rex + opcode + [0x80 | modrm | ref.base.reg] + w32(ref.disp)
   elif ref.index != None:
     sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
