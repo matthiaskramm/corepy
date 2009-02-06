@@ -119,7 +119,7 @@ def w64(n):
 
 
 def common_memref_modrm(opcode, ref, modrm, rex, force_rex):
-  if ref.disp != None:                      # [base + disp]
+  if ref.disp != None and ref.disp != 0:    # [base + disp]
     if ref.base in (regs.rip, regs.eip):
       rex = [0x40 | rex]
       if rex == [0x40] and not force_rex:

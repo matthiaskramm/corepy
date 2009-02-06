@@ -144,7 +144,7 @@ addr_p = x86PrefixOperand("addr", 0x67)
 
     
 def common_memref_modrm(opcode, ref, modrm):
-  if ref.disp != None:                      # [base + disp]
+  if ref.disp != None and ref.disp != 0:  # [base + disp]
     if ref.index != None:                 # [base+index*scale+disp]
       sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
 
