@@ -35,6 +35,7 @@ class MMXRegister(x86_64Register): pass
 class XMMRegister(x86_64Register): pass
 class IPRegister(x86_64Register): pass
 
+GPRegisterType = (GPRegister8, GPRegister16, GPRegister32, GPRegister64)
 
 # Set up an instance for each register
 # TODO - ah-dh registers are accessible only w/o a REX,
