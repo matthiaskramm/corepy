@@ -26,53 +26,9 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-
-import array
-import types
-
-# import Numeric
-
-import corepy.arch.x86_64.platform as synx86_64
 import corepy.arch.x86_64.isa as x86_64
 import corepy.arch.x86_64.types.registers as registers
 import corepy.arch.x86_64.lib.memory as memory
-import corepy.arch.x86_64.platform as env
-import corepy.arch.x86_64.lib.util as util
-
-import corepy.lib.extarray as extarray
-import corepy.lib.nextarray as nextarray
-import numpy
-
-
-# import synnumeric
-# import synbuffer
-# import metavar
-# import metavec
-
-class _numeric_type: pass
-
-def _typecode(a):
-  if type(a) is _array_type:
-    return a.typecode
-  elif type(a) is _numeric_type:
-    return a.typecode()
-  elif type(a) is memory_desc:
-    return a.typecode
-  else:
-    raise Exception('Unknown array type ' + type(a))
-
-def _array_address(a):
-  if type(a) is _array_type:
-    return a.buffer_info()[0]
-  elif type(a) is _numeric_type:
-    return synnumeric.array_address(a)
-  elif type(a) is memory_desc:
-    return a.addr
-  else:
-    raise Exception('Unknown array type ' + type(a))
-
-# _numeric_type = type(Numeric.array(1))
-_array_type   = type(array.array('I', [1]))
 
 CTR = 0
 DEC = 1
@@ -455,7 +411,7 @@ def TestINCMemMem_ImmStep():
   for i in range(len(B), 4):
     assert(B[i] == i)
 
-# Test with the stop value and the current count both being held in memory with a non-unary step
+# Test with the stop value and the current count both being held in memory with a non-unary step held in a register
 def TestINCMemMem_RegStep():
   A = nextarray.nextarray('l', 1000)
   B = nextarray.nextarray('l', 1000)
@@ -488,7 +444,7 @@ def TestINCMemMem_RegStep():
   for i in range(len(B), 4):
     assert(B[i] == i)
 
-# Test with the stop value and the current count both being held in memory with a non-unary step
+# Test with the stop value and the current count both being held in memory with a non-unary step held in memory
 def TestINCMemMem_MemStep():
   A = nextarray.nextarray('l', 1000)
   B = nextarray.nextarray('l', 1000)
@@ -736,8 +692,9 @@ def TestDECMemMem_MemStep():
   for i in range(len(B)-1, 0, -4):
     assert(B[i] == i)
 
-
 if __name__=='__main__':
+  import corepy.lib.nextarray as nextarray
+  import corepy.arch.x86_64.platform as env
   TestINCRegImm()
   TestINCRegReg()
   TestINCRegMem()
