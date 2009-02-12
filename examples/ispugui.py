@@ -35,7 +35,7 @@ import os
 import re
 import StringIO
 
-import corepy.lib.extarray as extarray
+import corepy.lib.nextarray as nextarray
 import corepy.lib.printer as printer
 import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
@@ -372,8 +372,8 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.OnBeginEdit)
 
     self.app = app
-    self._cur_regs = extarray.extarray('I', 128 * 4)
-    #self._prev_regs = extarray.extarray('I', 128 * 4)
+    self._cur_regs = nextarray.nextarray('I', 128 * 4)
+    #self._prev_regs = nextarray.nextarray('I', 128 * 4)
     #self._prev_regs.clear()
     return
 
@@ -538,7 +538,7 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.base = 16
     self._cur_ls = app.localstore
     self.app = app
-    #self._prev_ls = extarray.extarray('I', 16384 * 4)
+    #self._prev_ls = nextarray.nextarray('I', 16384 * 4)
     #self._prev_ls.clear()
     return
 
@@ -549,7 +549,10 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
 
 
   def SetVirtualData(self, item, column, data):
-    self._cur_ls[item * 4 + (column - 1)] = int(data, self.base)
+    if self._cur_ls.typecode == 'I':
+      self._cur_ls[item * 4 + (column - 1)] = int(data, self.base)
+    else:
+      self._cur_ls[item * 4 + (column - 1)] = float(data)
     self.app.mem_frame.Update()
     return
 
@@ -567,7 +570,10 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
       if self.base == 16:
         return "%08X" % self._cur_ls[item * 4 + (column - 1)]
       elif self.base == 10:
-        return "%010d" % self._cur_ls[item * 4 + (column - 1)]
+        if self._cur_ls.typecode == 'I':
+          return "%010d" % self._cur_ls[item * 4 + (column - 1)]
+        else:
+          return str(self._cur_ls[item * 4 + (column - 1)])
 
 
   def OnGetItemAttr(self, item):
@@ -625,9 +631,13 @@ class LocalStoreWindow(wx.Frame):
         convertbmp, shortHelp="Show values in hexadecimal")
     self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x100)
 
-    tb.AddRadioLabelTool(0x101, "Decimal",
-        convertbmp, shortHelp="Show values in decimal")
+    tb.AddRadioLabelTool(0x101, "Decimal Integers",
+        convertbmp, shortHelp="Show values as decimal integers")
     self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x101)
+
+    tb.AddRadioLabelTool(0x102, "Decimal Floats",
+        convertbmp, shortHelp="Show values as decimal floats")
+    self.Bind(wx.EVT_TOOL, self.OnToolClick, id=0x102)
 
     self.listCtrl.base = 16
     self.Show(True)
@@ -641,9 +651,15 @@ class LocalStoreWindow(wx.Frame):
       self.listCtrl.ResetLocalStore()
     elif id == 0x100:
       self.listCtrl.base = 16
+      self.listCtrl._cur_ls.change_type('I')
       self.listCtrl.RefreshItems(0, 16384)
     elif id == 0x101:
       self.listCtrl.base = 10
+      self.listCtrl._cur_ls.change_type('I')
+      self.listCtrl.RefreshItems(0, 16384)
+    elif id == 0x102:
+      self.listCtrl.base = 10
+      self.listCtrl._cur_ls.change_type('f')
       self.listCtrl.RefreshItems(0, 16384)
     return
 
@@ -674,7 +690,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.app = app
 
     self._cur_ls = app.localstore
-    self._array = extarray.extarray('I', 1)
+    self._array = nextarray.nextarray('I', 1)
     self._filename = "/proc/%d/maps" % os.getpid()
     self._map_cache = 0
     return
@@ -936,7 +952,8 @@ class SPUApp(wx.App):
 
     env.spu_exec.run_stream(ctx, code.inst_addr(), code_len, code_lsa, code_lsa)
 
-    self.localstore = extarray.extarray('I', 262144 / 4)
+    self.localstore = nextarray.nextarray('I', 262144 / 4)
+    print "spuls", ctx.spuls, type(ctx.spuls)
     self.localstore.set_memory(ctx.spuls)
     return
 
