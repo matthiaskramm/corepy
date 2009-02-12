@@ -45,6 +45,27 @@ def load_word(code, r_target, word):
   return code.add(x86.mov(r_target, word))
 
 
+def load_float(code, reg, val, clear = False):
+  data = extarray.extarray('f', (val,))
+  data.change_type('I')
+
+  # reg better be an mmx or xmm, should we check?
+  code.add(x86.push(data[0]))
+  code.add(x86.pshufd(reg, mem.MemRef(regs.rsp, data_size = 128), 0))
+  return code.add(x86.add(regs.rsp, 8))
+
+
+def load_double(code, reg, val):
+  data = extarray.extarray('d', (val,))
+  data.change_type('I')
+
+  # reg better be an mmx or xmm, should we check?
+  code.add(x86.push(data[0]))
+  code.add(x86.push(data[1]))
+  code.add(x86.pshufd(reg, mem.MemRef(regs.rsp, data_size = 128), 0x44))
+  return code.add(x86.add(regs.rsp, 8))
+
+
 def load_vector(code, v_target, addr):
   """
   Generate the code to load a vector into a vector register.

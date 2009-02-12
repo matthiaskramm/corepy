@@ -44,11 +44,8 @@ ExecParams = x86_64_exec.ExecParams
 # Constants
 # ------------------------------
 
-HWORD_TYPE = 'B'          # half word (byte)
-HWORD_SIZE = 1
-HWORD_BITS = HWORD_SIZE * 8
-WORD_TYPE = 'H'           # array type that corresponds to 1 word
-WORD_SIZE = 2             # size in bytes of one word
+WORD_TYPE = 'L'          # array type that corresponds to 1 word
+WORD_SIZE = 8            # size in bytes of one word
 WORD_BITS = WORD_SIZE * 8 # number of bits in a word
 
 

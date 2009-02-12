@@ -51,15 +51,18 @@ def load_float(code, reg, val, clear = False):
 
   # reg better be an mmx or xmm, should we check?
   code.add(x86.push(data[0]))
-  code.add(x86.movd(reg, mem.MemRef(regs.rsp, data_size = 32)))
-  ret = code.add(x86.add(regs.rsp, 8))
+  code.add(x86.pshufd(reg, mem.MemRef(regs.rsp, data_size = 128), 0))
+  return code.add(x86.add(regs.rsp, 8))
 
-  if clear == False:
-    # Need to duplicate the value out across now
-    # Assumes reg is xmm
-    ret = x86.pshufd(reg, reg, 0)
 
-  return ret
+def load_double(code, reg, val):
+  data = extarray.extarray('d', (val,))
+  data.change_type('L')
+
+  # reg better be an mmx or xmm, should we check?
+  code.add(x86.push(data[0]))
+  code.add(x86.pshufd(reg, mem.MemRef(regs.rsp, data_size = 128), 0x44))
+  return code.add(x86.add(regs.rsp, 8))
 
 
 def load_vector(code, v_target, addr):
