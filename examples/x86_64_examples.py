@@ -33,6 +33,7 @@ from corepy.arch.x86_64.types.registers import *
 import corepy.arch.x86_64.platform as env
 from corepy.arch.x86_64.lib.memory import MemRef
 import corepy.lib.extarray as extarray
+import corepy.arch.x86_64.lib.util as util
 
 def Test():
     code = env.InstructionStream()
@@ -389,6 +390,16 @@ def Test():
     ret = proc.execute(code, mode = 'int')
     print "ret %x" % ret
     assert(ret == 0x0003000200010000)
+
+
+    code.reset()
+
+    util.load_float(code, xmm0, 3.14159)
+    
+    ret = proc.execute(code, mode = 'fp')
+    print "ret", ret
+    assert(ret - 3.14159 < 0.00001)
+
     return
 
 Test()
