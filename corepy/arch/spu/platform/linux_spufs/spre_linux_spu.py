@@ -638,7 +638,7 @@ class DebugProcessor(spe.Processor):
 
 
   def replace(self, idx, inst):
-    self.instructions[idx] =  self.code.get_inst(idx)
+    self.instructions[idx] =  self.code[idx]
     self.code.debug_set(idx, inst)
     return 
 
@@ -649,7 +649,7 @@ class DebugProcessor(spe.Processor):
     """
     # self.code._prologue._code[idx] = self.instructions[idx]
     self.code.debug_set(idx, self.instructions[idx])
-    return self.code.get_inst(idx)
+    return self.code[idx]
 
 
   def get_instructions(self):

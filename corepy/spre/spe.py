@@ -805,11 +805,6 @@ class InstructionStream(object):
   def __iter__(self):
     return self._instructions.__iter__()
 
-  def get_inst(self, idx):
-    """
-    Return the instruction at idx.
-    """
-    return self._instructions[idx]
 
   def has_label(self, name):
     return self._labels.has_key(name)
