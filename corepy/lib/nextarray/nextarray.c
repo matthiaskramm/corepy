@@ -441,6 +441,29 @@ static PyObject* NextArray_memory_lock(NextArray* self, PyObject* arg)
 }
 
 
+static PyObject* NextArray_set_memory(NextArray* self, PyObject* arg)
+{
+  //Py_ssize_t addr;
+
+#if 0
+  if(!PyArg_ParseTuple(arg, "l", &addr)) {
+    return NULL;
+  }
+#endif
+
+  if(self->memory != NULL && self->lock != 1) {
+    self->free(self->memory);
+  }
+
+  //self->memory = (void*)addr;
+  self->memory = (void*)PyLong_AsUnsignedLong(arg);
+  self->lock = 1;
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+
 static PyObject* NextArray_synchronize(NextArray* self, PyObject* arg)
 {
 // TODO - other architectures
@@ -620,6 +643,7 @@ static PyMethodDef NextArray_methods[] = {
   {"fromlist", (PyCFunction)NextArray_fromlist, METH_O, "fromlist"},
   {"fromstring", (PyCFunction)NextArray_fromstring, METH_O, "fromstring"},
   {"memory_lock", (PyCFunction)NextArray_memory_lock, METH_O, "memory_lock"},
+  {"set_memory", (PyCFunction)NextArray_set_memory, METH_O, "set_memory"},
   {"synchronize", (PyCFunction)NextArray_synchronize, METH_NOARGS, "synchronize"},
   {NULL}
 };
