@@ -34,12 +34,18 @@ CTR = 0
 DEC = 1
 INC = 2
 
+_ws = 8
+
 class syn_iter(object):
-  
+
   def __init__(self, code, count, step = 1, mode = INC, count_reg = None, clobber_reg = None):
 
     if mode != CTR and count_reg == None:
       raise Exception('No count register was specified (a register must be specified for x86_64 unless mode CTR is used)')
+    if mode == CTR:
+      if count_reg != None and count_reg != registers.rcx:
+        raise Exception('If mode is CTR, count_reg must be None or rcx')
+      count_reg = registers.rcx
     
     self.code = code
     self.mode = mode
@@ -48,7 +54,7 @@ class syn_iter(object):
     self.external_start = False
     self.external_stop = False
     if self.mode == CTR:
-      if self.step_size() != 1:
+      if step != 1:
         raise Exception('CTR loops must have step_size of 1, you used ' + str(self.step_size()))
     self.step = step
     if isinstance(step, registers.GPRegisterType) or isinstance(step, memory.MemRef):
@@ -190,7 +196,10 @@ class syn_iter(object):
 
   def end(self):
     """Do post-loop iterator code"""
-    if self.mode == DEC:
+    if self.mode == CTR:
+      self.code.add(x86_64.loop(self.start_label))
+
+    elif self.mode == DEC:
       # branch if r_count is not zero (CR)
       #   Note that this relies on someone (e.g. cleanup()) setting the
       #   condition register properly.
@@ -227,6 +236,8 @@ class syn_iter(object):
       else:
         self.code.add(x86_64.cmp(self.r_count, self.n))
       self.code.add(x86_64.jnge(self.start_label))
+
+      
 
     return
 
@@ -275,8 +286,8 @@ def TestINCRegImm():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   i_iter = syn_iter(code, 1000, mode=INC, count_reg = registers.r10)
   for i_ in i_iter:
     code.add(x86_64.mov(registers.r11, memory.MemRef(a, index=i_, scale=8)))
@@ -302,8 +313,8 @@ def TestINCRegReg():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = registers.rax
   code.add(x86_64.mov(n, 1000))
   i_iter = syn_iter(code, n, mode=INC, count_reg = registers.r10)
@@ -331,9 +342,9 @@ def TestINCRegMem():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
-  n = memory.MemRef(registers.rbp, 32)
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  n = memory.MemRef(registers.rbp, 4*_ws)
   code.add(x86_64.mov(n, 1000))
   i_iter = syn_iter(code, n, mode=INC, count_reg = registers.r10)
   for i_ in i_iter:
@@ -360,11 +371,11 @@ def TestINCMemMem():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
-  n = memory.MemRef(registers.rbp, 32)
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  n = memory.MemRef(registers.rbp, 4*_ws)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, mode=INC, count_reg = memory.MemRef(registers.rbp, 40), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -391,11 +402,11 @@ def TestINCMemMem_ImmStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
-  n = memory.MemRef(registers.rbp, 32)
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  n = memory.MemRef(registers.rbp, 4*_ws)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, step=4, mode=INC, count_reg = memory.MemRef(registers.rbp, 40), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, step=4, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -422,13 +433,13 @@ def TestINCMemMem_RegStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
-  n = memory.MemRef(registers.rbp, 32)
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  n = memory.MemRef(registers.rbp, 4*_ws)
   code.add(x86_64.mov(n, 1000))
   s = registers.rdi
   code.add(x86_64.mov(s, 4))
-  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rbp, 40), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -455,13 +466,13 @@ def TestINCMemMem_MemStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
-  s = memory.MemRef(registers.rsp, -16)
+  s = memory.MemRef(registers.rsp, -2*_ws)
   code.add(x86_64.mov(s, 4))
-  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rsp, -8), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -490,16 +501,16 @@ def TestDECImm():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   i_iter = syn_iter(code, 1000, mode=DEC, count_reg = registers.r10)
   for i_ in i_iter:
     code.add(x86_64.mov(registers.r11, memory.MemRef(a, index=i_, scale=8)))
     code.add(x86_64.mov(memory.MemRef(b, index=i_, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
   
@@ -517,8 +528,8 @@ def TestDECReg():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = registers.rax
   code.add(x86_64.mov(n, 1000))
   i_iter = syn_iter(code, n, mode=DEC, count_reg = registers.r10)
@@ -527,8 +538,8 @@ def TestDECReg():
     code.add(x86_64.mov(memory.MemRef(b, index=i_, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
@@ -546,8 +557,8 @@ def TestDECMem():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
   i_iter = syn_iter(code, n, mode=DEC, count_reg = registers.r10)
@@ -556,8 +567,8 @@ def TestDECMem():
     code.add(x86_64.mov(memory.MemRef(b, index=i_, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
@@ -575,11 +586,11 @@ def TestDECMemMem():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, mode=DEC, count_reg = memory.MemRef(registers.rsp, -8), clobber_reg=registers.rax)
+  i_iter = syn_iter(code, n, mode=DEC, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg=registers.rax)
   j = registers.rsi
   for i_ in i_iter:
     code.add(x86_64.mov(j, i_))
@@ -587,8 +598,8 @@ def TestDECMemMem():
     code.add(x86_64.mov(memory.MemRef(b, index=j, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
@@ -606,11 +617,11 @@ def TestDECMemMem_ImmStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, mode=DEC, step=-4, count_reg = memory.MemRef(registers.rsp, -8), clobber_reg=registers.rax)
+  i_iter = syn_iter(code, n, mode=DEC, step=-4, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg=registers.rax)
   j = registers.rsi
   for i_ in i_iter:
     code.add(x86_64.mov(j, i_))
@@ -618,8 +629,8 @@ def TestDECMemMem_ImmStep():
     code.add(x86_64.mov(memory.MemRef(b, index=j, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
@@ -637,13 +648,13 @@ def TestDECMemMem_RegStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp, 0)
   code.add(x86_64.mov(n, 1000))
   s = registers.rdi
   code.add(x86_64.mov(s, -4))
-  i_iter = syn_iter(code, n, mode=DEC, step=s, count_reg = memory.MemRef(registers.rsp, -8), clobber_reg=registers.rax)
+  i_iter = syn_iter(code, n, mode=DEC, step=s, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg=registers.rax)
   j = registers.rsi
   for i_ in i_iter:
     code.add(x86_64.mov(j, i_))
@@ -651,8 +662,8 @@ def TestDECMemMem_RegStep():
     code.add(x86_64.mov(memory.MemRef(b, index=j, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
@@ -670,13 +681,13 @@ def TestDECMemMem_MemStep():
   code = env.InstructionStream()
   a = registers.r8
   b = registers.r9
-  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 16)))
-  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 24)))
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
   n = memory.MemRef(registers.rsp, 0)
   code.add(x86_64.mov(n, 1000))
-  s = memory.MemRef(registers.rsp, -16)
+  s = memory.MemRef(registers.rsp, -2*_ws)
   code.add(x86_64.mov(s, -4))
-  i_iter = syn_iter(code, n, mode=DEC, step=s, count_reg = memory.MemRef(registers.rsp, -8), clobber_reg=registers.rax)
+  i_iter = syn_iter(code, n, mode=DEC, step=s, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg=registers.rax)
   j = registers.rsi
   for i_ in i_iter:
     code.add(x86_64.mov(j, i_))
@@ -684,13 +695,75 @@ def TestDECMemMem_MemStep():
     code.add(x86_64.mov(memory.MemRef(b, index=j, scale=8), registers.r11))
 
   params = env.ExecParams()
-  params.p1 = A.buffer_info()[0]-8
-  params.p2 = B.buffer_info()[0]-8
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
   proc = env.Processor()
   proc.execute(code, mode='int', params=params)
 
   for i in range(len(B)-1, 0, -4):
     assert(B[i] == i)
+
+
+#########################################################################
+
+# Test CTR mode with initial count being an immediate value
+def TestCTRImm():
+  A = nextarray.nextarray('l', 1000)
+  B = nextarray.nextarray('l', 1000)
+
+  for i in xrange(1000):
+    A[i] = i
+
+  code = env.InstructionStream()
+  a = registers.r8
+  b = registers.r9
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  i_iter = syn_iter(code, 1000, mode=CTR)
+  for i_ in i_iter:
+    code.add(x86_64.mov(registers.r11, memory.MemRef(a, index=i_, scale=8)))
+    code.add(x86_64.mov(memory.MemRef(b, index=i_, scale=8), registers.r11))
+
+  params = env.ExecParams()
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
+  proc = env.Processor()
+  proc.execute(code, mode='int', params=params)
+
+  for i in range(len(B)):
+    assert(B[i] == i)
+
+# Test CTR mode with initial count being stored in a register
+def TestCTRReg():
+  A = nextarray.nextarray('l', 1000)
+  B = nextarray.nextarray('l', 1000)
+
+  for i in xrange(1000):
+    A[i] = i
+
+  code = env.InstructionStream()
+  a = registers.r8
+  b = registers.r9
+  code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
+  code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
+  n = registers.rsi
+  code.add(x86_64.mov(n, 1000))
+  i_iter = syn_iter(code, n, mode=CTR)
+  for i_ in i_iter:
+    code.add(x86_64.mov(registers.r11, memory.MemRef(a, index=i_, scale=8)))
+    code.add(x86_64.mov(memory.MemRef(b, index=i_, scale=8), registers.r11))
+
+  params = env.ExecParams()
+  params.p1 = A.buffer_info()[0]-_ws
+  params.p2 = B.buffer_info()[0]-_ws
+  proc = env.Processor()
+  proc.execute(code, mode='int', params=params)
+
+  for i in range(len(B)):
+    assert(B[i] == i)
+
+############################################################################
+
 
 if __name__=='__main__':
   import corepy.lib.nextarray as nextarray
@@ -709,3 +782,5 @@ if __name__=='__main__':
   TestDECMemMem_ImmStep()
   TestDECMemMem_RegStep()
   TestDECMemMem_MemStep()
+  TestCTRImm()
+  TestCTRReg()
