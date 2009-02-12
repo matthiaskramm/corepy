@@ -229,8 +229,8 @@ class syn_iter(object):
             #  self.code.add(x86.cmp(registers.eax, m))
             #self.code.add(x86.pop(registers.eax))
           else:
-            self.code.add(x86.mov(registers.eax, self.r_count))
-            self.code.add(x86.cmp(registers.eax, self.r_stop))
+            self.code.add(x86.mov(self.r_clobber, self.r_count))
+            self.code.add(x86.cmp(self.r_clobber, self.r_stop))
         else:
           self.code.add(x86.cmp(self.r_count, self.r_stop))
       else:

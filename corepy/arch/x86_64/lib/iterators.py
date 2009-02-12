@@ -29,6 +29,7 @@
 import corepy.arch.x86_64.isa as x86_64
 import corepy.arch.x86_64.types.registers as registers
 import corepy.arch.x86_64.lib.memory as memory
+import corepy.arch.x86_64.lib.util as util
 
 CTR = 0
 DEC = 1
@@ -80,8 +81,6 @@ class syn_iter(object):
     else:
       self.n = count
 
-    self.current_count = None
-
     self.start_label = None
     self.continue_label = None
     
@@ -104,9 +103,6 @@ class syn_iter(object):
     """
     return 0
 
-  def get_count(self):
-    return self.n
-  
   def step_size(self):
     return self.step
   
@@ -136,19 +132,17 @@ class syn_iter(object):
       if self.external_stop:
         if self.r_stop == None:
           raise Exception('No external stop register was specified.')
-        if self.external_start:
-          self.code.add(x86_64.mov(self.r_count, self.r_start))
+      if self.external_start:
+        if (self.r_count, memory.MemRef) and isinstance(self.r_start, memory.MemRef):
+          self.code.add(x86_64.mov(self.r_clobber, self.r_start))
+          self.code.add(x86_64.mov(self.r_count, self.r_clobber))
         else:
-          self.code.add(x86_64.mov(self.r_count, 0))
+          self.code.add(x86_64.mov(self.r_count, self.r_start))
       else:
         self.code.add(x86_64.mov(self.r_count, self.get_start()))
 
     # /end mode if
 
-    if self.r_count is not None:
-      #self.current_count = var.SignedWord(code = self.code, reg = self.r_count)
-      self.current_count = self.r_count
-      
     # Label
     self.start_label = self.code.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
@@ -161,9 +155,6 @@ class syn_iter(object):
   def setup(self):
     """Do beginning-of-loop iterator setup/initialization"""
     return
-
-  def get_current(self):
-    return self.current_count
 
   def cleanup(self):
     """Do end-of-loop iterator code"""
@@ -229,15 +220,13 @@ class syn_iter(object):
             #  self.code.add(x86_64.cmp(registers.rax, m))
             #self.code.add(x86_64.pop(registers.rax))
           else:
-            self.code.add(x86_64.mov(registers.rax, self.r_count))
-            self.code.add(x86_64.cmp(registers.rax, self.r_stop))
+            self.code.add(x86_64.mov(self.r_clobber, self.r_count))
+            self.code.add(x86_64.cmp(self.r_clobber, self.r_stop))
         else:
           self.code.add(x86_64.cmp(self.r_count, self.r_stop))
       else:
         self.code.add(x86_64.cmp(self.r_count, self.n))
-      self.code.add(x86_64.jnge(self.start_label))
-
-      
+      self.code.add(x86_64.jnge(self.start_label))   
 
     return
 
@@ -264,7 +253,144 @@ class syn_iter(object):
     if self.state == 0:
       self.state = 1
       self.setup()
-      return self.get_current()
+      return self.r_count
+    else:
+      self.code.add(self.continue_label)
+      self.cleanup()
+      self.end()
+      raise StopIteration
+
+    return
+
+class syn_fp_iter(object):
+
+  def __init__(self, code, start, stop, step, mode = INC, count_reg = None, clobber_reg = None):
+
+    if count_reg == None:
+      raise Exception('No count register was specified')
+
+    self.code = code
+    self.mode = mode
+    self.state = 0
+
+    self.external_start = False
+    self.external_stop = False
+
+    self.step = step
+    if isinstance(step, registers.XMMRegister) or isinstance(step, memory.MemRef):
+      self.r_step = step
+    else:
+      self.r_step = None
+      
+    self.r_count = count_reg
+    self.r_start  = None
+    self.r_stop  = None
+    if clobber_reg != None and not isinstance(clobber_reg, registers.XMMRegister):
+      raise Exception('clobber_reg must refer to an XMM register.')
+    else:
+      self.r_clobber = clobber_reg
+
+    self.r_stop = stop
+    self.r_start = start  
+
+    self.start_label = None
+    self.continue_label = None
+    
+    return
+
+  def set_start(self, reg):
+    self.external_start = True
+    self.r_start = reg
+    return
+
+  def set_stop(self, reg):
+    self.r_stop = reg
+    self.external_stop = True
+    return
+
+  def get_start(self):
+    return self.start
+
+  def step_size(self):
+    return self.step
+  
+  def start(self, align = True):
+
+    if self.external_start:
+      if self.r_start == None:
+        raise Exception('No external start register was specified.')
+      if isinstance(self.r_count, memory.MemRef) and isinstance(self.r_start, memory.MemRef):
+        self.code.add(x86_64.movsd(self.r_clobber, self.r_start))
+        self.code.add(x86_64.movsd(self.r_count, self.r_clobber))
+      else:
+        if self.mode == INC:
+          util.load_double(self.code, self.r_count, self.get_start())
+        else:
+          util.load_double(self.code, self.r_count, self.n)
+
+    # Label
+    self.start_label = self.code.get_unique_label("SYN_ITER_START")
+    self.code.add(self.start_label)
+    
+    # Create continue/branch labels so they can be referenced; they will be
+    # added to the code in their appropriate locations.
+    self.continue_label = self.code.get_unique_label("SYN_ITER_CONTINUE")
+    return
+
+  def setup(self):
+    """Do beginning-of-loop iterator setup/initialization"""
+    return
+
+  def cleanup(self):
+    """Do end-of-loop iterator code"""
+    # Update the current count
+    if self.r_step is not None:
+      if isinstance(self.r_count, memory.MemRef) and isinstance(self.r_step, memory.MemRef):
+        self.code.add(x86_64.movsd(self.r_clobber, self.r_count))
+        self.code.add(x86_64.addsd(self.r_clobber, self.r_step))
+      else:
+        self.code.add(x86_64.addsd(self.r_count, self.r_step))
+    return
+
+  def end(self):
+    """Do post-loop iterator code"""
+
+    if isinstance(self.r_count, memory.MemRef) and isinstance(self.r_step, memory.MemRef):
+      self.code.add(x86_64.comisd(self.r_clobber, self.r_stop))
+    else:
+      self.code.add(x86_64.comisd(self.r_count, self.r_stop))
+
+    if self.mode == DEC:
+      self.code.add(x86_64.jnbe(self.start_label))
+    else:
+      self.code.add(x86_64.jnae(self.start_label))   
+
+    return
+
+  def add_continue(self, code, idx, branch_inst = x86_64.jmp):
+    """
+    Insert a branch instruction to branch to the end of the loop.
+    """
+    #if self.continue_label is None:
+    #  raise Exception('Continue point not set.  Has the loop been synthesized yet?')
+
+    #next = (self.continue_label - idx)
+    # print 'Continue:', next, idx, self.continue_label
+    #code[idx] = branch_inst(next)
+    #code[idx] = branch_inst(self.continue_label)
+    code.add(branch_inst(self.continue_label))
+    return
+  
+  def __iter__(self):
+    self.start()
+    return self
+
+  def next(self):
+
+    if self.state == 0:
+      self.state = 1
+      self.setup()
+      return self.r_count
     else:
       self.code.add(self.continue_label)
       self.cleanup()
@@ -344,7 +470,7 @@ def TestINCRegMem():
   b = registers.r9
   code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
   code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
-  n = memory.MemRef(registers.rbp, 4*_ws)
+  n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
   i_iter = syn_iter(code, n, mode=INC, count_reg = registers.r10)
   for i_ in i_iter:
@@ -373,9 +499,9 @@ def TestINCMemMem():
   b = registers.r9
   code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
   code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
-  n = memory.MemRef(registers.rbp, 4*_ws)
+  n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, mode=INC, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -404,9 +530,9 @@ def TestINCMemMem_ImmStep():
   b = registers.r9
   code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
   code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
-  n = memory.MemRef(registers.rbp, 4*_ws)
+  n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
-  i_iter = syn_iter(code, n, step=4, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, step=4, mode=INC, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
@@ -435,11 +561,11 @@ def TestINCMemMem_RegStep():
   b = registers.r9
   code.add(x86_64.mov(a, memory.MemRef(registers.rbp, 2*_ws)))
   code.add(x86_64.mov(b, memory.MemRef(registers.rbp, 3*_ws)))
-  n = memory.MemRef(registers.rbp, 4*_ws)
+  n = memory.MemRef(registers.rsp)
   code.add(x86_64.mov(n, 1000))
   s = registers.rdi
   code.add(x86_64.mov(s, 4))
-  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rbp, 5*_ws), clobber_reg = registers.rax)
+  i_iter = syn_iter(code, n, step=s, mode=INC, count_reg = memory.MemRef(registers.rsp, -1*_ws), clobber_reg = registers.rax)
   j = registers.rsi
   for i_ in i_iter:   
     code.add(x86_64.mov(j, i_))
