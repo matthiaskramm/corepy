@@ -133,7 +133,7 @@ class syn_iter(object):
         if self.r_stop == None:
           raise Exception('No external stop register was specified.')
       if self.external_start:
-        if (self.r_count, memory.MemRef) and isinstance(self.r_start, memory.MemRef):
+        if isinstance(self.r_count, memory.MemRef) and isinstance(self.r_start, memory.MemRef):
           self.code.add(x86_64.mov(self.r_clobber, self.r_start))
           self.code.add(x86_64.mov(self.r_count, self.r_clobber))
         else:
