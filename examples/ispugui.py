@@ -274,7 +274,7 @@ class EditorWindow(wx.Frame):
       stop = self.app.ExecuteStream(code, start)
 
       codelen = len(code) - 1
-      while stop < codelen and isinstance(code[stop + 1], spe.Label):
+      while stop < codelen and isinstance(code[stop], spe.Label):
         stop += 1
 
       # Once the breakpoint is stepped, do a continue if we weren't already
@@ -292,7 +292,7 @@ class EditorWindow(wx.Frame):
 
     # Update the execution mark
     codelen = len(code) - 1
-    while stop < codelen and isinstance(code[stop + 1], spe.Label):
+    while stop < codelen and isinstance(code[stop], spe.Label):
       stop += 1
 
     self.editCtrl.SetExecMark(stop)
@@ -348,7 +348,8 @@ class EditorWindow(wx.Frame):
     printer.PrintInstructionStream(self.app.code, printer.Default(), fd = fd)
 
     for line in fd.getvalue().split('\n'):
-       if line != "" and line != "BODY:":
+       #if line != "" and line != "BODY:":
+       if line != "":
          self.editCtrl.AddText("%s\n" % line)
     fd.close()
 
@@ -970,26 +971,31 @@ class SPUApp(wx.App):
     code_lsa = 0x40000 - code_len
 
     offset = start
-    for i in xrange(1, start + 1):
+    for i in xrange(0, start):
       if isinstance(code[i], spe.Label):
         offset -= 1
-    
-    exec_lsa = code_lsa + ((offset + len(code._prologue) - 1) * itemsize)
+   
+    print "prolog len", len(code._prologue) 
+    print "offset", offset
+    exec_lsa = code_lsa + ((offset + len(code._prologue) - 2) * itemsize)
+    print "exec code lsa", exec_lsa, code_lsa
+    #code.print_code(pro = True)
 
     ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
 
-    offset = ((ret - code_lsa) / 4) - len(code._prologue)
+    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 1)
 
     if offset == 0:
       return 0
 
     off = 0
-    for i in xrange(1, len(code)):
+    for i in xrange(0, len(code)):
       inst = code[i]
       if not isinstance(inst, spe.Label):
         off += 1
         if off == offset:
-          return i
+          print "offset num", i, offset
+          return i + 1
 
     return 0
 

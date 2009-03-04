@@ -35,7 +35,6 @@ import corepy.lib.nextarray as nextarray
 from syn_util import *
 #import syn_util as util
 
-__annoy__ = True
 
 # ------------------------------------------------------------
 # Helpers
@@ -205,7 +204,7 @@ class Type(object):
     newinst = None
     if isinstance(other, Expression):
       newinst = cls.expr_cls(other._inst, *other._operands, **other._koperands)
-      print 'Casting to:', cls.expr_cls
+      # print 'Casting to:', cls.expr_cls
       
     elif isinstance(other, Variable):
       newinst = cls(reg = other.reg, code = other.code)
@@ -264,9 +263,9 @@ class Variable(object):
       code = self.active_code
     
     if reg is not None and not isinstance(reg, (Register, Variable)):
-      raise Exception('reg must be a Register')
+      raise Exception('reg argument must be a Register')
     if code is not None and not isinstance(code, InstructionStream):
-      raise Exception('code must be an InstructionStream')
+      raise Exception('code argument must be an InstructionStream')
     
     if code is None:
       raise Exception('Variables require an InstructionStream to be either specified or set active')
@@ -436,12 +435,11 @@ class InstructionOperand(object):
     return
 
   def check(self, value):
-    if __annoy__:
-      print 'You should really implement a check method for %s' % (self.name)
-    return True
+    raise Exception('You should really implement a check method for %s' % (self.name))
 
   def render(self, value):
     raise Exception('You should really implement a render method for %s' % (self.name))
+
 
 class MachineInstruction(object):
   """
@@ -505,6 +503,7 @@ class Instruction(object):
 
     iop = 0
     for op_type, value in zip(self.machine_inst.signature, operands):
+      # TODO - throw the exception in the check, and eliminate this if statement
       if op_type.check(value):
         # Store ops by name and position.
         ops[op_type.name] = value
@@ -525,11 +524,8 @@ class Instruction(object):
 
   
   def __str__(self):
-    operands = []
-    for op in self._supplied_operands:
-      operands.append(str(op))
-
-    return '%s %s' % (self.__class__.__name__, ', '.join([str(op) for op in operands]))
+    operands = [str(op) for op in self._supplied_operands]
+    return '%s %s' % (self.__class__.__name__, ', '.join(operands))
     #return '%s(%s)' % (self.__class__.__name__, ', '.join([str(op) for op in operands]))
 
 
@@ -537,8 +533,7 @@ class Instruction(object):
   ex = classmethod(_expression_method)
   
   def render(self):
-    bin = self.machine_inst.render(self.params, self._operands)
-    return bin
+    return self.machine_inst.render(self.params, self._operands)
 
   def set_position(self, pos):
     """Set the byte-offset position of this instruction in its
@@ -598,7 +593,6 @@ class DispatchInstruction(Instruction):
         break
 
     if instruction is None:
-      print op_types
       raise Exception("No instruction method found for operand types (%s)" % (
         ','.join([str(arg_type.name) for arg_type in op_types],)))
 #     else:
@@ -683,6 +677,7 @@ class ExtendedInstruction(object):
 
   def block(self, *operands, **koperands): pass
 
+
 # ------------------------------------------------------------
 # InstructionStream
 # ------------------------------------------------------------
@@ -724,7 +719,7 @@ class InstructionStream(object):
   # instructions.
   instruction_type  = None
   
-  def __init__(self):
+  def __init__(self, debug = False):
     object.__init__(self)
 
     # Make sure subclasses provide property values
@@ -746,7 +741,7 @@ class InstructionStream(object):
 
     # Debugging information
     self._stack_info = None
-    self._debug = False
+    self._debug = debug
     
     # Register Files
     # Use RegisterFiles to create a set of register instances for this
@@ -782,7 +777,6 @@ class InstructionStream(object):
   debug = property(get_debug, set_debug)
 
  
-  # TODO - AWF - what calls this, what does it do? 
   def set_active_callback(self, cb):
     self._active_callback = cb
   
@@ -868,10 +862,14 @@ class InstructionStream(object):
     Clear the instruction stream.  This has the side effect of
     invalidating the code cache.
     """
-    self._instructions = [self.lbl_body]
+    self._instructions = []
     self._labels = {}
     self._stack_info = []
     self.reset_cache()
+
+    if self._debug:
+      import inspect
+      self._stack_info.append(_extract_stack_info(inspect.stack()))
     return
 
   def reset_cache(self):
@@ -947,7 +945,6 @@ class InstructionStream(object):
         if self._debug:
           import inspect
           self._stack_info.append(_extract_stack_info(inspect.stack()))
-        
     elif isinstance(inst, ExtendedInstruction):
       if inst.active_code_used is not self:
         old_active = inst.get_active_code()
@@ -959,11 +956,16 @@ class InstructionStream(object):
         inst.render()
         if old_active is not self:
           inst.set_active_code(old_active)
+
     elif isinstance(inst, Label):
       if inst.added == True:
         raise Exception('Label has already been added to the instruction stream; labels may only be added once.')
       inst.added = True
       self._instructions.append(inst)
+
+      if self._debug:
+        import inspect
+        self._stack_info.append(_extract_stack_info(inspect.stack()))
     else:
       raise Exception('Unsupported instruction format: %s.  Instruction or int is required.' % type(inst))
 
@@ -1031,13 +1033,13 @@ class InstructionStream(object):
 
     # HACK: Disable the current active code
     # NOTE: This may not work in the presence of multiple ISAs...
-    active_callback = None
-    if self._active_callback is not None:
-      active_callback = self._active_callback
-      active_callback(None)
-
+    #active_callback = None
+    #if self._active_callback is not None:
+    #  active_callback = self._active_callback
+    #  active_callback(None)
 
     self._synthesize_prologue()
+    self._prologue.append(self.lbl_body)
     self._synthesize_epilogue()
 
     render_code = nextarray.nextarray(self.instruction_type)
@@ -1051,7 +1053,7 @@ class InstructionStream(object):
       # Assumed below that 'I' type is 4 bytes
       for arr in (self._prologue, self._instructions, self._epilogue):
         for val in arr:
-          if isinstance(val, (Instruction, ExtendedInstruction)):
+          if isinstance(val, Instruction):
             # Does this instruction reference any labels?
             lbl = None
             for k in val._operands.keys():
@@ -1059,7 +1061,7 @@ class InstructionStream(object):
                 lbl = val._operands[k]
                 break
 
-            if lbl == None: # No label reference, render the inst
+            if lbl is None: # No label reference, render the inst
               render_code.append(val.render())
             else: # Label reference
               assert(lbl.code == self)
@@ -1086,7 +1088,7 @@ class InstructionStream(object):
 
       for arr in (self._prologue, self._instructions, self._epilogue):
         for val in arr:
-          if isinstance(val, (Instruction, ExtendedInstruction)):
+          if isinstance(val, Instruction):
             # Does this instruction reference any labels?
             lbl = None
             relref = False
@@ -1110,7 +1112,7 @@ class InstructionStream(object):
                 relref = True
               #iop += 1
 
-            if lbl == None: # No label references
+            if lbl is None: # No label references
               val.set_position(inst_len)
               r = val.render()
               inst_list.append([relref, r, val])
@@ -1134,14 +1136,14 @@ class InstructionStream(object):
 
       # Final loop, bring everything together into render_code
       for rec in inst_list:
-        if isinstance(rec[2], (Instruction, ExtendedInstruction)):
+        if isinstance(rec[2], Instruction):
           render_code.fromlist(rec[1])
 
     self.render_code = render_code
     self.make_executable()
 
-    if active_callback is not None:
-      active_callback(self)
+    #if active_callback is not None:
+    #  active_callback(self)
 
     self._cached = True
     return
@@ -1185,59 +1187,57 @@ class InstructionStream(object):
 
     if self._cached == False:
       self.cache_code()
-    print 'code info:', self.render_code.buffer_info()[0], len(self.render_code)
 
+    print 'code addr:', self.render_code.buffer_info()[0],
+    print 'instructions:', len(self.render_code)
 
-    #if self._cached == True:
-    #  print 'code info:', self.render_code.buffer_info()[0], len(self.render_code)
-    #else:
-    #  print 'code info: not cached/rendered'
-    
-    if pro:
-      self._print_instructions(self._prologue, binary, hex)
+    if not self._debug:
+      import corepy.lib.printer as printer
 
-    print 
+      module = printer.Default(show_prologue = pro, show_epilogue = epi,
+                               show_binary = binary, show_hex = hex,
+                               line_numbers = True)
+      printer.PrintInstructionStream(self, module)
 
-    if self._debug:
-      addr= self._code.buffer_info()[0]
-      last = [None, None]
-      for inst, dec, stack_info, i in zip(self._instructions, self._code, self._stack_info,
-                                          xrange(0, self._code.buffer_info()[1])):
+    else:
+    #if self._debug:
+      addr = self.render_code.buffer_info()[0]
+      last = (None, None)
+#      for inst, dec, stack_info, i in zip(self._instructions, self.render_code, self._stack_info,
+#                                          xrange(0, self.render_code.buffer_info()[1])):
+      for i in xrange(0, len(self._instructions)):
+        inst = self._instructions[i]
+        stack_info = self._stack_info[i]
+        
         user_frame, file = _first_user_frame(stack_info)
 
         # if file == 'spu_types.py':
         #  for frame in stack_info:
         #    print frame
             
-        if last == [user_frame, file]:
+        if last == (user_frame, file):
           ssource = '  ""  ""'
         else:
-          sdetails = '[%s:%s: %d]' % (file, user_frame[2], user_frame[1])
-          sdetails += ' ' * (35 - len(sdetails))
+          sdetails = '%s:%s:%d ' % (file, user_frame[2], user_frame[1])
+          sdetails += ' ' * (30 - len(sdetails))
           ssource = '%s %s' % (sdetails, user_frame[3][0][:-1]) # .strip())
 
-        pipeline = ''
-        if hasattr(inst, 'cycles'):
-          if inst.cycles[0] == 0:
-            pipeline = 'X ;'
-          else:
-            pipeline = ' X;'
-          pipeline += '  %2d' % inst.cycles[1]
+#        TODO - this belongs in the SPU-specific code
+#        pipeline = ''
+#        if hasattr(inst, 'cycles'):
+#          if inst.cycles[0] == 0:
+#            pipeline = 'X ;'
+#          else:
+#            pipeline = ' X;'
+#          pipeline += '  %2d' % inst.cycles[1]
             
-        saddr   = '0x%08X' % (addr + i * 4)
-        sinst   = '%4d; %s' % (i, str(inst))
-        sinst += ' ' * (40 - len(sinst))
-        last = [user_frame, file]
-        print saddr,';', pipeline, ';',  sinst, ';',  ssource
-        if binary:
-          print DecToBin(dec)
-    else:
-      self._print_instructions(self._instructions, binary, hex)
+        saddr   = '%08X' % (addr + i * 4)
+        sinst   = '%4d %-30s' % (i, str(inst))
+        last = (user_frame, file)
+        print "%s %s %s" % (saddr, sinst, ssource)
+    #else:
+    #  self._print_instructions(self._instructions, binary, hex)
 
-    print 
-
-    if epi:
-      self._print_instructions(self._epilogue, binary, hex)
     return
 
 

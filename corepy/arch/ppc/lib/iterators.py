@@ -189,8 +189,7 @@ class syn_iter(object):
     # /end mode if
 
     if self.r_count is not None:
-      # self.current_count = metavar.int_var(self.code, reg = self.r_count)
-      self.current_count = vars.UnsignedWord(reg = self.r_count)
+      self.current_count = vars.UnsignedWord(code = self.code, reg = self.r_count)
 
     if align and branch:
       # Align the start of the loop on a 16 byte boundary
@@ -198,7 +197,6 @@ class syn_iter(object):
         self.code.add(ppc.noop())
 
     # Label
-    #self.start_label = self.code.size() + 1
     self.start_label = self.code.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
 
@@ -222,8 +220,6 @@ class syn_iter(object):
 
   def end(self, branch = True):
     if self.mode == CTR and branch:
-        #next = self.code.size() + 1
-        #self.code.add(ppc.bdnz(-((next - self.start_label) * synppc.WORD_SIZE)))
         self.code.add(ppc.bdnz(self.start_label))
 
     elif self.mode == DEC:
@@ -231,8 +227,6 @@ class syn_iter(object):
       #   Note that this relies on someone (e.g. cleanup()) setting the
       #   condition register properly.
       if branch:
-        #next = self.code.size() + 1
-        #self.code.add(ppc.bgt(-(next - self.start_label) * synppc.WORD_SIZE))
         self.code.add(ppc.bgt(self.start_label))
 
       # Reset the counter in case this is a nested loop
@@ -243,8 +237,6 @@ class syn_iter(object):
       if branch:
         self.code.add(ppc.cmpw(0, self.r_count, self.r_stop))
         #self.code.add(ppc.cmp_(0, 2, self.r_count, self.r_stop))
-        #next = self.code.size() + 1
-        #self.code.add(ppc.blt(-(next - self.start_label) * synppc.WORD_SIZE))
         self.code.add(ppc.blt(self.start_label))
       
       # Reset the the current value in case this is a nested loop
@@ -339,7 +331,6 @@ class parallel(object):
         code.add(ppc.noop())
       
     # Update the real iterator's label
-    #self.obj.start_label = code.size() + 1
     self.obj.start_label = code.get_unique_label("PARALLEL_START")
     code.add(self.obj.start_label)
 

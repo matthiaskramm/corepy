@@ -177,7 +177,7 @@ def DoubleBufferExample(n_spus = 6):
   buffer_size = 16
 
   # Create an array and align the data
-  a = array.array('I', range(n))
+  a = extarray.extarray('I', range(n))
 
   addr = a.buffer_info()[0]  
   n_bytes = n * 4
@@ -238,7 +238,7 @@ def SpeedTest(n_spus = 6, n_floats = 6):
   simd = 4
   for x in syn_iter(code, outer):
     for y in syn_iter(code, inner):
-      for u in range(unroll):
+      for u in xrange(unroll):
         for i in f_range:
           t[i].v = spu.fma.ex(a[i], b[i], c[i])
     
