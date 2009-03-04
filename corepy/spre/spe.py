@@ -541,15 +541,15 @@ class Instruction(object):
     self._operands["position"] = pos
 
 
-def _sig_cmp(sig, user):
-  if len(sig) != len(user):
-    return False
+#def _sig_cmp(sig, user):
+#  if len(sig) != len(user):
+#    return False
 
-  for s, u in zip(sig, user):
-    # Test s against u, since user will be more specific and use __eq__()
-    if not u == s:
-      return False
-  return True
+#  for s, u in zip(sig, user):
+#    # Test s against u, since user will be more specific and use __eq__()
+#    if not u == s:
+#      return False
+#  return True
 
 
 class DispatchInstruction(Instruction):
@@ -576,7 +576,7 @@ class DispatchInstruction(Instruction):
   def __init__(self, *operands, **koperands):
     # Get a list of the types of the operands
     type_func = self.type_id[0]
-    op_types = [type_func(arg) for arg in operands]
+    op_types = tuple([type_func(arg) for arg in operands])
 
     # Find the method that matches the operand type list
     instruction = None
@@ -587,7 +587,9 @@ class DispatchInstruction(Instruction):
 #        ','.join([str(arg_type.name) for arg_type in entry[0].signature],)
 #        )
 
-      if _sig_cmp(entry[0].signature, op_types):
+      #if _sig_cmp(entry[0].signature, op_types):
+      # Careful to test sig against types so the right __eq__() is called
+      if op_types == entry[0].signature:
         instruction = entry[0]
         params = entry[1]
         break
@@ -1154,31 +1156,31 @@ class InstructionStream(object):
   # ------------------------------
 
   # Utility function to print an array of instructions, used by print_code()
-  def _print_instructions(self, instrs, binary, hexad):
-    offset = 0
-    for inst in instrs:
-      print '%4d %s' % (offset, str(inst))
-      #print "%s" % (str(inst))
-      if isinstance(inst, (Instruction, ExtendedInstruction)):
-        render = inst.render()
-        if self.instruction_type == 'I':
-          offset += 4
-          if binary or hexad:
-            bin = DecToBin(render)
-            hex = '%08x' % (render)
-        else: #self.instruction_type == 'B'
-          offset += len(render)
-          if binary or hexad:
-            bin = ''
-            hex = ''
-            for byte in render:
-              bin += DecToBin(byte)[24:32]
-              hex += '%02x' % (byte)
-
-        if binary == True:
-          print bin
-        if hexad == True:
-          print hex
+#  def _print_instructions(self, instrs, binary, hexad):
+#    offset = 0
+#    for inst in instrs:
+#      print '%4d %s' % (offset, str(inst))
+#      #print "%s" % (str(inst))
+#      if isinstance(inst, (Instruction, ExtendedInstruction)):
+#        render = inst.render()
+#        if self.instruction_type == 'I':
+#          offset += 4
+#          if binary or hexad:
+#            bin = DecToBin(render)
+#            hex = '%08x' % (render)
+#        else: #self.instruction_type == 'B'
+#          offset += len(render)
+#          if binary or hexad:
+#            bin = ''
+#            hex = ''
+#            for byte in render:
+#              bin += DecToBin(byte)[24:32]
+#              hex += '%02x' % (byte)
+#
+#        if binary == True:
+#          print bin
+#        if hexad == True:
+#          print hex
 
   def print_code(self, pro = False, epi = False, binary = False, hex = False):
     """

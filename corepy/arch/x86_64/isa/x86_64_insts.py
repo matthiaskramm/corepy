@@ -2245,17 +2245,17 @@ class rel32_8off(MachineInstruction):
     # Will an 8bit offset do the job?
     #off = offset - (len(params['opcode'][0]) + 1)
     off = rel - (operands['position'] + len(params['opcode'][0]) + 1)
-    print "off is", off
+    #print "off is", off
     if rel8off_t.fits(off):
-      print "encoding 8bit offset", off
+      #print "encoding 8bit offset", off
       return params['opcode'][0] + w8(off)
 
     # Fall back to 32bit, or nothing if even that doesn't fit
     #off = offset - (len(params['opcode'][1]) + 4)
     off = rel - (operands['position'] + len(params['opcode'][1]) + 4)
-    print "off is", off, len(params['opcode'][1]) + 4
+    #print "off is", off, len(params['opcode'][1]) + 4
     if rel32off_t.fits(off):
-      print "encoding 32bit offset", off
+      #print "encoding 32bit offset", off
       return params['opcode'][1] + w32(off)
   render = staticmethod(_render)
 
