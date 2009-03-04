@@ -531,8 +531,8 @@ def SimpleTest():
 
   # Without active code
   a = SignedWord(11, code)
-  b = SignedWord(31, reg = code.acquire_register())
-  c = SignedWord(reg = code.gp_return)
+  b = SignedWord(31, code, reg = code.acquire_register())
+  c = SignedWord(code = code, reg = code.gp_return)
 
   byte_mask = Bits(0xFF, code)
   code.add(ppc.addi(code.gp_return, 0, 31))

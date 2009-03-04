@@ -92,9 +92,10 @@ class RegisterFile(object):
     """
     object.__init__(self)
     
-    self._registers = registers[:]
-    self._pool = None
-    self._used = None
+    #self._registers = registers[:]
+    self._registers = registers
+    #self._pool = None
+    #self._used = None
     self._name = name
     self.reset()
     return
@@ -140,7 +141,6 @@ class RegisterFile(object):
     (rather than an exception).
     """
     if reg in self._pool:
-      # print 'Warning: release_register:', reg, 'already exists!'
       raise Exception('Warning: release_register from %s: %s already exists!' % (self._name, str(reg)))
     else:
       self._pool.append(reg)
@@ -165,9 +165,8 @@ class Register(object):
     """
     if isinstance(code, str):
       raise Exception("Use the 'name' keyword argument to set the name of a register")
-    
+   
     self.reg = reg
-    self.code = code
     self.name = name
     self.prefix = prefix
     return
@@ -259,6 +258,8 @@ class Variable(object):
     """
     super(Variable, self).__init__()
 
+    # TODO Should a variable always use the active code at the time of __init__
+    # (like it is now), or follow the active code as it changes?
     if code is None and self.active_code is not None:
       code = self.active_code
     
@@ -267,10 +268,8 @@ class Variable(object):
     if code is not None and not isinstance(code, InstructionStream):
       raise Exception('code must be an InstructionStream')
     
-    if reg is None and code is None:
-      raise Exception('Variables must be created with a register (reg) and/or code')
-    elif reg is not None and code is not None and reg.code is not code:
-      raise Exception('Registers must be from the same InstructionStream as the supplied code object')
+    if code is None:
+      raise Exception('Variables require an InstructionStream to be either specified or set active')
 
     self.value = value
     self.acquired_register = False
@@ -283,10 +282,7 @@ class Variable(object):
       self.reg = code.acquire_register(self.register_type_id)
       self.acquired_register = True
       
-    if code is None:
-      self.code = reg.code
-    else:
-      self.code = code
+    self.code = code
 
     # self.v triggers the assignement mechanism. 
     if value is not None:
@@ -897,6 +893,7 @@ class InstructionStream(object):
     self.reset_cache()
     return
 
+
   # ------------------------------
   # User register management
   # ------------------------------
@@ -908,25 +905,22 @@ class InstructionStream(object):
     elif isinstance(type, str):
       type = self._reg_type[type]
 
-    reg = self._register_files[type].acquire_register(reg)
-
     # print 'acquire', str(self._register_files[type])
-    return reg
-    
+    return self._register_files[type].acquire_register(reg)
 
   def release_register(self, reg):
     self._register_files[type(reg)].release_register(reg)
     # print 'release', str(self._register_files[type])
     return 
   
-
   def acquire_registers(self, n, type = None, reg = None):
-    return [self.acquire_register(type, reg) for i in range(n)]
+    return [self.acquire_register(type, reg) for i in xrange(n)]
 
   def release_registers(self, regs):
     for reg in regs:
       self.release_register(reg)
     return
+
     
   # ------------------------------
   # Instruction management
@@ -976,6 +970,7 @@ class InstructionStream(object):
     # Invalidate the cache
     self._cached = False
     self.render_code = None
+
     return len(self._instructions)
 
   def size(self): return len(self._instructions)
@@ -1033,7 +1028,7 @@ class InstructionStream(object):
 
     if self._cached == True:
       return
-    
+
     # HACK: Disable the current active code
     # NOTE: This may not work in the presence of multiple ISAs...
     active_callback = None
@@ -1207,7 +1202,7 @@ class InstructionStream(object):
       addr= self._code.buffer_info()[0]
       last = [None, None]
       for inst, dec, stack_info, i in zip(self._instructions, self._code, self._stack_info,
-                                          range(0, self._code.buffer_info()[1])):
+                                          xrange(0, self._code.buffer_info()[1])):
         user_frame, file = _first_user_frame(stack_info)
 
         # if file == 'spu_types.py':

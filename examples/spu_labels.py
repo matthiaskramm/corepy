@@ -36,8 +36,7 @@ from corepy.arch.spu.types.spu_types import SignedWord, SingleFloat
 import corepy.arch.spu.lib.dma as dma
 import corepy.arch.spu.lib.util as util
 from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     Processor, aligned_memory, spu_exec
-     #NativeInstructionStream, Processor, aligned_memory, spu_exec
+     Processor, spu_exec
 
   
 def SimpleSPU():

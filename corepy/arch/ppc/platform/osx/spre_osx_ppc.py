@@ -190,9 +190,6 @@ class InstructionStream(spe.InstructionStream):
       regs = [cls(value, self) for value in values]
       self._register_files[cls] = spe.RegisterFile(regs, reg_type)
       self._reg_type[reg_type] = cls
-      for reg in regs:
-        reg.code = self
-    
     return
   
   # ------------------------------

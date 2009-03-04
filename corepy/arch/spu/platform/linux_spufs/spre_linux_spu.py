@@ -81,43 +81,6 @@ spu_param_10 = (5, 3)
 
 N_SPUS = spu_exec.get_num_avail_spus()
 
-#class aligned_memory(object): pass
-
-# ------------------------------------------------------------
-# Aligned Memory
-# ------------------------------------------------------------
-
-#class aligned_memory(spu_exec.aligned_memory):
-#  def __init__(self, size, alignment = 128, typecode = 'B'):
-#    print "NOTICE:  aligned_memory is deprecated; consider using nextarray instead"
-#    spu_exec.aligned_memory.__init__(self, size * INT_SIZES[typecode], alignment)
-#    self.typecode = typecode
-#    return
-#
-#  def __str__(self): return '<aligned_memory typecode = %s addr = 0x%X size = %d ' % (
-#    self.typecode, self.get_addr(), self.get_size())
-#  
-#  def __len__(self):
-#    return self.get_size() / INT_SIZES[self.typecode]
-#  
-#  def buffer_info(self):
-#    return (self.get_addr(), self.get_size())
-#
-#  def copy_to(self, source, size):
-#    return spu_exec.aligned_memory.copy_to(self, source, size * INT_SIZES[self.typecode])
-#
-#  def copy_from(self, dest, size):
-#    return spu_exec.aligned_memory.copy_from(self, dest, size * INT_SIZES[self.typecode])
-#
-#  def word_at(self, index, signed = False):
-#    """
-#    Minor hack to give fast access to data...
-#    TODO: full array-type interface?
-#    """
-#    # if signed:
-#    # return spu_exec.aligned_memory.signed_word_at(self, index * 4)
-#    return spu_exec.aligned_memory.word_at(self, index * 4)
-
 
 # ------------------------------------------------------------
 # Helpers
@@ -149,6 +112,7 @@ def align_addr(addr, align = 16, dir = ALIGN_DOWN):
     return addr - (addr % align)
   else:
     return addr + (align - addr % align)
+
   
 # ------------------------------------------------------------
 # InstructionStream
@@ -196,9 +160,6 @@ class InstructionStream(spe.InstructionStream):
       regs = [cls(value, self) for value in values]
       self._register_files[cls] = spe.RegisterFile(regs, reg_type)
       self._reg_type[reg_type] = cls
-      for reg in regs:
-        reg.code = self
-    
     return
   
   # ------------------------------
@@ -240,6 +201,7 @@ class InstructionStream(spe.InstructionStream):
     """
     word_align = boundary / 4
 
+    # TODO - AWF - thanks to labels, this won't work quite right anymore  
     while len(self._instructions) % word_align:
       if len(self._instructions) % 2 == 0:
         self.add(spu.nop(0), True)
@@ -252,7 +214,7 @@ class InstructionStream(spe.InstructionStream):
 
     if not optimize_override and self._optimize:
       # binary_string_inst = spu.DecToBin(inst)
-      op = 'nop'
+      #op = 'nop'
       # if binary_string_inst[0:3] in spu.inst_opcodes:
       #   op = spu.inst_opcodes[binary_string_inst[0:3]]
       # elif binary_string_inst[0:6] in spu.inst_opcodes:
@@ -265,7 +227,8 @@ class InstructionStream(spe.InstructionStream):
       #   op = spu.inst_opcodes[binary_string_inst[0:9]]
       # elif binary_string_inst[0:10] in spu.inst_opcodes:
       #   op = spu.inst_opcodes[binary_string_inst[0:10]]
-        
+      
+      # TODO - AWF - thanks to labels, this won't work quite right anymore  
       pipeline = inst.cycles[0]
         
       if (len(self._instructions) % 2 == 0) and pipeline == 0:   
