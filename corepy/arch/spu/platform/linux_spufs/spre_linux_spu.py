@@ -31,6 +31,7 @@ SPE for the Cell SPU
 """
 
 import corepy.lib.nextarray as nextarray
+import corpy.lib.allocator as allocator
 import corepy.spre.spe as spe
 import spu_exec
 
@@ -145,6 +146,10 @@ class InstructionStream(spe.InstructionStream):
     self.r_zero = SPURegister(0, self)
     self.gp_return = SPURegister(1, self)
     self.fp_return = self.gp_return
+
+    # Localstore is actually 0x40000 bytes, but reserve 8kb for code.
+    self.allocator = allocator.Allocator(0, 0x3E000)
+    self._allocs = {}
     return
 
   def make_executable(self):
@@ -247,6 +252,17 @@ class InstructionStream(spe.InstructionStream):
       spe.InstructionStream.add(self, inst)
 
     return len(self._instructions)
+
+
+  def acquire_localstore(self, size):
+    memhandle = self.allocator.alloc(size)
+    self._allocs[memhandle.addr] = memhandle
+    return memhandle.addr
+
+  def release_localstore(self, addr):
+    self._allocs[addr].free()
+    del self._allocs[addr]
+    return
 
 
 class ParallelInstructionStream(InstructionStream):
