@@ -31,7 +31,7 @@ SPE for the Cell SPU
 """
 
 import corepy.lib.nextarray as nextarray
-import corpy.lib.allocator as allocator
+import corepy.lib.allocator as allocator
 import corepy.spre.spe as spe
 import spu_exec
 
