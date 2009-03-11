@@ -777,12 +777,13 @@ def TestRange():
 
 _expected = [10, 11, 12, 13]
 def _array_check(result, expected = _expected):
-  if result.typecode == 'b':
-    for x, y in zip(result, expected):
-      assert(ord(x) == y)
-  else:
-    for x, y in zip(result, expected):
-      assert(x == y)
+  #if result.typecode == 'b':
+  #  for x, y in zip(result, expected):
+  #    print "types", type(x), type(y)
+  #    assert(ord(x) == y)
+  #else:
+  for x, y in zip(result, expected):
+    assert(x == y)
 
 
 def TestVarIter():
