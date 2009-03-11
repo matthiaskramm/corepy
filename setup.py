@@ -41,12 +41,15 @@ import sys
 from os import path
 
 
-ext_modules = [Extension('corepy.lib.extarray._alloc',
-                         sources=['corepy/lib/extarray/alloc.i'],
-                         depends=['corepy/lib/extarray/alloc.h']),
-               Extension('corepy.lib.nextarray.nextarray',
-                         sources=['corepy/lib/nextarray/nextarray.c'],
-                         depends=['corepy/lib/nextarray/alloc.h'])]
+ext_modules = [#Extension('corepy.lib.extarray._alloc',
+               #          sources=['corepy/lib/extarray/alloc.i'],
+               #          depends=['corepy/lib/extarray/alloc.h']),
+               #Extension('corepy.lib.nextarray.nextarray',
+               #          sources=['corepy/lib/nextarray/nextarray.c'],
+               #          depends=['corepy/lib/nextarray/alloc.h'])]
+               Extension('corepy.lib.extarray.extarray',
+                         sources=['corepy/lib/extarray/extarray.c'],
+                         depends=['corepy/lib/extarray/alloc.h'])]
 
 
 py_platform = get_platform()
