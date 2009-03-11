@@ -491,14 +491,14 @@ def spu_stop_decr(code):
 # ------------------------------------------------------------
 
 def TestMFC():
-  import corepy.lib.nextarray as nextarray
+  import corepy.lib.extarray as extarray
   import corepy.arch.spu.platform as synspu 
 
   size = 32
   #data_array = array.array('I', range(size))
   #data = synspu.aligned_memory(size, typecode = 'I')
   #data.copy_to(data_array.buffer_info()[0], len(data_array))
-  data = nextarray.nextarray('I', range(size))
+  data = extarray.extarray('I', range(size))
   code = synspu.InstructionStream()
 
   r_zero    = code.acquire_register()

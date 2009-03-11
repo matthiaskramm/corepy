@@ -28,7 +28,7 @@
 
 import corepy.spre.spe as spe
 import corepy.arch.spu.isa as spu
-import corepy.lib.nextarray as nextarray
+import corepy.lib.extarray as extarray
 
 def load_word(code, r_target, word, clear = False, zero = True):
   """If r0 is not set to 0, the zero parameter should be set to False"""
@@ -50,7 +50,7 @@ def load_word(code, r_target, word, clear = False, zero = True):
 
 
 def load_float(code, reg, val):
-  data = nextarray.nextarray('f', (val,))
+  data = extarray.extarray('f', (val,))
   data.change_type('I')
 
   return load_word(code, reg, data[0])

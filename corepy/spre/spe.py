@@ -30,7 +30,7 @@ __doc__ = """
 Base classes for the Synthetic Programming Environment.
 """
 
-import corepy.lib.nextarray as nextarray
+import corepy.lib.extarray as extarray
 
 from syn_util import *
 #import syn_util as util
@@ -1044,7 +1044,7 @@ class InstructionStream(object):
     self._prologue.append(self.lbl_body)
     self._synthesize_epilogue()
 
-    render_code = nextarray.nextarray(self.instruction_type)
+    render_code = extarray.extarray(self.instruction_type)
 
     # Note - TRAC ticket #19 has some background info and reference links on
     # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19

@@ -30,7 +30,7 @@ __doc__="""
 SPE for the Cell SPU
 """
 
-import corepy.lib.nextarray as nextarray
+import corepy.lib.extarray as extarray
 import corepy.lib.allocator as allocator
 import corepy.spre.spe as spe
 import spu_exec
@@ -374,11 +374,11 @@ class Processor(spe.Processor):
       # Get the return value
       # TODO - optimize this, don't need to pull all 128 regs..
       if mode == 'int':
-        regs = nextarray.nextarray('I', 128 * 4)
+        regs = extarray.extarray('I', 128 * 4)
         spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
         retval = regs[4]
       elif mode == 'fp':
-        regs = nextarray.nextarray('f', 128 * 4)
+        regs = extarray.extarray('f', 128 * 4)
         spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
         retval = regs[4]
       else:
@@ -512,11 +512,11 @@ class Processor(spe.Processor):
     spu_exec.wait_stream(ti)
 
     if ti.mode == self.MODE_INT:
-      regs = nextarray.nextarray('I', 128 * 4)
+      regs = extarray.extarray('I', 128 * 4)
       spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
       retval = int(regs[4])
     elif ti.mode == self.MODE_FP:
-      regs = nextarray.nextarray('f', 128 * 4)
+      regs = extarray.extarray('f', 128 * 4)
       spu_exec.get_spu_registers(ti, regs.buffer_info()[0])
       retval = float(regs[4])
     else:
@@ -726,7 +726,7 @@ class DebugProcessor(spe.Processor):
     # Pseudo-code:
     #  1) Save code is: (do this as an array, not an instruction stream)
     save_size = 128 * 2 + 4
-    save_code = nextarray.nextarray('I', range(save_size))
+    save_code = extarray.extarray('I', range(save_size))
     
     for i in range(0, 128 * 2, 2):
       save_code[i] = spu.wrch(i / 2, mbox, ignore_active = True).render()

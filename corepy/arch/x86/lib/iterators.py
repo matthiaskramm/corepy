@@ -279,8 +279,8 @@ class syn_iter(object):
 
 # Test with the stop value being an immediate value
 def TestINCRegImm():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -306,8 +306,8 @@ def TestINCRegImm():
 
 # Test with the current count and the stop value being held in registers
 def TestINCRegReg():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -335,8 +335,8 @@ def TestINCRegReg():
 
 # Test with the current count being held in a register and the stop value being in memory
 def TestINCRegMem():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000) 
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000) 
 
   for i in xrange(1000):
     A[i] = i
@@ -364,8 +364,8 @@ def TestINCRegMem():
 
 # Test with the stop value and the current count both being held in memory
 def TestINCMemMem():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -395,8 +395,8 @@ def TestINCMemMem():
 
 # Test with the stop value and the current count both being held in memory with a non-unary step
 def TestINCMemMem_ImmStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -426,8 +426,8 @@ def TestINCMemMem_ImmStep():
 
 # Test with the stop value and the current count both being held in memory with a non-unary step held in a register
 def TestINCMemMem_RegStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -459,8 +459,8 @@ def TestINCMemMem_RegStep():
 
 # Test with the stop value and the current count both being held in memory with a non-unary step held in memory
 def TestINCMemMem_MemStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -494,8 +494,8 @@ def TestINCMemMem_MemStep():
 
 # Test with initial count being an immediate value
 def TestDECImm():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -521,8 +521,8 @@ def TestDECImm():
 
 # Test with initial count in a register
 def TestDECReg():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -550,8 +550,8 @@ def TestDECReg():
 
 # Test with initial count in memory 
 def TestDECMem():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -579,8 +579,8 @@ def TestDECMem():
 
 # Test initial count stored in memory, and current count stored in memory
 def TestDECMemMem():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -610,8 +610,8 @@ def TestDECMemMem():
 
 # Test initial count stored in memory, and current count stored in memory, with a non-unary step size
 def TestDECMemMem_ImmStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -641,8 +641,8 @@ def TestDECMemMem_ImmStep():
 
 # Test initial count stored in memory, and current count stored in memory with non-unary step stored in a register
 def TestDECMemMem_RegStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -674,8 +674,8 @@ def TestDECMemMem_RegStep():
 
 # Test initial count stored in memory, and current count stored in memory with non-unary step stored in memory
 def TestDECMemMem_MemStep():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -710,8 +710,8 @@ def TestDECMemMem_MemStep():
 
 # Test CTR mode with initial count being an immediate value
 def TestCTRImm():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -737,8 +737,8 @@ def TestCTRImm():
 
 # Test CTR mode with initial count being stored in a register
 def TestCTRReg():
-  A = nextarray.nextarray('l', 1000)
-  B = nextarray.nextarray('l', 1000)
+  A = extarray.extarray('l', 1000)
+  B = extarray.extarray('l', 1000)
 
   for i in xrange(1000):
     A[i] = i
@@ -768,7 +768,7 @@ def TestCTRReg():
 
 
 if __name__=='__main__':
-  import corepy.lib.nextarray as nextarray
+  import corepy.lib.extarray as extarray
   import corepy.arch.x86.platform as env
   TestINCRegImm()
   TestINCRegReg()
