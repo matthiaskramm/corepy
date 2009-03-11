@@ -156,14 +156,14 @@ class RegisterFile(object):
   
 
 class Register(object):
-  def __init__(self, reg, code = None, name = None, prefix = ''):
+  def __init__(self, reg, name = None, prefix = ''):
     """
     Create a new register:
       reg is the architecture dependent value for the register, usually an int.
-      code is the InstructionStream that created and owns this register.
+      #code is the InstructionStream that created and owns this register.
     """
-    if isinstance(code, str):
-      raise Exception("Use the 'name' keyword argument to set the name of a register")
+    #if isinstance(code, str):
+    #  raise Exception("Use the 'name' keyword argument to set the name of a register")
    
     self.reg = reg
     self.name = name
@@ -1022,6 +1022,9 @@ class InstructionStream(object):
     return inst_list
 
 
+  # Note - TRAC ticket #19 has some background info and reference links on
+  # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19
+
   def _cache_code_I(self):
     render_code = extarray.extarray('I')
     fwd_ref_list = []
@@ -1127,123 +1130,16 @@ class InstructionStream(object):
     if self._cached == True:
       return
 
-    # HACK: Disable the current active code
-    # NOTE: This may not work in the presence of multiple ISAs...
-    #active_callback = None
-    #if self._active_callback is not None:
-    #  active_callback = self._active_callback
-    #  active_callback(None)
-
     self._synthesize_prologue()
     self._prologue.append(self.lbl_body)
     self._synthesize_epilogue()
 
-    # Note - TRAC ticket #19 has some background info and reference links on
-    # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19
-
     if self.instruction_type == 'I':
-#      fwd_ref_list = []
-#
-#      # Assumed below that 'I' type is 4 bytes
-#      for arr in (self._prologue, self._instructions, self._epilogue):
-#        for val in arr:
-#          if isinstance(val, Instruction):
-#            # Does this instruction reference any labels?
-#            lbl = None
-#            for k in val._operands.keys():
-#              if isinstance(val._operands[k], Label):
-#                lbl = val._operands[k]
-#                break
-#
-#            if lbl is None: # No label reference, render the inst
-#              render_code.append(val.render())
-#            else: # Label reference
-#              assert(lbl.code == self)
-#              val.set_position(len(render_code) * 4)
-#
-#              if lbl.position != None:  # Back reference, render the inst
-#                render_code.append(val.render())
-#              else: # Fill in a dummy instruction and save info to render later
-#                fwd_ref_list.append((val, len(render_code)))
-#                render_code.append(0xFFFFFFFF)
-#          elif isinstance(val, Label): # Label, fill in a zero-length slot
-#            val.set_position(len(render_code) * 4)
-#
-#      # Render the instructions with forward label references
-#      for rec in fwd_ref_list:
-#        render_code[rec[1]] = rec[0].render()
-
-      render_code = self._cache_code_I()
-
+      self.render_code = self._cache_code_I()
     elif self.instruction_type == 'B':
-#      # inst_list is a list of tuples.  Each tuple contains a bool
-#      # indicating presence of a label reference, rendered code ([] if label),
-#      # and a label or instruction object.
-#      render_code = extarray.extarray('B')
-#      inst_list = []
-#      inst_len = 0
-#
-#      for arr in (prologue, self._instructions, epilogue):
-#        for val in arr:
-#          if isinstance(val, Instruction):
-#            # Does this instruction reference any labels?
-#            lbl = None
-#            relref = False
-#            #iop = 0
-#            #for k in val._operands.keys():
-#            sig = val.machine_inst.signature
-#            #while val._operands.has_key(iop):
-#            for iop in xrange(0, len(sig)):
-#              opsig = sig[iop]
-#              #if isinstance(op, (int, long)):
-#              #  print "ops", val._operands
-#              #  print "op", op, iop, val.params, val.machine_inst.signature
-#              #  print "opsig", opsig
-#              if hasattr(opsig, "relative_op") and opsig.relative_op == True:
-#                op = val._operands[iop]
-#                if isinstance(op, Label):
-#                  lbl = op
-#                # This is a hack, but it works.  Some instructions can have
-#                # a relative offset that is not a label.  These insts need to be
-#                # re-rendered if instruction sizes change
-#                relref = True
-#              #iop += 1
-#
-#            if lbl is None: # No label references
-#              val.set_position(inst_len)
-#              r = val.render()
-#              inst_list.append([relref, r, val])
-#              inst_len += len(r)
-#            else: # Instruction referencing a label.
-#              assert(lbl.code == self)
-#              val.set_position(inst_len)
-#
-#              if lbl.position != None: # Back-reference, render the instruction
-#                r = val.render()
-#                inst_list.append([True, r, val])
-#                inst_len += len(r)
-#              else: # Fill in a dummy instruction, assuming 2-byte best case
-#                inst_list.append([True, [-1, -1], val])
-#                inst_len += 2
-#          elif isinstance(val, Label): # Label, fill in a zero-length slot
-#            val.set_position(inst_len)
-#            inst_list.append([False, [], val])
-#
-#      inst_list = self._adjust_pass(inst_list)
-#
-#      # Final loop, bring everything together into render_code
-#      for rec in inst_list:
-#        if isinstance(rec[2], Instruction):
-#          render_code.fromlist(rec[1])
+      self.render_code = self._cache_code_B()
 
-      render_code = self._cache_code_B()
-
-    self.render_code = render_code
     self.make_executable()
-
-    #if active_callback is not None:
-    #  active_callback(self)
-
     self._cached = True
     return
 

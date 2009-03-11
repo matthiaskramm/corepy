@@ -46,16 +46,16 @@ ExecParams = ppc_exec.ExecParams
 # ------------------------------
 
 class GPRegister(spe.Register):
-  def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, prefix = 'r')
+  def __init__(self, reg):
+    spe.Register.__init__(self, reg, prefix = 'r')
 
 class FPRegister(spe.Register):
-  def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, prefix = 'f')
+  def __init__(self, reg):
+    spe.Register.__init__(self, reg, prefix = 'f')
 
 class VMXRegister(spe.Register):
-  def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, prefix = 'v')
+  def __init__(self, reg):
+    spe.Register.__init__(self, reg, prefix = 'v')
 
 
 
@@ -79,10 +79,10 @@ gp_param_3 = 5
 #gp_return = 3
 
 # Callee save registers
-gp_save = [GPRegister(i, None) for i in range(14, 31)]
-fp_save = [FPRegister(i, None) for i in range(14, 32)]
-vx_save = [VMXRegister(i, None) for i in range(20, 32)]  # !!! NOT SURE ABOUT VMX !!!
-#vx_save = [VMXRegister(i, None) for i in range(0, 32)]  # !!! NOT SURE ABOUT VMX !!!
+gp_save = [GPRegister(i) for i in range(14, 31)]
+fp_save = [FPRegister(i) for i in range(14, 32)]
+vx_save = [VMXRegister(i) for i in range(20, 32)]  # !!! NOT SURE ABOUT VMX !!!
+#vx_save = [VMXRegister(i) for i in range(0, 32)]  # !!! NOT SURE ABOUT VMX !!!
 
 # ------------------------------------------------------------
 # Helpers
@@ -133,11 +133,11 @@ class InstructionStream(spe.InstructionStream):
     #   Note that these do not reserve the register, but only identify
     #   the registers.  To reserve a return register, use:
     #     code.acquire_register(reg = code.gp_return)
-    self.gp_return = GPRegister(3, self)
-    self.fp_return = FPRegister(1, self)
+    self.gp_return = GPRegister(3)
+    self.fp_return = FPRegister(1)
     if self._enable_vmx:
-      self.vx_return = VMXRegister(1, self)
-      self._vrsave = GPRegister(31, None)
+      self.vx_return = VMXRegister(1)
+      self._vrsave = GPRegister(31)
 
     return
 
@@ -149,7 +149,7 @@ class InstructionStream(spe.InstructionStream):
     # Each declarative RegisterFiles entry is:
     #   (file_id, register class, valid values)
     for reg_type, cls, values in self.RegisterFiles:
-      regs = [cls(value, self) for value in values]
+      regs = [cls(value) for value in values]
       self._register_files[cls] = spe.RegisterFile(regs, reg_type)
       self._reg_type[reg_type] = cls
     
@@ -197,8 +197,8 @@ class InstructionStream(spe.InstructionStream):
     # Store the value in register 2 in the red zone
     #  r1 is the stackpointer, -4(r1) is in the red zone
 
-    r_addr = GPRegister(13, None) # Only available volatile register
-    r_idx = GPRegister(14, None)  # Non-volatile; safe to use before restoring
+    r_addr = GPRegister(13) # Only available volatile register
+    r_idx = GPRegister(14)  # Non-volatile; safe to use before restoring
 
     # TODO - AWF - don't want to push things on the stack, that changes the
     # relative location of the passed-in arguments
@@ -250,8 +250,8 @@ class InstructionStream(spe.InstructionStream):
     if self._enable_vmx:
       self._epilogue.append(ppc.mtvrsave(self._vrsave))
 
-    r_addr = GPRegister(13, None) # Only available volatile register
-    r_idx = GPRegister(14, None)  # Non-volatile; safe to use before restoring
+    r_addr = GPRegister(13) # Only available volatile register
+    r_idx = GPRegister(14)  # Non-volatile; safe to use before restoring
 
     # Get the list of saved registers
     save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]

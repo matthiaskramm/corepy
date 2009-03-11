@@ -50,8 +50,8 @@ ExecParams = spu_exec.ExecParams
 # ------------------------------
 
 class SPURegister(spe.Register):
-  def __init__(self, reg, code):
-    spe.Register.__init__(self, reg, code, prefix = 'r')
+  def __init__(self, reg):
+    spe.Register.__init__(self, reg, prefix = 'r')
 
 
 # ------------------------------
@@ -143,8 +143,8 @@ class InstructionStream(spe.InstructionStream):
 
     self._optimize = optimize
 
-    self.r_zero = SPURegister(0, self)
-    self.gp_return = SPURegister(1, self)
+    self.r_zero = SPURegister(0)
+    self.gp_return = SPURegister(1)
     self.fp_return = self.gp_return
 
     # Localstore is actually 0x40000 bytes, but reserve 8kb for code.
@@ -162,7 +162,7 @@ class InstructionStream(spe.InstructionStream):
     # Each declarative RegisterFiles entry is:
     #   (file_id, register class, valid values)
     for reg_type, cls, values in self.RegisterFiles:
-      regs = [cls(value, self) for value in values]
+      regs = [cls(value) for value in values]
       self._register_files[cls] = spe.RegisterFile(regs, reg_type)
       self._reg_type[reg_type] = cls
     return
@@ -294,14 +294,14 @@ class ParallelInstructionStream(InstructionStream):
 
     # Parallel parameters are passed in the prefered slot and the next
     # slot of the user arugment.
-    self._prologue.append(spu.shlqbyi(self.r_rank, SPURegister(3, None), 4)) 
-    self._prologue.append(spu.shlqbyi(self.r_size, SPURegister(3, None), 8)) 
+    self._prologue.append(spu.shlqbyi(self.r_rank, SPURegister(3), 4)) 
+    self._prologue.append(spu.shlqbyi(self.r_size, SPURegister(3), 8)) 
 
     if self.raw_data_size is not None:
       self.acquire_block_registers()
 
-      self._prologue.append(spu.shlqbyi(self.r_block_size, SPURegister(4, None), 4)) 
-      self._prologue.append(spu.shlqbyi(self.r_offset, SPURegister(4, None), 8)) 
+      self._prologue.append(spu.shlqbyi(self.r_block_size, SPURegister(4), 4)) 
+      self._prologue.append(spu.shlqbyi(self.r_offset, SPURegister(4), 8)) 
     else:
       print 'no raw data'
     return
