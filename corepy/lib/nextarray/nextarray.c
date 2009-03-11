@@ -7,7 +7,7 @@
 //#define _DEBUG 0
 //#endif
 
-typedef struct NextArray {
+typedef struct ExtArray {
   PyObject_HEAD
 
   char typecode;
@@ -24,19 +24,19 @@ typedef struct NextArray {
 
   void* (*realloc)(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize);
   void (*free)(void* mem);
-} NextArray;
+} ExtArray;
 
 
-static int NextArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val);
-static PyObject* NextArray_getitem(PyObject* self, Py_ssize_t ind);
+static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val);
+static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind);
 
 
 static PyObject*
-NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
+ExtArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
-  NextArray* self;
+  ExtArray* self;
 
-  self = (NextArray*)type->tp_alloc(type, 0);
+  self = (ExtArray*)type->tp_alloc(type, 0);
   if(self != NULL) {
     self->typecode = '\0';
     self->huge = 0;
@@ -56,7 +56,7 @@ NextArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 }
 
 
-static int set_type_fns(NextArray* self, char typecode)
+static int set_type_fns(ExtArray* self, char typecode)
 {
   switch(typecode) {
   case 'c':
@@ -97,7 +97,7 @@ static int set_type_fns(NextArray* self, char typecode)
 }
 
 
-static int alloc(NextArray* self, Py_ssize_t length)
+static int alloc(ExtArray* self, Py_ssize_t length)
 {
   Py_ssize_t size;
   Py_ssize_t m;
@@ -134,7 +134,7 @@ static int alloc(NextArray* self, Py_ssize_t length)
 
 
 static int
-NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
+ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
 {
   //def __init__(self, typecode, init = None, huge = False):
   static char* kwlist[] = {"typecode", "init", "huge", NULL};
@@ -192,7 +192,7 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
 
     for(i = 0; i < self->data_len; i++) {
       item = PySequence_ITEM(init, i);
-      NextArray_setitem((PyObject*)self, i, item);
+      ExtArray_setitem((PyObject*)self, i, item);
       Py_DECREF(item);
     }
   } else {
@@ -205,7 +205,7 @@ NextArray_init(NextArray* self, PyObject* args, PyObject* kwds)
 
 
 static void
-NextArray_dealloc(NextArray* self)
+ExtArray_dealloc(ExtArray* self)
 {
   if(self->memory != NULL && self->lock == 0) {
 #ifdef _DEBUG
@@ -218,7 +218,7 @@ NextArray_dealloc(NextArray* self)
 }
 
 
-static PyObject* NextArray_alloc(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_alloc(ExtArray* self, PyObject* arg)
 {
   Py_ssize_t length;
 
@@ -235,14 +235,14 @@ static PyObject* NextArray_alloc(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_append(NextArray* self, PyObject* val)
+static PyObject* ExtArray_append(ExtArray* self, PyObject* val)
 {
   self->data_len++;
   if(alloc(self, self->data_len) == -1) {
     return NULL;
   }
 
-  if(NextArray_setitem((PyObject*)self, self->data_len - 1, val) == -1) {
+  if(ExtArray_setitem((PyObject*)self, self->data_len - 1, val) == -1) {
     return NULL;
   }
 
@@ -251,7 +251,7 @@ static PyObject* NextArray_append(NextArray* self, PyObject* val)
 }
 
 
-static PyObject* NextArray_buffer_info(NextArray* self, PyObject* val)
+static PyObject* ExtArray_buffer_info(ExtArray* self, PyObject* val)
 {
   return PyTuple_Pack(2,
       PyLong_FromUnsignedLong((unsigned long)self->memory),
@@ -259,7 +259,7 @@ static PyObject* NextArray_buffer_info(NextArray* self, PyObject* val)
 }
 
 
-static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
+static PyObject* ExtArray_byteswap(ExtArray* self, PyObject* args)
 {
   Py_ssize_t i;
 
@@ -306,7 +306,7 @@ static PyObject* NextArray_byteswap(NextArray* self, PyObject* args)
 }
 
 
-static PyObject* NextArray_change_type(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_change_type(ExtArray* self, PyObject* arg)
 {
   char typecode;
   char itemsize = self->itemsize;
@@ -331,7 +331,7 @@ static PyObject* NextArray_change_type(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_clear(NextArray* self, PyObject* args)
+static PyObject* ExtArray_clear(ExtArray* self, PyObject* args)
 {
   memset(self->memory, 0, self->alloc_len);
   Py_INCREF(Py_None);
@@ -339,7 +339,7 @@ static PyObject* NextArray_clear(NextArray* self, PyObject* args)
 }
 
 
-static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_copy_direct(ExtArray* self, PyObject* arg)
 {
   char* buf;
   Py_ssize_t len;
@@ -358,7 +358,7 @@ static PyObject* NextArray_copy_direct(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_extend(ExtArray* self, PyObject* arg)
 {
   Py_ssize_t data_len = self->data_len;
   Py_ssize_t alloc_len = self->alloc_len;
@@ -372,7 +372,7 @@ static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
   while((item = PyIter_Next(iter)) != NULL) {
     alloc(self, self->data_len + 1);
 
-    if(NextArray_setitem((PyObject*)self, self->data_len, item) == -1) {
+    if(ExtArray_setitem((PyObject*)self, self->data_len, item) == -1) {
       if(alloc_len < self->alloc_len) {
         self->memory = self->realloc(self->memory, self->alloc_len, alloc_len);
         self->alloc_len = alloc_len;
@@ -394,7 +394,7 @@ static PyObject* NextArray_extend(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
+static PyObject* ExtArray_fromlist(ExtArray* self, PyObject* list)
 {
   Py_ssize_t data_len = self->data_len;
   Py_ssize_t alloc_len = self->alloc_len;
@@ -404,7 +404,7 @@ static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
   alloc(self, self->data_len + len);
 
   for(i = 0; i < len; i++) {
-    if(NextArray_setitem((PyObject*)self,
+    if(ExtArray_setitem((PyObject*)self,
         self->data_len, PyList_GET_ITEM(list, i)) == -1) {
       if(alloc_len < self->alloc_len) {
         self->memory = self->realloc(self->memory, self->alloc_len, alloc_len);
@@ -423,13 +423,13 @@ static PyObject* NextArray_fromlist(NextArray* self, PyObject* list)
 }
 
 
-static PyObject* NextArray_fromstring(NextArray* self, PyObject* list)
+static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* list)
 {
-  return NextArray_fromlist(self, list);
+  return ExtArray_fromlist(self, list);
 }
 
 
-static PyObject* NextArray_memory_lock(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 {
   if(arg == Py_False) {
     self->lock = 0;
@@ -441,7 +441,7 @@ static PyObject* NextArray_memory_lock(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_set_memory(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 {
   //Py_ssize_t addr;
 
@@ -464,7 +464,7 @@ static PyObject* NextArray_set_memory(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_synchronize(NextArray* self, PyObject* arg)
+static PyObject* ExtArray_synchronize(ExtArray* self, PyObject* arg)
 {
 // TODO - other architectures
 #ifdef __powerpc__
@@ -480,36 +480,36 @@ static PyObject* NextArray_synchronize(NextArray* self, PyObject* arg)
 }
 
 
-static PyObject* NextArray_iter(PyObject* self)
+static PyObject* ExtArray_iter(PyObject* self)
 {
-  ((NextArray*)self)->iter = 0;
+  ((ExtArray*)self)->iter = 0;
   Py_INCREF(self);
   return self;
 }
 
 
-static PyObject* NextArray_iternext(PyObject* self)
+static PyObject* ExtArray_iternext(PyObject* self)
 {
-   NextArray* na = (NextArray*)self;
+   ExtArray* na = (ExtArray*)self;
   if(na->iter == na->data_len) {
     return NULL;
   }
 
   na->iter++;
-  return NextArray_getitem(self, na->iter - 1);
+  return ExtArray_getitem(self, na->iter - 1);
 }
 
 
-static PyObject* NextArray_str(PyObject* self)
+static PyObject* ExtArray_str(PyObject* self)
 {
-  NextArray* na = (NextArray*)self;
+  ExtArray* na = (ExtArray*)self;
   PyObject* str;
 
   if(na->data_len == 0) {
     str = PyString_FromFormat("extarray('%c', [])", na->typecode);
   } else {
     PyObject* sep = PyString_FromString(", ");
-    PyObject* tmp = NextArray_getitem(self, 0);
+    PyObject* tmp = ExtArray_getitem(self, 0);
     Py_ssize_t i;
 
     str = PyString_FromFormat("extarray('%c', [", na->typecode);
@@ -519,7 +519,7 @@ static PyObject* NextArray_str(PyObject* self)
     for(i = 1; i < na->data_len; i++) {
       PyString_Concat(&str, sep);
 
-      tmp = NextArray_getitem(self, i);
+      tmp = ExtArray_getitem(self, i);
       PyString_ConcatAndDel(&str, tmp->ob_type->tp_str(tmp));
       Py_XDECREF(tmp);
     }
@@ -532,15 +532,15 @@ static PyObject* NextArray_str(PyObject* self)
 }
 
 
-static Py_ssize_t NextArray_length(PyObject* self)
+static Py_ssize_t ExtArray_length(PyObject* self)
 {
-  return ((NextArray*)self)->data_len;
+  return ((ExtArray*)self)->data_len;
 }
 
 
-static int NextArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
+static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
 {
-  NextArray* na = (NextArray*)self;
+  ExtArray* na = (ExtArray*)self;
 
   switch(na->typecode) {
   case 'c':
@@ -586,9 +586,9 @@ static int NextArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
 }
 
 
-static PyObject* NextArray_getitem(PyObject* self, Py_ssize_t ind)
+static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind)
 {
-  NextArray* na = (NextArray*)self;
+  ExtArray* na = (ExtArray*)self;
 
   switch(na->typecode) {
   case 'c':
@@ -624,38 +624,38 @@ static PyObject* NextArray_getitem(PyObject* self, Py_ssize_t ind)
 }
 
 
-static PyMemberDef NextArray_members[] = {
-  {"typecode", T_CHAR, offsetof(NextArray, typecode), 0, "typecode"},
-  {"itemsize", T_INT, offsetof(NextArray, itemsize), 0, "itemsize"},
+static PyMemberDef ExtArray_members[] = {
+  {"typecode", T_CHAR, offsetof(ExtArray, typecode), 0, "typecode"},
+  {"itemsize", T_INT, offsetof(ExtArray, itemsize), 0, "itemsize"},
   {NULL}
 };
 
 
-static PyMethodDef NextArray_methods[] = {
-  {"alloc", (PyCFunction)NextArray_alloc, METH_O, "alloc"},
-  {"append", (PyCFunction)NextArray_append, METH_O, "append"},
-  {"buffer_info", (PyCFunction)NextArray_buffer_info, METH_NOARGS, "buffer_info"},
-  {"byteswap", (PyCFunction)NextArray_byteswap, METH_NOARGS, "byteswap"},
-  {"change_type", (PyCFunction)NextArray_change_type, METH_VARARGS, "change_type"},
-  {"clear", (PyCFunction)NextArray_clear, METH_VARARGS, "clear"},
-  {"extend", (PyCFunction)NextArray_extend, METH_O, "extend"},
-  {"copy_direct", (PyCFunction)NextArray_copy_direct, METH_O, "copy_direct"},
-  {"fromlist", (PyCFunction)NextArray_fromlist, METH_O, "fromlist"},
-  {"fromstring", (PyCFunction)NextArray_fromstring, METH_O, "fromstring"},
-  {"memory_lock", (PyCFunction)NextArray_memory_lock, METH_O, "memory_lock"},
-  {"set_memory", (PyCFunction)NextArray_set_memory, METH_O, "set_memory"},
-  {"synchronize", (PyCFunction)NextArray_synchronize, METH_NOARGS, "synchronize"},
+static PyMethodDef ExtArray_methods[] = {
+  {"alloc", (PyCFunction)ExtArray_alloc, METH_O, "alloc"},
+  {"append", (PyCFunction)ExtArray_append, METH_O, "append"},
+  {"buffer_info", (PyCFunction)ExtArray_buffer_info, METH_NOARGS, "buffer_info"},
+  {"byteswap", (PyCFunction)ExtArray_byteswap, METH_NOARGS, "byteswap"},
+  {"change_type", (PyCFunction)ExtArray_change_type, METH_VARARGS, "change_type"},
+  {"clear", (PyCFunction)ExtArray_clear, METH_VARARGS, "clear"},
+  {"extend", (PyCFunction)ExtArray_extend, METH_O, "extend"},
+  {"copy_direct", (PyCFunction)ExtArray_copy_direct, METH_O, "copy_direct"},
+  {"fromlist", (PyCFunction)ExtArray_fromlist, METH_O, "fromlist"},
+  {"fromstring", (PyCFunction)ExtArray_fromstring, METH_O, "fromstring"},
+  {"memory_lock", (PyCFunction)ExtArray_memory_lock, METH_O, "memory_lock"},
+  {"set_memory", (PyCFunction)ExtArray_set_memory, METH_O, "set_memory"},
+  {"synchronize", (PyCFunction)ExtArray_synchronize, METH_NOARGS, "synchronize"},
   {NULL}
 };
 
 
-static PySequenceMethods NextArray_seqmethods = {
-  NextArray_length,               /*sq_length*/
+static PySequenceMethods ExtArray_seqmethods = {
+  ExtArray_length,                /*sq_length*/
   0,                              /*sq_concat*/
   0,                              /*sq_repeat*/
-  NextArray_getitem,              /*sq_item*/
+  ExtArray_getitem,               /*sq_item*/
   0,                              /*sq_slice */
-  NextArray_setitem,              /*sq_ass_item*/
+  ExtArray_setitem,               /*sq_ass_item*/
   0,                              /*sq_ass_slice*/
   0,                              /*sq_contains*/
   0,                              /*sq_inplace_concat*/
@@ -663,46 +663,46 @@ static PySequenceMethods NextArray_seqmethods = {
 };
 
 
-static PyTypeObject NextArrayType = {
+static PyTypeObject ExtArrayType = {
   PyObject_HEAD_INIT(NULL)
   0,                              /*ob_size*/
-  "nextarray.nextarray",          /*tp_name*/
-  sizeof(NextArray),              /*tp_basicsize*/
+  "extarray.extarray",            /*tp_name*/
+  sizeof(ExtArray),               /*tp_basicsize*/
   0,                              /*tp_itemsize*/
-  (destructor)NextArray_dealloc,  /*tp_dealloc*/
+  (destructor)ExtArray_dealloc,   /*tp_dealloc*/
   0,                              /*tp_print*/
   0,                              /*tp_getattr*/
   0,                              /*tp_setattr*/
   0,                              /*tp_compare*/
   0,                              /*tp_repr*/
   0,                              /*tp_as_number*/
-  &NextArray_seqmethods,          /*tp_as_sequence*/
+  &ExtArray_seqmethods,           /*tp_as_sequence*/
   0,                              /*tp_as_mapping*/
   0,                              /*tp_hash */
   0,                              /*tp_call*/
-  NextArray_str,                  /*tp_str*/
+  ExtArray_str,                   /*tp_str*/
   0,                              /*tp_getattro*/
   0,                              /*tp_setattro*/
   0,                              /*tp_as_buffer*/
   Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE, /*tp_flags*/
-  "NextArray",                    /*tp_doc */
+  "ExtArray",                     /*tp_doc */
   0,                              /* tp_traverse */
   0,                              /* tp_clear */
   0,                              /* tp_richcompare */
   0,                              /* tp_weaklistoffset */
-  NextArray_iter,                 /* tp_iter */
-  NextArray_iternext,             /* tp_iternext */
-  NextArray_methods,              /* tp_methods */
-  NextArray_members,              /* tp_members */
+  ExtArray_iter,                  /* tp_iter */
+  ExtArray_iternext,              /* tp_iternext */
+  ExtArray_methods,               /* tp_methods */
+  ExtArray_members,               /* tp_members */
   0,                              /* tp_getset */
   0,                              /* tp_base */
   0,                              /* tp_dict */
   0,                              /* tp_descr_get */
   0,                              /* tp_descr_set */
   0,                              /* tp_dictoffset */
-  (initproc)NextArray_init,       /* tp_init */
+  (initproc)ExtArray_init,        /* tp_init */
   0,                              /* tp_alloc */
-  NextArray_new,                  /* tp_new */
+  ExtArray_new,                   /* tp_new */
 };
 
 static PyMethodDef module_methods[] = {
@@ -710,17 +710,17 @@ static PyMethodDef module_methods[] = {
 };
 
 
-PyMODINIT_FUNC initnextarray(void)
+PyMODINIT_FUNC initextarray(void)
 {
   PyObject* m;
 
-  NextArrayType.tp_new = PyType_GenericNew;
-  if(PyType_Ready(&NextArrayType) < 0) {
+  ExtArrayType.tp_new = PyType_GenericNew;
+  if(PyType_Ready(&ExtArrayType) < 0) {
     return;
   }
 
-  m = Py_InitModule3("nextarray", module_methods, "NextArray");
-  Py_INCREF(&NextArrayType);
-  PyModule_AddObject(m, "nextarray", (PyObject*)&NextArrayType);
+  m = Py_InitModule3("extarray", module_methods, "ExtArray");
+  Py_INCREF(&ExtArrayType);
+  PyModule_AddObject(m, "extarray", (PyObject*)&ExtArrayType);
 }
 
