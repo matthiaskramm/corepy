@@ -28,6 +28,7 @@
 
 import array
 
+import corepy.lib.extarray as extarray
 import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
 import corepy.spre.spe as spe
@@ -36,7 +37,7 @@ import corepy.arch.ppc.lib.util as util
 
 from corepy.spre.syn_util import most_specific
 
-_array_type   = type(array.array('I', [1]))
+_array_type   = type(extarray.extarray('I', [1]))
 INT_ARRAY_SIZES = {'b':16, 'h':8, 'i':4, 'B':16, 'H':8, 'I':4}
 
 
@@ -58,7 +59,7 @@ class BitType(VMXType):
   register_type_id = 'vector'
   array_typecodes = ('c', 'b', 'B', 'h', 'H', 'i', 'I', 'f') # all valid typecodes
   array_typecode  = None # typecode for this class
-  literal_types = (int,long, list, tuple, array)
+  literal_types = (int,long, list, tuple, extarray)
 
   def _upcast(self, other, inst):
     return inst.ex(self, other, type_cls = most_specific(self, other))
@@ -116,7 +117,7 @@ class BitType(VMXType):
         print 'Warning: Variable %s initializer has fewer elements than the corresponding vector: %d < %d' % (
           type(value), len(value), INT_ARRAY_SIZES[self.array_typecode])
       
-      storage = array.array(self.array_typecode, value)
+      storage = extarray.extarray(self.array_typecode, value)
       util.load_vector(self.code, self.reg, storage.buffer_info()[0])
       self.storage = storage
       
@@ -132,8 +133,8 @@ class BitType(VMXType):
         else:
           raise Exception('Unsupported typecode for vector literal splat: ' + str(type(self)))
       else:
-        splat = [self.value for i in range(INT_ARRAY_SIZES[self.array_typecode])]
-        vsplat = array.array(self.array_typecode, splat)
+        splat = [self.value for i in xrange(INT_ARRAY_SIZES[self.array_typecode])]
+        vsplat = extarray.extarray(self.array_typecode, splat)
 
         util.load_vector(self.code, self.reg, vsplat.buffer_info()[0])
         self.code.add_storage(vsplat)
@@ -315,7 +316,7 @@ def TestLiterals():
 
   target.v = vmx.vor.ex(target, w)
   
-  result = array.array('I', [42,42,42,42])
+  result = extarray.extarray('I', [42,42,42,42])
   r_addr = code.acquire_register()
   util.load_word(code, r_addr, result.buffer_info()[0])
 
@@ -324,6 +325,7 @@ def TestLiterals():
   ppc.set_active_code(None)
   vmx.set_active_code(None)
   r = proc.execute(code)
+  print result
   for i in result:
     assert(i == 0)
   # for i in result: print '%08X' % i,
