@@ -130,7 +130,7 @@ class OPCD_A_D_E(MachineInstruction):
   signature = (A, D, E)
 
   def _render(params, operands):
-    return OPCD.render(params['OPCD']) | A.render(operands['A']) | D.render(operands['D']) | E.render(operands['E'])
+    return OPCD11.render(params['OPCD']) | A.render(operands['A']) | D.render(operands['D']) | E.render(operands['E'])
   render = staticmethod(_render)
 
 
@@ -139,7 +139,7 @@ class OPCD_A_T_D_E(MachineInstruction):
   signature = (T3, A, D, E)
 
   def _render(params, operands):
-    return OPCD.render(params['OPCD']) | A.render(operands['A']) | T3.render(operands['T3']), D.render(operands['D']) | E.render(operands['E'])
+    return OPCD11.render(params['OPCD']) | A.render(operands['A']) | T3.render(operands['T3']), D.render(operands['D']) | E.render(operands['E'])
   render = staticmethod(_render)
 
 

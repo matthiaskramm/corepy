@@ -54,6 +54,7 @@ def spu_type(op):
     return T3
   return
 
+# TODO - get rid of these and use the parent classes directly?
 class SPUInstruction(Instruction): pass
 class SPUDispatchInstruction(DispatchInstruction):
   type_id = [spu_type]
@@ -1173,11 +1174,13 @@ class bra(SPUInstruction):
   cycles = (1, 4, 0)
 
 
+# TODO - I16 has two zero bits appended, do I handle this correctly?
+# What is the correct way, anyway?
 class brsl(SPUDispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
-    (OPCD_I16,    {'OPCD':102}),
-    (OPCD_LBL16,  {'OPCD':102}))
+    (OPCD_I16_T,    {'OPCD':102}),
+    (OPCD_LBL16_t,  {'OPCD':102}))
 
 
 class brasl(SPUInstruction):
