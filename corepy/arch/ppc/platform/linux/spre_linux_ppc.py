@@ -165,7 +165,9 @@ class InstructionStream(spe.InstructionStream):
        Used when synthesizing the prologue/epilogue."""
     array.append(ppc.addi(reg, 0, word & 0xFFFF, ignore_active = True))
     if (word & 0xFFFF) != word:
-      array.append(ppc.addis(reg, reg, ((word + 32768) >> 16) & 0xFFFF, ignore_active = True))
+      #print "_load_word vals %x %x %x %x" % ( ((word + 32768) >> 16) & 0xFFFF, word, (word & 0xFFFF0000) >> 16, (word >> 16) & 0xFFFF)
+      #array.append(ppc.addis(reg, reg, ((word + 32768) >> 16) & 0xFFFF, ignore_active = True))
+      array.append(ppc.addis(reg, reg, (word >> 16) & 0xFFFF, ignore_active = True))
     return
 
   def _synthesize_prologue(self):
@@ -189,7 +191,7 @@ class InstructionStream(spe.InstructionStream):
 
     if self._enable_vmx:
       save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
-      self._saved_vx_registers = array.array('I', range(len(save_vx)*4))
+      self._saved_vx_registers = extarray.extarray('I', range(len(save_vx)*4))
 
 
     # Add the instructions to save the registers
@@ -248,7 +250,7 @@ class InstructionStream(spe.InstructionStream):
 
     # Restore vrsave
     if self._enable_vmx:
-      self._epilogue.append(ppc.mtvrsave(self._vrsave))
+      self._epilogue.append(ppc.mtvrsave(self._vrsave, ignore_active = True))
 
     r_addr = GPRegister(13) # Only available volatile register
     r_idx = GPRegister(14)  # Non-volatile; safe to use before restoring
