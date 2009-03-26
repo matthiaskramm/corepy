@@ -55,7 +55,7 @@ def SimpleSPU():
   # Acquire two registers
   #x    = code.acquire_register()
   x = code.gp_return
-  test = code.acquire_register()
+  test = code.acquire_register(reg = 55)
 
   spu.xor(x, x, x) # zero x
   spu.ai(x, x, 11) # x = x + 11
