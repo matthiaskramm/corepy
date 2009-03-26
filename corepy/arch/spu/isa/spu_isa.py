@@ -1180,7 +1180,7 @@ class brsl(SPUDispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16_T,    {'OPCD':102}),
-    (OPCD_LBL16_t,  {'OPCD':102}))
+    (OPCD_LBL16_T,  {'OPCD':102}))
 
 
 class brasl(SPUInstruction):
