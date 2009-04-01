@@ -124,8 +124,7 @@ class Default(object):
 
   def label(self, fd, lbl):
     if self.line_numbers:
-      print >>fd, "\n%d\tLabel(%s)" % (self._line_num, lbl.name)
-      self._line_num += 1
+      print >>fd, "\n\tLabel(%s)" % (lbl.name)
     else:
       print >>fd, "\nLabel(%s)" % lbl.name
     return
