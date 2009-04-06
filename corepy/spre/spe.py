@@ -121,14 +121,12 @@ class RegisterFile(object):
 
     # Get a register and mark that it's been used
     if reg is not None:
-      print "requested reg", reg
       if reg in self._pool:
         #reg = self._pool[reg] # no! bad
         #del self._pool[self._pool.index(reg)]
         reg = self._pool.pop(self._pool.index(reg))
       else:
         raise Exception('Register ' + str(reg) + ' is not available!')
-      print "assigned reg", reg
     else:
       reg = self._pool.pop()
 

@@ -35,7 +35,9 @@ ISA for the Cell Broadband Engine's SPU.
 
 # Only used for branch instructions
 def spu_type(op):
-  if isinstance(op, (int, long)):
+  if isinstance(op, bool):
+    return P
+  elif isinstance(op, (int, long)):
     if I7.fits(op):
       return I7
     if I8.fits(op):
@@ -1218,7 +1220,7 @@ class brhz(SPUDispatchInstruction):
 
 
 class hbra(SPUInstruction):
-  machine_inst = OPCD_ROA_I16
+  machine_inst = OPCD_LBL9_I16
   params = {'OPCD':8}
   cycles = (1, 15, 0)
 

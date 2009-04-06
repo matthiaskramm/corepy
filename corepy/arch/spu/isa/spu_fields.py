@@ -77,6 +77,7 @@ class RegisterField(SPUField):
   def __eq__(self, other):
     return isinstance(other, (RegisterField, Immediate7))
 
+
 class ImmediateField(SPUField):
   def __init__(self, name, position, range, default = None):
     self.range = range
@@ -115,6 +116,8 @@ class ROField(InstructionOperand):
   def render(self, value):
     #return (long(value) & 0x7F) | ((long(value) & 0x180) << 7)
     return ((long(value) & self.bit_masks[0]) << self.shifts[0]) | ((long(value) & self.bit_masks[1]) << self.shifts[1])
+    return ((long(value) >> self.widths[1] & self.bit_masks[0]) <<
+self.shifts[0]) | ((long(value) & self.bit_masks[1]) << self.shifts[1])
 
   def check(self, value):
     return isinstance(value, (int, long)) and self.range[0] <= value and value < self.range[1]

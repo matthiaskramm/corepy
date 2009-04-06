@@ -103,7 +103,16 @@ class OPCD_ROA_I16(MachineInstruction):
   signature = (ROA, I16)
 
   def _render(params, operands):
-    return OPCD7.render(params['OPCD']) | RO.render(operands['RO']) | I16.render(operands['I16'])
+    return OPCD7.render(params['OPCD']) | ROA.render(operands['ROA']) | I16.render(operands['I16'])
+  render = staticmethod(_render)
+
+
+class OPCD_LBL9_I16(MachineInstruction):
+  signature = (LBL9, I16)
+
+  def _render(params, operands):
+    offset = (operands['LBL9'].position - operands['position']) >> 2
+    return OPCD7.render(params['OPCD']) | ROA.render(offset) | I16.render(operands['I16'])
   render = staticmethod(_render)
 
 
@@ -113,7 +122,7 @@ class OPCD_LBL9_LBL16(MachineInstruction):
   def _render(params, operands):
     off9 = (operands['LBL9'].position - operands['position']) >> 2
     off16 = (operands['LBL16'].position - operands['position']) >> 2
-    return OPCD7.render(params['OPCD']) | RO.render(off9) | I16.render(off16)
+    return OPCD7.render(params['OPCD']) | ROA.render(off9) | I16.render(off16)
   render = staticmethod(_render)
 
 
