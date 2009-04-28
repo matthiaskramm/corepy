@@ -595,6 +595,66 @@ unsigned int stat_out_mbox(struct ThreadInfo* ti) {
 }
 
 
+unsigned int stat_read_out_mbox(struct ThreadInfo* ti) {
+  volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4014);
+  volatile unsigned int status;
+
+  //__asm__("eieio");
+
+  //Poll the status register until a message is available
+  do {
+    status = *addr;
+  } while((status & 0xFF) == 0);
+
+  //Manual says to do this, is it necessary?
+  __asm__("eieio");
+
+  addr = (volatile unsigned int*)(ti->spups + 0x4004);
+  return *((volatile unsigned int*)addr);
+}
+
+unsigned int poll_out_mbox(struct ThreadInfo* ti) {
+  unsigned int* addr = (unsigned int*)(ti->spups + 0x4014);
+  int i;
+
+  //Poll the status register until a message is available
+  //while(*addr & 0x1 == 0);
+  for(i = 0; *addr & 0x1 == 0; i++);
+  __asm__("eieio");
+  return i;
+}
+
+
+unsigned int benchmark_mbox(struct ThreadInfo* ti) {
+  volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4014);
+  volatile unsigned int status;
+  int count = 0;
+
+  //Poll the status register until a message is available
+  __asm__("eieio");
+  do {
+    status = *addr;
+  } while((status & 0xFF) == 0);
+
+  //Manual says to do this, is it necessary?
+  __asm__("eieio");
+
+  addr = (volatile unsigned int*)(ti->spups + 0x4004);
+  status = *addr;
+
+  __asm__("eieio");
+  do {
+    count++;
+    status = *addr;
+  } while((status & 0xFF) == 0);
+
+  __asm__("eieio");
+  addr = (volatile unsigned int*)(ti->spups + 0x4004);
+  status = *addr;
+  __asm__("eieio");
+  return count;
+}
+
 unsigned int read_out_ibox(struct ThreadInfo* ti) {
   //Interrupt Mailbox register is Privilege level 2, meaning we cant read it
   //unsigned int* addr = (unsigned int*)(ti->spups + 0x4000);
@@ -618,6 +678,17 @@ unsigned int stat_out_ibox(struct ThreadInfo* ti) {
 void write_in_mbox(struct ThreadInfo* ti, unsigned int data) {
   unsigned int* addr = (unsigned int*)(ti->spups + 0x400C);
   *addr = data;
+}
+
+
+//Write the same data to a list of SPUs
+void write_in_mbox_list(struct ThreadInfo* ti[], int len, unsigned int data) {
+  int i;
+
+  for(i = 0; i < len; i++) {
+    unsigned int* addr = (unsigned int*)(ti[i]->spups + 0x400C);
+    *addr = data;
+  }
 }
 
 
