@@ -222,9 +222,28 @@ static void spufs_close_context(struct spufs_context* ctx) {
 }
 
 
+static int spufs_get_phys_id(struct spufs_context* ctx)
+{
+  int fd = openat(ctx->spu_fd, "phys-id", O_RDONLY);
+  char buf[16] = {0};
+  int len;
+
+  if(fd == -1) {
+    perror("spufs open phys-id");
+  }
+
+  len = read(fd, buf, 16);
+  buf[len - 1] = 0;
+  //printf("phys-id %s psmap_ptr %p mem_ptr %p\n", buf, ctx->psmap_ptr, ctx->mem_ptr);
+
+  return strtol(buf, NULL, 16);
+}
+
+
 static inline int spufs_run(struct spufs_context* ctx, unsigned int* lsa) {
   return syscall(SYS_spu_run, ctx->spu_fd, lsa, NULL);
 }
+
 
 static void spufs_set_signal_mode(struct spufs_context* ctx, int which, int mode) {
   int fd;

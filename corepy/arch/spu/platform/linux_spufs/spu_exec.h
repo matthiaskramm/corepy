@@ -582,6 +582,10 @@ void put_spu_params(struct ThreadInfo* ti) {
   lseek(ti->spu_ctx->regs_fd, 0, SEEK_SET);
 }
 
+int get_phys_id(struct ThreadInfo* ti) {
+  return spufs_get_phys_id(ti->spu_ctx);
+}
+
 
 unsigned int read_out_mbox(struct ThreadInfo* ti) {
   unsigned int* addr = (unsigned int*)(ti->spups + 0x4004);
@@ -626,6 +630,7 @@ unsigned int poll_out_mbox(struct ThreadInfo* ti) {
 
 
 unsigned int benchmark_mbox(struct ThreadInfo* ti) {
+# if 0
   volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4014);
   volatile unsigned int status;
   int count = 0;
@@ -653,6 +658,20 @@ unsigned int benchmark_mbox(struct ThreadInfo* ti) {
   status = *addr;
   __asm__("eieio");
   return count;
+#endif
+
+  volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4004);
+  volatile unsigned int status;
+  int count = 0;
+
+  do {
+    status = *addr;
+  } while(status != 1);
+
+  do {
+    count++;
+    status = *addr;
+  } while(status != 2);
 }
 
 unsigned int read_out_ibox(struct ThreadInfo* ti) {
