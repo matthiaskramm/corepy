@@ -253,7 +253,7 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 #    else:
 #      util.load_word(code, r_sig_mma, addr)
 #      code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
-#
+
 #    if cache == True:
 #      r_sig_mma_cached = True
 #      code.add_storage(ref, r_sig_mma)
@@ -265,24 +265,24 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
     util.load_word(code, r_sig_mma, addr)
     code.add(spu.a(r_sig_mma, r_sig_mma, psmap))
 
-#  r_size_cached = True
-#  ref = "_const_val_4"
-#  r_size = code.get_storage(ref)
-#  if not isinstance(r_size, spu.Register):
-#    r_size_cached = False
-#    r_size = code.acquire_register()
-#    util.load_word(code, r_size, 4)
-#    if cache == True:
-#      r_size_cached = True
-#      code.add_storage(ref, r_size)
+  #r_size_cached = True
+  #ref = "_const_val_4"
+  #r_size = code.get_storage(ref)
+  #if not isinstance(r_size, spu.Register):
+  #  r_size_cached = False
+  #  r_size = code.acquire_register()
+  #  util.load_word(code, r_size, 4)
+  #  if cache == True:
+  #    r_size_cached = True
+  #    code.add_storage(ref, r_size)
 
   r_size = code.acquire_register()
   util.load_word(code, r_size, 4)
 
   mem_put(code, lsa, r_sig_mma, r_size, tag)
   code.release_register(r_size)
-
   code.release_register(r_sig_mma)
+
   #if cache == False:
     #if not isinstance(psmap, (int, long)):
     #if r_size_cached == False:
@@ -323,6 +323,7 @@ def MFC_CMD_WORD(tid, rid, cmd):
 # ------------------------------------------------------------
 
 def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
+#  print "spu_mfcdma32 cmd", cmd, str(cmd)
 #  ref = "__spu_mfcdma32_cmd_%s" % str(cmd)
 #  r_cmd = code.get_storage(ref)
 #  if not isinstance(r_cmd, spu.Register):
