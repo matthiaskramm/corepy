@@ -306,7 +306,9 @@ def mem_complete(code, tag):
   else:
     mfc_write_tag_mask(code, 1 << tag)
     
-  mfc_read_tag_status_all(code)
+  r_status = mfc_read_tag_status_all(code)
+  code.release_register(r_status)
+  return
 
 
 
