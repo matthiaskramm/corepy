@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
 __doc__="""
-SPE for the x86 processor family.
+SPE for the x86_64 processor family.
 """
 
 import corepy.spre.spe as spe
