@@ -35,7 +35,7 @@ import os
 import re
 import StringIO
 
-import corepy.lib.nextarray as nextarray
+import corepy.lib.extarray as extarray
 import corepy.lib.printer as printer
 import corepy.arch.spu.platform as env
 import corepy.arch.spu.isa as spu
@@ -315,7 +315,7 @@ class EditorWindow(wx.Frame):
           continue
         if cmd[-1] == ":":
           # Label - better parsing?
-          code.add(code.get_label(cmd[:-1]))
+          code.add(env.Label(cmd[:-1]))
         else:
           code.add(spu.stop(0x2FFF))
         continue
@@ -325,9 +325,10 @@ class EditorWindow(wx.Frame):
         continue
 
       if cmd != "" and cmd[0] != '#':
+        inst = None
         if cmd[-1] == ":":
           # Label - better parsing?
-          inst = code.get_label(cmd[:-1])
+          inst = env.Label(cmd[:-1])
         else:
           # Instruction
           strcmd = re.sub("Label\((.*?)\)", "code.get_label('\\1')", cmd)
@@ -373,8 +374,8 @@ class RegisterListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.OnBeginEdit)
 
     self.app = app
-    self._cur_regs = nextarray.nextarray('I', 128 * 4)
-    #self._prev_regs = nextarray.nextarray('I', 128 * 4)
+    self._cur_regs = extarray.extarray('I', 128 * 4)
+    #self._prev_regs = extarray.extarray('I', 128 * 4)
     #self._prev_regs.clear()
     return
 
@@ -539,7 +540,7 @@ class LocalStoreListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.base = 16
     self._cur_ls = app.localstore
     self.app = app
-    #self._prev_ls = nextarray.nextarray('I', 16384 * 4)
+    #self._prev_ls = extarray.extarray('I', 16384 * 4)
     #self._prev_ls.clear()
     return
 
@@ -691,7 +692,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     self.app = app
 
     self._cur_ls = app.localstore
-    self._array = nextarray.nextarray('I', 1)
+    self._array = extarray.extarray('I', 1)
     self._filename = "/proc/%d/maps" % os.getpid()
     self._map_cache = 0
     return
@@ -953,7 +954,7 @@ class SPUApp(wx.App):
 
     env.spu_exec.run_stream(ctx, code.inst_addr(), code_len, code_lsa, code_lsa)
 
-    self.localstore = nextarray.nextarray('I', 262144 / 4)
+    self.localstore = extarray.extarray('I', 262144 / 4)
     print "spuls", ctx.spuls, type(ctx.spuls)
     self.localstore.set_memory(ctx.spuls)
     return
