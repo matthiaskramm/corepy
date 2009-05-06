@@ -708,6 +708,12 @@ class Label(object):
     self.position = pos
 
 
+class AlignStream(object):
+  def __init__(self, align):
+    self.align = align
+    return
+
+
 class InstructionStream(object):
   """
   InstructionStream mantains ABI compliance and code cache
@@ -979,6 +985,11 @@ class InstructionStream(object):
 
     return len(self._instructions)
 
+  def align(self, align):
+    obj = AlignStream(align)
+    self._instructions.append(obj)
+    return
+
   def size(self): return len(self._instructions)
   def __len__(self): return self.size()
 
@@ -1057,6 +1068,13 @@ class InstructionStream(object):
               render_code.append(0xFFFFFFFF)
         elif isinstance(obj, Label): # Label, fill in a zero-length slot
           obj.set_position(len(render_code) * 4)
+        elif isinstance(obj, AlignStream):
+          # Call arch-specific alignment.
+          # give it the desired alignment and current alignment.
+          # should return an array of instructions to render
+          insts = self._align_stream(len(render_code) * 4, obj.align)
+          for i in insts:
+            render_code.append(i.render())
 
     # Render the instructions with forward label references
     for rec in fwd_ref_list:
@@ -1131,6 +1149,7 @@ class InstructionStream(object):
 
     if self._cached == True:
       return
+
 
     self._synthesize_prologue()
     self._prologue.append(self.lbl_body)

@@ -582,6 +582,7 @@ void put_spu_params(struct ThreadInfo* ti) {
   lseek(ti->spu_ctx->regs_fd, 0, SEEK_SET);
 }
 
+
 int get_phys_id(struct ThreadInfo* ti) {
   return spufs_get_phys_id(ti->spu_ctx);
 }

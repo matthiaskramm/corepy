@@ -199,21 +199,21 @@ class InstructionStream(spe.InstructionStream):
     return
 
 
-  def align_code(self, boundary):
-    """
-    Insert the appropraite nop/lnops to align the next instruction
-    on the byte boudary.  boundary must be a multiple of four.
-    """
-    word_align = boundary / 4
+  #def align_code(self, boundary):
+  #  """
+  #  Insert the appropraite nop/lnops to align the next instruction
+  #  on the byte boudary.  boundary must be a multiple of four.
+  #  """
+  #  word_align = boundary / 4
 
-    # TODO - AWF - thanks to labels, this won't work quite right anymore  
-    while len(self._instructions) % word_align:
-      if len(self._instructions) % 2 == 0:
-        self.add(spu.nop(0), True)
-      else:
-        self.add(spu.lnop(), True)
+  #  # TODO - AWF - thanks to labels, this won't work quite right anymore  
+  #  while len(self._instructions) % word_align:
+  #    if len(self._instructions) % 2 == 0:
+  #      self.add(spu.nop(0), True)
+  #    else:
+  #      self.add(spu.lnop(), True)
 
-    return
+  #  return
 
   def add(self, inst, optimize_override = False):
 
@@ -252,6 +252,31 @@ class InstructionStream(spe.InstructionStream):
       spe.InstructionStream.add(self, inst)
 
     return len(self._instructions)
+
+  def _align_stream(self, length, align):
+    # Return nop's such that length % align = 0
+    if align % 4 != 0:
+      raise Exception("SPU InstructionStream alignment must be a multiple of 4 bytes")
+    length /= 4
+    align /= 4
+
+    mod = align - (length % align)
+    # need mod instructions to achieve alignment
+
+    ret = []
+    if mod % 2 == 0:
+      nop_pair = (spu.nop(self.r_zero, ignore_active = True), spu.lnop(ignore_active = True))
+      # issue mod / 2 nop/lnop pairs
+      for i in xrange(0, mod / 2):
+        ret.extend(nop_pair)
+    else:
+      # issue an lnop, then (mod - 1) / 2 nop/lnop pairs
+      nop_pair = (spu.lnop(ignore_active = True), spu.nop(self.r_zero, ignore_active = True))
+      for i in xrange(0, mod / 2):
+        ret.extend(nop_pair)
+      ret.append(spu.lnop(ignore_active = True))
+
+    return ret
 
 
   def acquire_localstore(self, size):

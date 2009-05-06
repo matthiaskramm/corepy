@@ -55,6 +55,8 @@ def PrintInstructionStream(code, module, fd = sys.stdout):
       module.instruction(fd, obj)
     elif isinstance(obj, spe.Label):
       module.label(fd, obj)
+    elif isinstance(obj, spe.AlignStream):
+      print " # ALIGN STREAM"
     else:
       raise Exception("Unknown object in instruction stream: %s" % str(obj))
 
