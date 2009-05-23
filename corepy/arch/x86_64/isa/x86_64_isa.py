@@ -2529,7 +2529,7 @@ class addsd(x86DispatchInstruction):
 class addss(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF3]}),
-    (xmm_mem128,   {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF3]}))
+    (xmm_mem32,   {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
 class addsubpd(x86DispatchInstruction):
@@ -2990,7 +2990,7 @@ class divsd(x86DispatchInstruction):
 class divss(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF3]}),
-    (xmm_mem64,      {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF3]}))
+    (xmm_mem32,      {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
 class dppd(x86DispatchInstruction):
@@ -3014,7 +3014,7 @@ class extractps(x86DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}),
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}),
-    (mem32_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}))
+    (mem32_xmm_imm8,     {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}))
  # TODO - ugh, this make the printer not emit 'dword' for the mem32 case
  #arch_ext = 4
 
@@ -3628,19 +3628,19 @@ class pextrb(x86DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}),
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}),
-    (mem8_xmm_imm8,  {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}))
+    (mem8_xmm_imm8,      {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
 class pextrd(x86DispatchInstruction):
   dispatch = (
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}),
-    (mem32_xmm_imm8, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
+    (mem32_xmm_imm8,     {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
 class pextrq(x86DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}),
-    (mem64_xmm_imm8, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
+    (mem64_xmm_imm8,     {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
 class pextrw(x86DispatchInstruction):
@@ -4288,7 +4288,7 @@ class roundps(x86DispatchInstruction):
 class roundsd(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0B], 'modrm':None, 'prefix':[0x66]}),
-    (xmm_mem64_imm8, {'opcode':[0x0F, 0x3A, 0x0B], 'modrm':None, 'prefix':[0x66]}))
+    (xmm_mem64_imm8,  {'opcode':[0x0F, 0x3A, 0x0B], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
 class roundss(x86DispatchInstruction):
@@ -4342,7 +4342,7 @@ class sqrtsd(x86DispatchInstruction):
 class sqrtss(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF3]}),
-    (xmm_mem128, {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF3]}))
+    (xmm_mem32 , {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
 class stmxcsr(x86Instruction):
@@ -4371,7 +4371,7 @@ class subsd(x86DispatchInstruction):
 class subss(x86DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF3]}),
-    (xmm_mem128, {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF3]}))
+    (xmm_mem32,  {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
 class ucomisd(x86DispatchInstruction):
