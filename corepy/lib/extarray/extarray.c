@@ -546,34 +546,34 @@ static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
   case 'c':
   case 'b':
     ((char*)na->memory)[ind] = PyLong_AsLong(val);
-    return 0;
+    break;
   case 'B':
     ((unsigned char*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
-    return 0;
+    break;
   case 'h':
     ((short*)na->memory)[ind] = PyLong_AsLong(val);
-    return 0;
+    break;
   case 'H':
     ((unsigned short*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
-    return 0;
+    break;
   case 'i':
     ((int*)na->memory)[ind] = PyLong_AsLong(val);
-    return 0;
+    break;
   case 'I':
     ((unsigned int*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
-    return 0;
+    break;
   case 'l':
     ((long*)na->memory)[ind] = PyLong_AsLong(val);
-    return 0;
+    break;
   case 'L':
     ((unsigned long*)na->memory)[ind] = PyLong_AsUnsignedLongMask(val);
-    return 0;
+    break;
   case 'f':
     ((float*)na->memory)[ind] = PyFloat_AsDouble(val);
-    return 0;
+    break;
   case 'd':
     ((double*)na->memory)[ind] = PyFloat_AsDouble(val);
-    return 0;
+    break;
   case 'u':
     PyErr_SetString(PyExc_NotImplementedError,
         "Unicode not supported by extarray");
@@ -583,6 +583,13 @@ static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
     PyErr_SetString(PyExc_TypeError, "Unknown array type specified");
     return -1;
   }
+
+  if(PyErr_Occurred() != NULL) {
+    PyErr_Format(PyExc_TypeError, "Invalid argument type for array type '%c'", na->typecode);
+    return -1;
+  }
+
+  return 0;
 }
 
 
