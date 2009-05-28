@@ -85,6 +85,16 @@ elif py_platform == "linux-x86_64":
   OS = 'linux'
   ARCH = 'x86_64'
   #BITS = '64'
+
+  if path.exists("/usr/lib/libaticalrt.so"):
+    print "CAL is available; enabling CAL GPU support"
+    ext_modules.append(
+        Extension('corepy.arch.cal.platform.linux.cal_exec',
+                  sources=['corepy/arch/cal/platform/linux/cal_exec.c'],
+                  include_dirs=['/usr/local/atical/include'],
+                  depends = [],
+                  libraries = ['aticalrt', 'aticalcl']))
+
 elif py_platform == "linux-i686":
   OS = 'linux'
   ARCH = 'x86'

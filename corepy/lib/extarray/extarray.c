@@ -10,6 +10,7 @@
 typedef struct ExtArray {
   PyObject_HEAD
 
+  PyObject* attr_dict;
   char typecode;
   char huge;
   char lock;
@@ -182,6 +183,9 @@ ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
     self->data_len = 0;
   } else if(PyInt_Check(init)) {
     self->data_len = PyInt_AsLong(init);
+    alloc(self, self->data_len);
+  } else if(PyLong_Check(init)) {
+    self->data_len = PyLong_AsLong(init);
     alloc(self, self->data_len);
   } else if(PySequence_Check(init)) {
     PyObject* item;
@@ -634,6 +638,7 @@ static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind)
 static PyMemberDef ExtArray_members[] = {
   {"typecode", T_CHAR, offsetof(ExtArray, typecode), 0, "typecode"},
   {"itemsize", T_INT, offsetof(ExtArray, itemsize), 0, "itemsize"},
+  {"data_len", T_INT, offsetof(ExtArray, data_len), 0, "data_len"},
   {NULL}
 };
 
@@ -688,8 +693,8 @@ static PyTypeObject ExtArrayType = {
   0,                              /*tp_hash */
   0,                              /*tp_call*/
   ExtArray_str,                   /*tp_str*/
-  0,                              /*tp_getattro*/
-  0,                              /*tp_setattro*/
+  PyObject_GenericGetAttr,        /*tp_getattro*/
+  PyObject_GenericSetAttr,        /*tp_setattro*/
   0,                              /*tp_as_buffer*/
   Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE, /*tp_flags*/
   "ExtArray",                     /*tp_doc */
@@ -701,12 +706,13 @@ static PyTypeObject ExtArrayType = {
   ExtArray_iternext,              /* tp_iternext */
   ExtArray_methods,               /* tp_methods */
   ExtArray_members,               /* tp_members */
-  0,                              /* tp_getset */
+  //ExtArray_getset,                /* tp_getset */
+  0,
   0,                              /* tp_base */
   0,                              /* tp_dict */
   0,                              /* tp_descr_get */
   0,                              /* tp_descr_set */
-  0,                              /* tp_dictoffset */
+  offsetof(ExtArray, attr_dict),  /* tp_dictoffset */
   (initproc)ExtArray_init,        /* tp_init */
   0,                              /* tp_alloc */
   ExtArray_new,                   /* tp_new */
