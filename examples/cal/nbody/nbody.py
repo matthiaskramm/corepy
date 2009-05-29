@@ -417,13 +417,13 @@ if __name__ == '__main__':
     vel[0][i * 4 + 2] = 0.0
     vel[0][i * 4 + 3] = 0.0
 
-  code = cal_nb_generate_local(SQRT_NBODIES, DT, 2)
+  code = cal_nb_generate_2d(SQRT_NBODIES, DT)
   code.cache_code()
   print code.render_string
 
-  code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES, env.cal_exec.FMT_FLOAT32_4))
+  #code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES, env.cal_exec.FMT_FLOAT32_4))
 
-  assert(False)
+  #assert(False)
 
   t1 = time.time()
   for i in xrange(0, STEPS, 2):
