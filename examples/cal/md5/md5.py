@@ -180,6 +180,7 @@ def MD5Transform(state, block, blocki):
   for i in range(4):
     input_state[i] = state[i]
   Decode(input_block, block, blocki, 64)
+  #print map(hex, input_block)
 
   global xcode
   if xcode == None:
@@ -314,8 +315,8 @@ def MD5Transform(state, block, blocki):
     for xi in x:
       xcode.release_register(xi)
 
-    for i, inst in enumerate(xcode._instructions):
-      print i, inst.render()
+    #for i, inst in enumerate(xcode._instructions):
+    #  print inst.render()
 
   xcode.set_remote_binding('cb0', input_state)
   xcode.set_remote_binding('cb1', input_block)
@@ -328,6 +329,9 @@ def MD5Transform(state, block, blocki):
   state[1] += output[1]
   state[2] += output[2]
   state[3] += output[3]
+
+  print 'input  = ', map(hex, input_state)
+  print 'output = ', map(hex, output)
 
   proc.free_remote(input_state)
   proc.free_remote(input_block)
@@ -353,11 +357,13 @@ def MD5Update(context, input, inputLen):
   if inputLen >= partLen:
     for i in range(partLen):
       context.buffer[index + i] = input[i]
+    print map(hex, context.state)
     MD5Transform (context.state, context.buffer, 0)
-
+    print map(hex, context.state)
     i = partLen
     while i + 63 < inputLen:
       MD5Transform (context.state, input, i);
+      print map(hex, context.state)
       i += 64
     index = 0
     _i = i
@@ -385,6 +391,7 @@ def MD5Final(digest, context):
     padLen = 120 - index
   MD5Update(context, PADDING, padLen)
   MD5Update(context, bits, 8)
+  print map(hex, context.state)
   Encode(digest, context.state, 16)
 
 def MD5(s):
