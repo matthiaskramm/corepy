@@ -146,7 +146,6 @@ class x86PrefixOperand(x86InstructionOperand):
     x86InstructionOperand.__init__(self, name)
 
   def check(self, value):
-    print self.name, "prefix value", self.value, value
     return True
 
 
