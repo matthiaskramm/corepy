@@ -90,7 +90,7 @@ rel8off_t  = Rel8off("rel8off",  (-128, 128))
 rel32off_t = Rel32off("rel32off", (-2147483648, 2147483648))
 
 # Prefix bytes
-prefix = []
+#prefix = []
 lock_p = x86PrefixOperand("lock", 0xF0)
 addr_p = x86PrefixOperand("addr", 0x67)
 
@@ -451,11 +451,14 @@ class lbl8off(MachineInstruction):
 
 class mem128(MachineInstruction):
   signature = (mem128_t,)
-  opt_kw = ()
+  opt_kw = (lock_p,)
 
   # Only cmpxchg16b uses this -- if something else does, it might not be correct.
   def _render(params, operands):
-    return common_memref(params['opcode'], operands['mem128'], params['modrm'], 0x08)
+    ret = common_memref(params['opcode'], operands['mem128'], params['modrm'], 0x08)
+    if operands.has_key('lock') and operands['lock'] == True and ret is not None:
+      return [lock_p.value] + ret
+    return ret
   render = staticmethod(_render)
 
 
@@ -658,8 +661,8 @@ class mem32_reg32(MachineInstruction):
     # it in every operand combination function that supports lock.  Same thing
     # for all the other prefixes..
     # Should it go into common_memref?
-    if operands.has_key('lock') and operands['lock'] == True:
-      ret = [lock_p.value] + ret
+    if operands.has_key('lock') and operands['lock'] == True and ret is not None:
+      return [lock_p.value] + ret
     return ret
     #return common_memref32(params['opcode'], operands['mem32'], operands['reg32'].reg << 3)
   render = staticmethod(_render)
@@ -734,14 +737,17 @@ class mem512(MachineInstruction):
 
 class mem64(MachineInstruction):
   signature = (mem64_t,)
-  opt_kw = ()
+  opt_kw = (lock_p,)
   
   def _render(params, operands):
     # TODO - there are a number of 64-bit default instructions that don't need
     # the 0x08 in the REX -- it doesn't hurt them to have it, but causes test
     # failures.
     #return common_memref(params['opcode'], operands['mem64'], params['modrm'])
-    return common_memref(params['opcode'], operands['mem64'], params['modrm'], 0x08)
+    ret = common_memref(params['opcode'], operands['mem64'], params['modrm'], 0x08)
+    if operands.has_key('lock') and operands['lock'] == True and ret is not None:
+      return [lock_p.value] + ret
+    return ret
   render = staticmethod(_render)
 
 
@@ -798,11 +804,14 @@ class mem64_imm8(MachineInstruction):
 
 class mem64_reg64(MachineInstruction):
   signature = (mem64_t, reg64_t)
-  opt_kw = ()
+  opt_kw = (lock_p,)
   
   def _render(params, operands):
     reg64 = operands['reg64']
-    return common_memref(params['opcode'], operands['mem64'], reg64.reg << 3, 0x08 | (reg64.rex << 2))
+    ret = common_memref(params['opcode'], operands['mem64'], reg64.reg << 3, 0x08 | (reg64.rex << 2))
+    if operands.has_key('lock') and operands['lock'] == True and ret is not None:
+      return [lock_p.value] + ret
+    return ret
   render = staticmethod(_render)
 
 
