@@ -32,10 +32,7 @@ platform_imports = [
   'Processor', 'InstructionStream', 'cal_exec']
 
 
-if conf.OS == 'linux':
-  platform_string = 'linux.spre_linux_cal'
-else:
-  platform_string = 'spre_dummy_spu'
+platform_string = '%(os)s.spre_%(os)s_cal' % {'os': conf.OS}
 
 
 print '# Platform:', platform_string
@@ -43,7 +40,4 @@ platform_module = __import__(platform_string, globals(), locals(), platform_impo
 
 for cls in platform_imports:
   locals()[cls] = getattr(platform_module, cls)
-  
-# class _Empty: pass
-# synbuffer = _Empty()
 

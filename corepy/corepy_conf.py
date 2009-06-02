@@ -31,40 +31,33 @@ import os
 sys_info = os.uname()
 
 # Very basic architecture detection...
-if sys_info[0] == 'Darwin' and sys_info[-1] == 'Power Macintosh':
+if sys_info[0] == 'Darwin': 
   OS = 'osx'
-  ARCH = 'ppc'
-  #BITS = 32
-elif sys_info[0] == 'Darwin' and sys_info[-1] == 'i386':
-  OS = 'osx'
-  import sys
-  if sys.maxint == 9223372036854775807: # 64bit python?
-    ARCH = 'x86_64'
-    #BITS = 64
-  else: # assumed 32bit
-    ARCH = 'x86'
-    #BITS = 32
-elif sys_info[0] == 'Linux' and sys_info[-1] == 'ppc64':
+
+  if sys_info[-1] == 'Power Macintosh':
+    ARCH = 'ppc'
+  elif sys_info[-1] == 'i386':
+    import sys
+    if sys.maxint == 9223372036854775807: # 64bit python?
+      ARCH = 'x86_64'
+    else: # assumed 32bit
+      ARCH = 'x86'
+elif sys_info[0] == 'Linux':
   OS = 'linux'
-  ARCH = 'ppc'
-  #BITS = 64
+  if sys_info[-1] == 'ppc64':
+    ARCH = 'ppc'
+  elif sys_info[-1] == 'i686':
+    ARCH = 'x86'
+  elif sys_info[-1] == 'x86_64':
+    ARCH = 'x86_64'
 
   #cpus = [line.split(':')[1] for line in open('/proc/cpuinfo').readlines() if line[:3] == 'cpu']
   #if len(cpus) > 0 and cpus[0][:5] == ' Cell':
   #  ARCH = 'cell'
   #  OS = 'linux'
-elif sys_info[0] == 'Linux' and sys_info[-1] == 'i686':
-  OS = 'linux'
-  ARCH = 'x86'
-  #BITS = 32
-elif sys_info[0] == 'Linux' and sys_info[-1] == 'x86_64':
-  OS = 'linux'
-  ARCH = 'x86_64'
-  #BITS = 64
 else:
   print "Unsupported architecture: Using 'dummy' settings"
   OS = 'dummy'
   ARCH = 'dummy'
-  #BITS = 0
 
 

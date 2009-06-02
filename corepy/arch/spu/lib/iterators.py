@@ -912,7 +912,7 @@ class parallel(object):
       self._update_inc_count()
     
     if align and branch:
-      self.obj.code.align_code(16)
+      self.obj.code.align(16)
       # Align the start of the loop on a 16 byte boundary
 #      while (code.size()) % 4 != 0:
 #        if code.size() % 2 == 0:
