@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
-# All rights reserved.                                                          
-#                                                                               
-# Redistribution and use in source and binary forms, with or without            
-# modification, are permitted provided that the following conditions are met:   
-# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
+# Copyright (c) 2006-2009 The Trustees of Indiana University.                   
 # All rights reserved.                                                          
 #                                                                               
 # Redistribution and use in source and binary forms, with or without            
