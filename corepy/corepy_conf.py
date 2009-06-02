@@ -28,6 +28,8 @@
 
 import os
 
+VERBOSE = False
+
 sys_info = os.uname()
 
 # Very basic architecture detection...

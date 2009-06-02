@@ -35,7 +35,9 @@ platform_imports = [
 platform_string = '%(os)s.spre_%(os)s_cal' % {'os': conf.OS}
 
 
-print '# Platform:', platform_string
+if conf.VERBOSE:
+  print '# Platform:', platform_string
+
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 
 for cls in platform_imports:

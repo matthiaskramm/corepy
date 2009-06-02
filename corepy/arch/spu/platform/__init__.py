@@ -43,7 +43,9 @@ else:
   platform_string = 'spre_dummy_spu'
 
 
-print '# Platform:', platform_string
+if conf.VERBOSE:
+  print '# Platform:', platform_string
+
 platform_module = __import__(platform_string, globals(), locals(), platform_imports)
 
 for cls in platform_imports:
