@@ -25,9 +25,12 @@ typedef struct ExtArray {
 
   void* (*realloc)(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize);
   void (*free)(void* mem);
+
+  struct ExtArray* arr_ref;
 } ExtArray;
 
 
+static PyTypeObject ExtArrayType;
 static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val);
 static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind);
 
@@ -51,6 +54,8 @@ ExtArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
     self->memory = NULL;
     self->realloc = NULL;
     self->free = NULL;
+
+    self->arr_ref = NULL;
   }
 
   return (PyObject*)self;
@@ -153,6 +158,8 @@ ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
   self->alloc_len = 0;
   self->memory = NULL;
 
+  self->arr_ref = NULL;
+
   //TODO - replace has_huge_pages with a define
   if(huge == 1 && has_huge_pages() == 0) {
     PyErr_SetString(PyExc_MemoryError,
@@ -216,6 +223,10 @@ ExtArray_dealloc(ExtArray* self)
     printf("Freeing memory at %p\n", self->memory);
 #endif
     self->free(self->memory);
+  }
+
+  if(self->arr_ref != NULL) {
+    Py_DECREF(self->arr_ref);
   }
 
   self->ob_type->tp_free((PyObject*)self);
@@ -461,6 +472,7 @@ static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 
   //self->memory = (void*)addr;
   self->memory = (void*)PyLong_AsUnsignedLong(arg);
+  self->alloc_len = 0;
   self->lock = 1;
 
   Py_INCREF(Py_None);
@@ -635,6 +647,85 @@ static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind)
 }
 
 
+static PyObject* ExtArray_getslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2)
+{
+  ExtArray* arr = (ExtArray*)self;
+  ExtArray* new_arr;
+
+  if(i2 == INT_MAX) {
+    i2 = arr->data_len;
+  }
+
+  //Create a new object using this array's memory backing it, and memory locked
+  new_arr = PyObject_New(ExtArray, &ExtArrayType);
+
+  new_arr->typecode = arr->typecode;
+  new_arr->itemsize = arr->itemsize;
+
+  //Memory should always be locked
+  //TODO - add an additional lock not controllable by the user?
+  new_arr->huge = arr->huge;
+  new_arr->realloc = arr->realloc;
+  new_arr->free = arr->free;
+  new_arr->page_size = arr->page_size;
+
+  new_arr->lock = 1;
+  new_arr->alloc_len = 0;
+
+  if(i2 <= i1) {
+    //Return an empty array
+    new_arr->memory = NULL;
+    new_arr->data_len = 0;
+  } else {
+    new_arr->memory = (char*)arr->memory + i1 * arr->itemsize;
+    new_arr->data_len = i2 - i1;
+  }
+
+  new_arr->arr_ref = arr;
+  Py_INCREF(arr);
+  return (PyObject*)new_arr;
+}
+
+
+static int ExtArray_setslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2, PyObject* v)
+{
+  ExtArray* arr = (ExtArray*)self;
+  PyObject* seq;
+  PyObject** items;
+  int len;
+  int i;
+
+  if(i2 == INT_MAX) {
+    i2 = arr->data_len;
+  }
+
+  seq = PySequence_Fast(v, NULL);
+  if(seq == NULL) {
+    return -1;
+  }
+
+  len = PySequence_Fast_GET_SIZE(seq);
+
+  if(i2 - i1 != len) {
+    printf("setslice range error %d %d %d %d\n", i2, i1, i2 - i1, len);
+    Py_DECREF(seq);
+    return -1;
+  }
+
+  items = PySequence_Fast_ITEMS(seq);
+
+  for(i = 0; i < len; i++) {
+    if(ExtArray_setitem(self, i1 + i, items[i]) == -1) {
+      Py_DECREF(seq);
+      return -1;
+    }
+  }
+
+  Py_DECREF(seq);
+  return 0;
+}
+
+
 static PyMemberDef ExtArray_members[] = {
   {"typecode", T_CHAR, offsetof(ExtArray, typecode), 0, "typecode"},
   {"itemsize", T_INT, offsetof(ExtArray, itemsize), 0, "itemsize"},
@@ -666,9 +757,9 @@ static PySequenceMethods ExtArray_seqmethods = {
   0,                              /*sq_concat*/
   0,                              /*sq_repeat*/
   ExtArray_getitem,               /*sq_item*/
-  0,                              /*sq_slice */
+  ExtArray_getslice,              /*sq_slice */
   ExtArray_setitem,               /*sq_ass_item*/
-  0,                              /*sq_ass_slice*/
+  ExtArray_setslice,              /*sq_ass_slice*/
   0,                              /*sq_contains*/
   0,                              /*sq_inplace_concat*/
   0                               /*sq_inplace_repeat*/
