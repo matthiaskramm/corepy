@@ -707,7 +707,7 @@ static int ExtArray_setslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2, PyObj
   len = PySequence_Fast_GET_SIZE(seq);
 
   if(i2 - i1 != len) {
-    printf("setslice range error %d %d %d %d\n", i2, i1, i2 - i1, len);
+    PyErr_BadArgument();
     Py_DECREF(seq);
     return -1;
   }
