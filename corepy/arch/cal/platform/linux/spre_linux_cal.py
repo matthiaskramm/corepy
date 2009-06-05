@@ -145,14 +145,26 @@ class InstructionStream(spe.InstructionStream):
   # GPU memory binding management
 
   def set_remote_binding(self, regname, arr):
-    if not isinstance(arr, extarray.extarray) or not hasattr(arr, "gpu_mem_handle"):
-      raise Exception("Not an extarray with a GPU memory handle")
+    if isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle"):
+      binding = arr.gpu_mem_handle
+    else:
+      try:
+        import numpy
+      except ImportError:
+        raise ImportError("alloc_remote_npy() requires NumPy")
+
+      if not isinstance(arr, numpy.ndarray) and isinstance(arr.base, cal_exec.CALMemBuffer):
+        raise Exception("Not NumPy with a GPU memory buffer")
+
+      buf = arr.base
+      binding = [buf.pointer, buf.pitch, buf.res]
 
     if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
       regname = regname.name
 
     self._remote_bindings_arr[regname] = arr
-    self._remote_bindings[regname] = arr.gpu_mem_handle
+    self._remote_bindings[regname] = binding
+
     return
 
   def get_remote_binding(self, regname):
@@ -207,8 +219,18 @@ class Processor(spe.Processor):
       cal_exec.run_stream(code.render_code,
           self.device, domain, code._local_bindings, code._remote_bindings)
 
-      for arr in code._remote_bindings_arr.values():
-        arr.set_memory(arr.gpu_mem_handle[0])
+      try:
+        import numpy
+
+        for (key, arr) in code._remote_bindings_arr:
+          if isinstance(arr, extarray.extarray):
+            arr.set_memory(arr.gpu_mem_handle[0])
+          elif isinstance(arr, numpy.ndarray):
+            cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
+
+      except ImportError:
+        for arr in code._remote_bindings_arr.values():
+          arr.set_memory(arr.gpu_mem_handle[0])
       return
 
 
@@ -268,6 +290,60 @@ class Processor(spe.Processor):
     arr.gpu_width = width
     arr.gpu_pitch = mem[1]
     return arr
+
+
+  def alloc_remote_npy(self, typecode, comps, width, height = 1, globl = False):
+    try:
+      import numpy
+    except ImportError:
+      raise ImportError("alloc_remote_npy() requires NumPy")
+
+    if typecode == 'f':
+      if comps == 1:
+        fmt = cal_exec.FMT_FLOAT32_1
+      elif comps == 2:
+        fmt = cal_exec.FMT_FLOAT32_2
+      elif comps == 4:
+        fmt = cal_exec.FMT_FLOAT32_4
+      else:
+        raise Exception("Number of components must be 1, 2, or 4")
+      dtype = numpy.float32
+    elif typecode == 'i':
+      if comps == 1:
+        fmt = cal_exec.FMT_SIGNED_INT32_1
+      elif comps == 2:
+        fmt = cal_exec.FMT_SIGNED_INT32_2
+      elif comps == 4:
+        fmt = cal_exec.FMT_SIGNED_INT32_4
+      else:
+        raise Exception("Number of components must be 1, 2, or 4")
+      dtype = numpy.int32
+    elif typecode == 'I':
+      if comps == 1:
+        fmt = cal_exec.FMT_UNSIGNED_INT32_1
+      elif comps == 2:
+        fmt = cal_exec.FMT_UNSIGNED_INT32_2
+      elif comps == 4:
+        fmt = cal_exec.FMT_UNSIGNED_INT32_4
+      else:
+        raise Exception("Number of components must be 1, 2, or 4")
+      dtype = numpy.uint32
+    else:
+      raise Exception("Unsupported data type: " + str(typecode))
+
+    if globl:
+      globl = cal_exec.GLOBAL_BUFFER
+
+    buf = cal_exec.calmembuffer(self.device, fmt, width, height, globl)
+    arr = numpy.frombuffer(buf, dtype=dtype)
+
+    if height == 1:
+      arr.shape = (width, comps)
+    else:
+      arr.shape = (width, height, comps)
+
+    return arr
+  
 
 
   def free_remote(self, arr):
@@ -384,9 +460,67 @@ def TestSimpleKernel():
   return
 
 
+def TestSimpleKernelNPy():
+  import corepy.arch.cal.isa as isa
+
+  SIZE = 128
+
+  proc = Processor(0)
+
+  arr_input = proc.alloc_remote_npy('f', 4, SIZE, SIZE)
+  arr_output = proc.alloc_remote_npy('f', 4, SIZE, SIZE)
+
+  #for i in xrange(0, SIZE * SIZE * 4):
+  #  arr_input[i] = float(i + 1)
+  #  arr_output[i] = 0.0
+  print arr_input.shape
+  print arr_output.shape
+
+  val = 0.0
+  for i in xrange(0, SIZE):
+    for j in xrange(0, SIZE):
+      for k in xrange(0, 4):
+        arr_input[i][j][k] = val
+        arr_output[i][j][k] = 0.0
+        val += 1.0
+
+  # build and run the kernel
+  code = InstructionStream()  
+  #code.add(isa.dcl_input('v0', USAGE=isa.usage.pos, INTERP='linear_noperspective'))
+  code.add("dcl_input_position_interp(constant) v0.xy__")
+  code.add(isa.dcl_output('o0', USAGE=isa.usage.generic))
+  code.add(isa.dcl_resource(0, '2d', isa.fmt.float, UNNORM=True))
+  code.add(isa.sample(0, 0, 'o0', 'v0.xy'))
+  #code.add(isa.load(0, 'o0', 'v0.g'))
+  code.cache_code()
+  print code.render_string
+
+  domain = (0, 0, SIZE, SIZE)
+  code.set_remote_binding("o0", arr_output)
+  code.set_remote_binding("i0", arr_input)
+
+  proc.execute(code, domain)
+
+  # Check the output
+  val = 0.0
+  for i in xrange(0, SIZE):
+    for j in xrange(0, SIZE):
+      for k in xrange(0, 4):
+        if arr_output[i][j][k] != val:
+          print "ERROR index %d is %f, should be %f" % (i, arr_output[i], val)
+        val += 1.0
+
+  return
+
+
 if __name__ == '__main__':
   print "GPUs available:", N_GPUS
   #TestCompileExec()
   #TestRemoteAlloc()
   TestSimpleKernel()
+
+  try:
+    import numpy
+    TestSimpleKernelNPy()
+  except ImportError: pass
 

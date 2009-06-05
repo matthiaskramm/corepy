@@ -35,6 +35,10 @@
 #include "cal.h"
 #include "calcl.h"
 
+#ifdef HAS_NUMPY
+#include <Numeric/arrayobject.h>
+#endif
+
 //#ifndef _DEBUG
 //#define _DEBUG 0
 //#endif
@@ -47,6 +51,23 @@ do { PyErr_Format(PyExc_RuntimeError, "%s: %s", fn, calGetErrorString()); \
 do { PyErr_Format(PyExc_RuntimeError, "%s: %s", fn, calclGetErrorString()); \
      return ret; } while(0)
 
+
+
+typedef struct CALMemBuffer {
+  PyObject_HEAD;
+
+  CALresource res;
+  CALuint fmt;
+  CALuint width;
+  CALuint pitch;
+  CALuint height;
+  CALuint length;
+  CALuint components;
+
+  CALvoid* ptr;
+} CALMemBuffer;
+
+static PyTypeObject CALMemBufferType;
 
 CALuint cal_device_count = 0;
 CALdevice* cal_devices = NULL;
@@ -558,6 +579,31 @@ static PyObject* cal_free_remote(PyObject* self, PyObject* args)
 }
 
 
+#ifdef HAS_NUMPY
+static PyObject* cal_set_ndarray_ptr(PyObject* self, PyObject* args)
+{
+  void* ptr;
+  PyArrayObject* arr;
+
+  if(!PyArg_ParseTuple(args, "lO!", (void**)&ptr, &PyArray_Type, &arr)) {
+    return NULL;
+  }
+
+  arr->data = ptr;
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+#else
+static PyObject* cal_set_ndarray_ptr(PyObject* self, PyObject* args)
+{
+  PyErr_SetString(PyExc_NotImplementedError, "NumPy support not enabled");
+  return NULL;
+}
+#endif
+
+
+
 static PyMethodDef module_methods[] = {
   {"compile", cal_compile, METH_O, "Compile a CAL IL kernel, return an image"},
   {"free_image", cal_free_image, METH_O, "Free a compiled kernel image"},
@@ -567,7 +613,168 @@ static PyMethodDef module_methods[] = {
   {"join_stream", cal_join_stream, METH_O, "Join a running kernel"},
   {"alloc_remote", cal_alloc_remote, METH_VARARGS, "Allocate Remote Memory"},
   {"free_remote", cal_free_remote, METH_O, "Free Remote Memory"},
+  {"set_ndarray_ptr", cal_set_ndarray_ptr, METH_VARARGS, "Set ndarray pointer"},
   {NULL}  /* Sentinel */
+};
+
+
+
+static int
+CALMemBuffer_init(CALMemBuffer* self, PyObject* args, PyObject* kwds)
+{
+  CALuint devnum;
+  CALresallocflags flag;
+  int i;
+
+  cal_init();
+
+  //TODO - make the flag argument optional
+  if(!PyArg_ParseTuple(args, "iiiii", &devnum, &self->fmt, &self->width, &self->height, &flag)) {
+    return -1;
+  }
+
+
+  if(self->height == 1) { //1d allocation
+    if(calResAllocRemote1D(&self->res, &cal_devices[devnum], 1,
+        self->width, self->fmt, flag) != CAL_RESULT_OK)
+      CAL_ERROR("calResAllocRemote1D", -1);
+  } else {          //2d allocation
+    if(calResAllocRemote2D(&self->res, &cal_devices[devnum], 1,
+        self->width, self->height, self->fmt, flag) != CAL_RESULT_OK)
+      CAL_ERROR("calResAllocRemote2D", -1);
+  }
+
+  if(calResMap(&self->ptr, &self->pitch, self->res, 0) != CAL_RESULT_OK)
+    CAL_ERROR("calResMap", -1);
+
+  //Calculate the length
+  self->length = self->pitch * self->height;
+  switch(self->fmt) {
+  case CAL_FORMAT_FLOAT32_4:
+  case CAL_FORMAT_SIGNED_INT32_4:
+  case CAL_FORMAT_UNSIGNED_INT32_4:
+    self->components = 4;
+    self->length <<= 4;
+    break;
+  case CAL_FORMAT_FLOAT32_2:
+  case CAL_FORMAT_SIGNED_INT32_2:
+  case CAL_FORMAT_UNSIGNED_INT32_2:
+    self->length <<= 3;
+    self->components = 2;
+    break;
+  case CAL_FORMAT_FLOAT32_1:
+  case CAL_FORMAT_SIGNED_INT32_1:
+  case CAL_FORMAT_UNSIGNED_INT32_1:
+    self->components = 1;
+    self->length <<= 2;
+  }
+
+  for(i = 0; i < self->length / 4; i++) {
+    ((float*)(self->ptr))[i] = (float)i;
+  }
+
+  return 0; 
+}
+
+
+static void
+CALMemBuffer_dealloc(CALMemBuffer* self)
+{
+  calResUnmap(self->res);
+  calResFree(self->res);
+  
+  self->ob_type->tp_free((PyObject*)self);
+}
+
+
+Py_ssize_t CALMemBuffer_readbuffer(PyObject* self, Py_ssize_t seg, void** ptr)
+{
+  CALMemBuffer* buf = (CALMemBuffer*)self;
+  *ptr = buf->ptr;
+  return buf->length;
+}
+
+Py_ssize_t CALMemBuffer_writebuffer(PyObject* self, Py_ssize_t seg, void** ptr)
+{
+  CALMemBuffer* buf = (CALMemBuffer*)self;
+  *ptr = buf->ptr;
+  return buf->length;
+}
+
+Py_ssize_t CALMemBuffer_segcount(PyObject* self, Py_ssize_t* len)
+{
+  CALMemBuffer* buf = (CALMemBuffer*)self;
+
+  if(len != NULL) {
+    *len = buf->length;
+  }
+
+  return 1;
+}
+
+
+static PyBufferProcs CALMemBuffer_bufferprocs = {
+  CALMemBuffer_readbuffer,
+  CALMemBuffer_writebuffer,
+  CALMemBuffer_segcount,
+  NULL
+};
+
+
+static PyMemberDef CALMemBuffer_members[] = {
+  {"width", T_INT, offsetof(CALMemBuffer, width), 0, "width"},
+  {"height", T_INT, offsetof(CALMemBuffer, height), 0, "height"},
+  {"pitch", T_INT, offsetof(CALMemBuffer, pitch), 0, "pitch"},
+  {"length", T_INT, offsetof(CALMemBuffer, length), 0, "length"},
+  {"format", T_INT, offsetof(CALMemBuffer, fmt), 0, "format"},
+  {"pointer", T_LONG, offsetof(CALMemBuffer, ptr), 0, "pointer"},
+  {"res", T_INT, offsetof(CALMemBuffer, res), 0, "res"},
+  {NULL}
+};
+
+
+
+
+static PyTypeObject CALMemBufferType = {
+  PyObject_HEAD_INIT(NULL)
+  0,                              /*ob_size*/
+  "cal_exec.calmembuffer",            /*tp_name*/
+  sizeof(CALMemBuffer),               /*tp_basicsize*/
+  0,                              /*tp_itemsize*/
+  (destructor)CALMemBuffer_dealloc,   /*tp_dealloc*/
+  0,                              /*tp_print*/
+  0,                              /*tp_getattr*/
+  0,                              /*tp_setattr*/
+  0,                              /*tp_compare*/
+  0,                              /*tp_repr*/
+  0,                              /*tp_as_number*/
+  0,                              /*tp_as_sequence*/
+  0,                              /*tp_as_mapping*/
+  0,                              /*tp_hash */
+  0,                              /*tp_call*/
+  0,                              /*tp_str*/
+  0,                              /*tp_getattro*/
+  0,                              /*tp_setattro*/
+  &CALMemBuffer_bufferprocs,          /*tp_as_buffer*/
+  Py_TPFLAGS_DEFAULT,             /*tp_flags*/
+  "CALMemBuffer",                     /*tp_doc */
+  0,                              /* tp_traverse */
+  0,                              /* tp_clear */
+  0,                              /* tp_richcompare */
+  0,                              /* tp_weaklistoffset */
+  0,                              /* tp_iter */
+  0,                              /* tp_iternext */
+  0,                              /* tp_methods */
+  CALMemBuffer_members,               /* tp_members */
+  0,
+  0,                              /* tp_base */
+  0,                              /* tp_dict */
+  0,                              /* tp_descr_get */
+  0,                              /* tp_descr_set */
+  0,  /* tp_dictoffset */
+  (initproc)CALMemBuffer_init,        /* tp_init */
+  0,                              /* tp_alloc */
+  0,                              /* tp_new */
 };
 
 
@@ -575,7 +782,19 @@ PyMODINIT_FUNC initcal_exec(void)
 {
   PyObject* mod;
 
+  CALMemBufferType.tp_new = PyType_GenericNew;
+  if(PyType_Ready(&CALMemBufferType) < 0) {
+    return;
+  }
+
   mod = Py_InitModule("cal_exec", module_methods);
+
+  Py_INCREF(&CALMemBufferType);
+  PyModule_AddObject(mod, "calmembuffer", (PyObject*)&CALMemBufferType);
+
+#ifdef HAS_NUMPY
+  import_array();
+#endif
 
   PyModule_AddIntConstant(mod, "FMT_FLOAT32_1", CAL_FORMAT_FLOAT32_1);
   PyModule_AddIntConstant(mod, "FMT_FLOAT32_2", CAL_FORMAT_FLOAT32_2);
