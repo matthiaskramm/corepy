@@ -12,7 +12,7 @@ typedef struct ExtArray {
 
   PyObject* attr_dict;
   char typecode;
-  char huge;
+  unsigned char huge;
   char lock;
 
   int page_size;
@@ -35,6 +35,7 @@ static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val);
 static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind);
 
 
+#if 0
 static PyObject*
 ExtArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
@@ -60,6 +61,7 @@ ExtArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 
   return (PyObject*)self;
 }
+#endif
 
 
 static int set_type_fns(ExtArray* self, char typecode)
@@ -145,7 +147,7 @@ ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
   //def __init__(self, typecode, init = None, huge = False):
   static char* kwlist[] = {"typecode", "init", "huge", NULL};
   char typecode;
-  char huge = 0;
+  unsigned char huge = 0;
   PyObject* init = Py_None;
 
   if(!PyArg_ParseTupleAndKeywords(args, kwds, "c|Oi",
@@ -806,11 +808,231 @@ static PyTypeObject ExtArrayType = {
   offsetof(ExtArray, attr_dict),  /* tp_dictoffset */
   (initproc)ExtArray_init,        /* tp_init */
   0,                              /* tp_alloc */
-  ExtArray_new,                   /* tp_new */
+  0, /*(ExtArray_new,*/           /* tp_new */
 };
 
 static PyMethodDef module_methods[] = {
     {NULL}  /* Sentinel */
+};
+
+
+
+typedef struct ExtBuffer {
+  PyObject_HEAD;
+
+  void* memory;
+  Py_ssize_t data_len;
+  Py_ssize_t alloc_len;
+  int page_size;
+  unsigned char huge;
+  unsigned char do_free;
+} ExtBuffer;
+
+
+static int
+ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
+{
+  //Arguments:
+  //size in bytes
+  //use hugepages? bool (default false)
+  //memory pointer to existing data to use (optional, default NULL)
+
+  static char* kwlist[] = {"data_len", "memory", "huge", NULL};
+
+  self->memory = NULL;
+  self->page_size = 0;
+  self->huge = 0;
+  self->do_free = 0;
+
+  if(!PyArg_ParseTupleAndKeywords(args, kwds, "i|lb",
+      kwlist, &self->data_len, &self->memory, &self->huge)) {
+    return -1;
+  }
+
+  //If memory is NULL and length is not zero, allocate some memory
+  //switch depending on whether huge was set
+  if(self->memory != NULL || self->data_len == 0) {
+    return 0;
+  }
+
+  self->do_free = 1;
+  if(self->huge == 1) {
+    Py_ssize_t m;
+    self->alloc_len = self->data_len;
+    self->page_size = get_hugepage_size();
+    m = self->alloc_len % self->page_size;
+    if(m != 0) {
+      self->alloc_len += self->page_size - m;
+    }
+
+    self->memory = alloc_hugemem(self->alloc_len);
+  } else {
+    Py_ssize_t m;
+    self->alloc_len = self->data_len;
+    self->page_size = get_page_size();
+    m = self->alloc_len % self->page_size;
+    if(m != 0) {
+      self->alloc_len += self->page_size - m;
+    }
+
+    self->memory = alloc_mem(self->alloc_len);
+  }
+
+#if 0
+  CALuint devnum;
+  CALresallocflags flag;
+  int i;
+
+  cal_init();
+
+  //TODO - make the flag argument optional
+  if(!PyArg_ParseTuple(args, "iiiii", &devnum, &self->fmt, &self->width, &self->height, &flag)) {
+    return -1;
+  }
+
+
+  if(self->height == 1) { //1d allocation
+    if(calResAllocRemote1D(&self->res, &cal_devices[devnum], 1,
+        self->width, self->fmt, flag) != CAL_RESULT_OK)
+      CAL_ERROR("calResAllocRemote1D", -1);
+  } else {          //2d allocation
+    if(calResAllocRemote2D(&self->res, &cal_devices[devnum], 1,
+        self->width, self->height, self->fmt, flag) != CAL_RESULT_OK)
+      CAL_ERROR("calResAllocRemote2D", -1);
+  }
+
+  if(calResMap(&self->ptr, &self->pitch, self->res, 0) != CAL_RESULT_OK)
+    CAL_ERROR("calResMap", -1);
+
+  //Calculate the length
+  self->length = self->pitch * self->height;
+  switch(self->fmt) {
+  case CAL_FORMAT_FLOAT32_4:
+  case CAL_FORMAT_SIGNED_INT32_4:
+  case CAL_FORMAT_UNSIGNED_INT32_4:
+    self->components = 4;
+    self->length <<= 4;
+    break;
+  case CAL_FORMAT_FLOAT32_2:
+  case CAL_FORMAT_SIGNED_INT32_2:
+  case CAL_FORMAT_UNSIGNED_INT32_2:
+    self->length <<= 3;
+    self->components = 2;
+    break;
+  case CAL_FORMAT_FLOAT32_1:
+  case CAL_FORMAT_SIGNED_INT32_1:
+  case CAL_FORMAT_UNSIGNED_INT32_1:
+    self->components = 1;
+    self->length <<= 2;
+  }
+
+  for(i = 0; i < self->length / 4; i++) {
+    ((float*)(self->ptr))[i] = (float)i;
+  }
+#endif
+  return 0; 
+}
+
+
+static void
+ExtBuffer_dealloc(ExtBuffer* self)
+{
+  if(self->do_free == 1) {
+    if(self->huge == 1 && self->memory != NULL) {
+      free_hugemem(self->memory);
+    } else {
+      free_mem(self->memory);
+    }
+  }
+
+  self->ob_type->tp_free((PyObject*)self);
+}
+
+
+Py_ssize_t ExtBuffer_readbuffer(PyObject* self, Py_ssize_t seg, void** ptr)
+{
+  ExtBuffer* buf = (ExtBuffer*)self;
+  *ptr = buf->memory;
+  return buf->data_len;
+}
+
+Py_ssize_t ExtBuffer_writebuffer(PyObject* self, Py_ssize_t seg, void** ptr)
+{
+  ExtBuffer* buf = (ExtBuffer*)self;
+  *ptr = buf->memory;
+  return buf->data_len;
+}
+
+Py_ssize_t ExtBuffer_segcount(PyObject* self, Py_ssize_t* len)
+{
+  ExtBuffer* buf = (ExtBuffer*)self;
+
+  if(len != NULL) {
+    *len = buf->data_len;
+  }
+
+  return 1;
+}
+
+
+static PyBufferProcs ExtBuffer_bufferprocs = {
+  ExtBuffer_readbuffer,
+  ExtBuffer_writebuffer,
+  ExtBuffer_segcount,
+  NULL
+};
+
+
+static PyMemberDef ExtBuffer_members[] = {
+  {"huge", T_UBYTE, offsetof(ExtBuffer, huge), 0, "Huge pages used?"},
+  {"data_len", T_INT, offsetof(ExtBuffer, data_len), 0, "Data length"},
+  {"alloc_len", T_INT, offsetof(ExtBuffer, alloc_len), 0, "Allocated length"},
+  {"memory", T_LONG, offsetof(ExtBuffer, memory), 0, "memory"},
+  {NULL}
+};
+
+
+
+static PyTypeObject ExtBufferType = {
+  PyObject_HEAD_INIT(NULL)
+  0,                              /*ob_size*/
+  "extarray.extbuffer",           /*tp_name*/
+  sizeof(ExtBuffer),              /*tp_basicsize*/
+  0,                              /*tp_itemsize*/
+  (destructor)ExtBuffer_dealloc,  /*tp_dealloc*/
+  0,                              /*tp_print*/
+  0,                              /*tp_getattr*/
+  0,                              /*tp_setattr*/
+  0,                              /*tp_compare*/
+  0,                              /*tp_repr*/
+  0,                              /*tp_as_number*/
+  0,                              /*tp_as_sequence*/
+  0,                              /*tp_as_mapping*/
+  0,                              /*tp_hash */
+  0,                              /*tp_call*/
+  0,                              /*tp_str*/
+  0,                              /*tp_getattro*/
+  0,                              /*tp_setattro*/
+  &ExtBuffer_bufferprocs,         /*tp_as_buffer*/
+  Py_TPFLAGS_DEFAULT,             /*tp_flags*/
+  "ExtBuffer",                    /*tp_doc */
+  0,                              /* tp_traverse */
+  0,                              /* tp_clear */
+  0,                              /* tp_richcompare */
+  0,                              /* tp_weaklistoffset */
+  0,                              /* tp_iter */
+  0,                              /* tp_iternext */
+  0,                              /* tp_methods */
+  ExtBuffer_members,              /* tp_members */
+  0,
+  0,                              /* tp_base */
+  0,                              /* tp_dict */
+  0,                              /* tp_descr_get */
+  0,                              /* tp_descr_set */
+  0,  /* tp_dictoffset */
+  (initproc)ExtBuffer_init,       /* tp_init */
+  0,                              /* tp_alloc */
+  0,                              /* tp_new */
 };
 
 
@@ -823,8 +1045,16 @@ PyMODINIT_FUNC initextarray(void)
     return;
   }
 
+  ExtBufferType.tp_new = PyType_GenericNew;
+  if(PyType_Ready(&ExtBufferType) < 0) {
+    return;
+  }
+
   m = Py_InitModule3("extarray", module_methods, "ExtArray");
+
   Py_INCREF(&ExtArrayType);
   PyModule_AddObject(m, "extarray", (PyObject*)&ExtArrayType);
+  Py_INCREF(&ExtBufferType);
+  PyModule_AddObject(m, "extbuffer", (PyObject*)&ExtBufferType);
 }
 
