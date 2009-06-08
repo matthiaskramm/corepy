@@ -11,21 +11,24 @@ typedef struct ExtArray {
   PyObject_HEAD
 
   PyObject* attr_dict;
-  char typecode;
-  unsigned char huge;
-  char lock;
+  char typecode;          //Type of array elements
+  unsigned char huge;     //Boolean, 1 if huge pages are used, 0 otherwise
+  char lock;              //Boolean, 1 if memory is 'locked' eg no realloc
 
-  int page_size;
-  int itemsize;
-  Py_ssize_t data_len;
-  Py_ssize_t alloc_len;
-  Py_ssize_t iter;
+  int page_size;          //Memory page size
+  int itemsize;           //Size of a single element
+  Py_ssize_t data_len;    //Data length counted in items
+  Py_ssize_t alloc_len;   //Allocated memory length counted in bytes
+  Py_ssize_t iter;        //Counter for supporting iterating over extarrays
 
-  void* memory;
+  void* memory;           //Pointer to the memory backing the array
 
+  //Functions for allocating/freeing memory
   void* (*realloc)(void* mem, Py_ssize_t oldsize, Py_ssize_t newsize);
   void (*free)(void* mem);
 
+  //If this extarray is a slice of another extarray, this is a reference to
+  // that other extarray
   struct ExtArray* arr_ref;
 } ExtArray;
 
@@ -64,7 +67,8 @@ ExtArray_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
 #endif
 
 
-static int set_type_fns(ExtArray* self, char typecode)
+//Set the type and item size
+static int set_type(ExtArray* self, char typecode)
 {
   switch(typecode) {
   case 'c':
@@ -105,6 +109,8 @@ static int set_type_fns(ExtArray* self, char typecode)
 }
 
 
+//Allocate memory for length elements, rounding the allocation up to a
+// multiple of a page.
 static int alloc(ExtArray* self, Py_ssize_t length)
 {
   Py_ssize_t size;
@@ -116,14 +122,14 @@ static int alloc(ExtArray* self, Py_ssize_t length)
     return -1;
   }
 
-  // Round size to a page
+  //Round size to a page
   size = length * self->itemsize;
   m = size % self->page_size;
   if(m != 0) {
     size += self->page_size - m;
   }
 
-
+  //Only realloc memory if the new size is larger
   if(self->alloc_len < size) {
     self->memory = self->realloc(self->memory, self->alloc_len, size);
 
@@ -144,13 +150,14 @@ static int alloc(ExtArray* self, Py_ssize_t length)
 static int
 ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
 {
+  //Python-level extarray constructor:
   //def __init__(self, typecode, init = None, huge = False):
   static char* kwlist[] = {"typecode", "init", "huge", NULL};
   char typecode;
   unsigned char huge = 0;
   PyObject* init = Py_None;
 
-  if(!PyArg_ParseTupleAndKeywords(args, kwds, "c|Oi",
+  if(!PyArg_ParseTupleAndKeywords(args, kwds, "c|Ob",
       kwlist, &typecode, &init, &huge)) {
     return -1;
   }
@@ -169,7 +176,7 @@ ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
     return -1;
   }
 
-  if(set_type_fns(self, typecode) != 0) {
+  if(set_type(self, typecode) != 0) {
     return -1;
   }
 
@@ -220,6 +227,8 @@ ExtArray_init(ExtArray* self, PyObject* args, PyObject* kwds)
 static void
 ExtArray_dealloc(ExtArray* self)
 {
+  //Python-level extarray destructor
+  //Free the memory if not locked, decrement references, and go away
   if(self->memory != NULL && self->lock == 0) {
 #ifdef _DEBUG
     printf("Freeing memory at %p\n", self->memory);
@@ -235,6 +244,7 @@ ExtArray_dealloc(ExtArray* self)
 }
 
 
+//User-interface function to allocate memory for length elements
 static PyObject* ExtArray_alloc(ExtArray* self, PyObject* arg)
 {
   Py_ssize_t length;
@@ -252,6 +262,7 @@ static PyObject* ExtArray_alloc(ExtArray* self, PyObject* arg)
 }
 
 
+//Append a value to the array
 static PyObject* ExtArray_append(ExtArray* self, PyObject* val)
 {
   self->data_len++;
@@ -268,6 +279,7 @@ static PyObject* ExtArray_append(ExtArray* self, PyObject* val)
 }
 
 
+//Return a tuple containing the memory address and data length
 static PyObject* ExtArray_buffer_info(ExtArray* self, PyObject* val)
 {
   return PyTuple_Pack(2,
@@ -276,6 +288,7 @@ static PyObject* ExtArray_buffer_info(ExtArray* self, PyObject* val)
 }
 
 
+//Change the endianness of all elements in the extarray
 static PyObject* ExtArray_byteswap(ExtArray* self, PyObject* args)
 {
   Py_ssize_t i;
@@ -323,6 +336,8 @@ static PyObject* ExtArray_byteswap(ExtArray* self, PyObject* args)
 }
 
 
+//Change the type of the elements in the array; the array length in bytes
+//must be a multiple of the size of the new type
 static PyObject* ExtArray_change_type(ExtArray* self, PyObject* arg)
 {
   char typecode;
@@ -334,10 +349,10 @@ static PyObject* ExtArray_change_type(ExtArray* self, PyObject* arg)
     return NULL;
   }
 
-  set_type_fns(self, typecode);
+  set_type(self, typecode);
 
   if((self->data_len * self->itemsize) % itemsize != 0) {
-    set_type_fns(self, oldcode);
+    set_type(self, oldcode);
     PyErr_SetString(PyExc_TypeError,
         "Array length is not a multiple of new type");
     return NULL;
@@ -348,6 +363,7 @@ static PyObject* ExtArray_change_type(ExtArray* self, PyObject* arg)
 }
 
 
+//Quickly clear the array data to zero
 static PyObject* ExtArray_clear(ExtArray* self, PyObject* args)
 {
   memset(self->memory, 0, self->alloc_len);
@@ -356,6 +372,7 @@ static PyObject* ExtArray_clear(ExtArray* self, PyObject* args)
 }
 
 
+//Directly copy the data in a character buffer to the array
 static PyObject* ExtArray_copy_direct(ExtArray* self, PyObject* arg)
 {
   char* buf;
@@ -375,6 +392,7 @@ static PyObject* ExtArray_copy_direct(ExtArray* self, PyObject* arg)
 }
 
 
+//Extend the array with the contents of another iterable object
 static PyObject* ExtArray_extend(ExtArray* self, PyObject* arg)
 {
   Py_ssize_t data_len = self->data_len;
@@ -411,6 +429,7 @@ static PyObject* ExtArray_extend(ExtArray* self, PyObject* arg)
 }
 
 
+//Extend the array with data from another list
 static PyObject* ExtArray_fromlist(ExtArray* self, PyObject* list)
 {
   Py_ssize_t data_len = self->data_len;
@@ -440,12 +459,14 @@ static PyObject* ExtArray_fromlist(ExtArray* self, PyObject* list)
 }
 
 
+//Extend the array with characters of a string
 static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* list)
 {
   return ExtArray_fromlist(self, list);
 }
 
 
+//Lock the array memory, preventing it from being re-allocated (moved)
 static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 {
   if(arg == Py_False) {
@@ -458,6 +479,9 @@ static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 }
 
 
+//Set the array's internal memory pointer to user-specified memory
+// Memory is locked as part of this operation; this array will not re-allocate
+// or free it.
 static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 {
   //Py_ssize_t addr;
@@ -482,6 +506,7 @@ static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 }
 
 
+//Execute an architecture-specific memory fence/synchronization
 static PyObject* ExtArray_synchronize(ExtArray* self, PyObject* arg)
 {
 // TODO - other architectures
@@ -498,6 +523,7 @@ static PyObject* ExtArray_synchronize(ExtArray* self, PyObject* arg)
 }
 
 
+//Array iteration support (__iter__)
 static PyObject* ExtArray_iter(PyObject* self)
 {
   ((ExtArray*)self)->iter = 0;
@@ -506,6 +532,7 @@ static PyObject* ExtArray_iter(PyObject* self)
 }
 
 
+//Array iteration support
 static PyObject* ExtArray_iternext(PyObject* self)
 {
    ExtArray* na = (ExtArray*)self;
@@ -518,6 +545,7 @@ static PyObject* ExtArray_iternext(PyObject* self)
 }
 
 
+//__str__
 static PyObject* ExtArray_str(PyObject* self)
 {
   ExtArray* na = (ExtArray*)self;
@@ -550,12 +578,14 @@ static PyObject* ExtArray_str(PyObject* self)
 }
 
 
+//__len__
 static Py_ssize_t ExtArray_length(PyObject* self)
 {
   return ((ExtArray*)self)->data_len;
 }
 
 
+//__setitem__
 static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
 {
   ExtArray* na = (ExtArray*)self;
@@ -611,6 +641,7 @@ static int ExtArray_setitem(PyObject* self, Py_ssize_t ind, PyObject* val)
 }
 
 
+//__getitem__
 static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind)
 {
   ExtArray* na = (ExtArray*)self;
@@ -649,6 +680,7 @@ static PyObject* ExtArray_getitem(PyObject* self, Py_ssize_t ind)
 }
 
 
+//Array slicing support similar to NumPy array views
 static PyObject* ExtArray_getslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2)
 {
   ExtArray* arr = (ExtArray*)self;
@@ -689,6 +721,7 @@ static PyObject* ExtArray_getslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2)
 }
 
 
+//Set the values of a slice of the array using a sequence
 static int ExtArray_setslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2, PyObject* v)
 {
   ExtArray* arr = (ExtArray*)self;
@@ -832,11 +865,8 @@ typedef struct ExtBuffer {
 static int
 ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
 {
-  //Arguments:
-  //size in bytes
-  //use hugepages? bool (default false)
-  //memory pointer to existing data to use (optional, default NULL)
-
+  //Python-level extbuffer constructor:
+  //def __init__(self, data_len, memory = NULL, huge = False)
   static char* kwlist[] = {"data_len", "memory", "huge", NULL};
 
   self->memory = NULL;
@@ -857,6 +887,12 @@ ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
 
   self->do_free = 1;
   if(self->huge == 1) {
+    if(has_huge_pages() == 0) {
+      PyErr_SetString(PyExc_MemoryError,
+          "No huge pages available, try regular pages");
+      return -1;
+    }
+
     Py_ssize_t m;
     self->alloc_len = self->data_len;
     self->page_size = get_hugepage_size();
@@ -878,58 +914,6 @@ ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
     self->memory = alloc_mem(self->alloc_len);
   }
 
-#if 0
-  CALuint devnum;
-  CALresallocflags flag;
-  int i;
-
-  cal_init();
-
-  //TODO - make the flag argument optional
-  if(!PyArg_ParseTuple(args, "iiiii", &devnum, &self->fmt, &self->width, &self->height, &flag)) {
-    return -1;
-  }
-
-
-  if(self->height == 1) { //1d allocation
-    if(calResAllocRemote1D(&self->res, &cal_devices[devnum], 1,
-        self->width, self->fmt, flag) != CAL_RESULT_OK)
-      CAL_ERROR("calResAllocRemote1D", -1);
-  } else {          //2d allocation
-    if(calResAllocRemote2D(&self->res, &cal_devices[devnum], 1,
-        self->width, self->height, self->fmt, flag) != CAL_RESULT_OK)
-      CAL_ERROR("calResAllocRemote2D", -1);
-  }
-
-  if(calResMap(&self->ptr, &self->pitch, self->res, 0) != CAL_RESULT_OK)
-    CAL_ERROR("calResMap", -1);
-
-  //Calculate the length
-  self->length = self->pitch * self->height;
-  switch(self->fmt) {
-  case CAL_FORMAT_FLOAT32_4:
-  case CAL_FORMAT_SIGNED_INT32_4:
-  case CAL_FORMAT_UNSIGNED_INT32_4:
-    self->components = 4;
-    self->length <<= 4;
-    break;
-  case CAL_FORMAT_FLOAT32_2:
-  case CAL_FORMAT_SIGNED_INT32_2:
-  case CAL_FORMAT_UNSIGNED_INT32_2:
-    self->length <<= 3;
-    self->components = 2;
-    break;
-  case CAL_FORMAT_FLOAT32_1:
-  case CAL_FORMAT_SIGNED_INT32_1:
-  case CAL_FORMAT_UNSIGNED_INT32_1:
-    self->components = 1;
-    self->length <<= 2;
-  }
-
-  for(i = 0; i < self->length / 4; i++) {
-    ((float*)(self->ptr))[i] = (float)i;
-  }
-#endif
   return 0; 
 }
 
@@ -937,6 +921,7 @@ ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
 static void
 ExtBuffer_dealloc(ExtBuffer* self)
 {
+  //Python-level destructor, free the memory and go away
   if(self->do_free == 1) {
     if(self->huge == 1 && self->memory != NULL) {
       free_hugemem(self->memory);
@@ -949,6 +934,7 @@ ExtBuffer_dealloc(ExtBuffer* self)
 }
 
 
+//Return a read-only pointer to the memory buffer
 Py_ssize_t ExtBuffer_readbuffer(PyObject* self, Py_ssize_t seg, void** ptr)
 {
   ExtBuffer* buf = (ExtBuffer*)self;
@@ -956,6 +942,7 @@ Py_ssize_t ExtBuffer_readbuffer(PyObject* self, Py_ssize_t seg, void** ptr)
   return buf->data_len;
 }
 
+//Return a read/write pointer to the memory buffer
 Py_ssize_t ExtBuffer_writebuffer(PyObject* self, Py_ssize_t seg, void** ptr)
 {
   ExtBuffer* buf = (ExtBuffer*)self;
@@ -963,6 +950,7 @@ Py_ssize_t ExtBuffer_writebuffer(PyObject* self, Py_ssize_t seg, void** ptr)
   return buf->data_len;
 }
 
+//Return the number of memory segments (always 1) and total memory length
 Py_ssize_t ExtBuffer_segcount(PyObject* self, Py_ssize_t* len)
 {
   ExtBuffer* buf = (ExtBuffer*)self;
