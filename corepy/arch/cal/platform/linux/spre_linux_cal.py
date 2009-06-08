@@ -222,7 +222,7 @@ class Processor(spe.Processor):
       try:
         import numpy
 
-        for (key, arr) in code._remote_bindings_arr:
+        for (key, arr) in code._remote_bindings_arr.items():
           if isinstance(arr, extarray.extarray):
             arr.set_memory(arr.gpu_mem_handle[0])
           elif isinstance(arr, numpy.ndarray):
