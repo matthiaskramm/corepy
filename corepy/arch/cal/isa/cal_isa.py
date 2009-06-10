@@ -91,7 +91,7 @@ class interp:
   constant = 'constant'
   linear = 'linear'
   centroid = 'centroid'
-  noperspective = 'noperspective'
+  linear_noperspective = 'linear_noperspective'
   noper_centroid = 'noper_centroid'
   noper_sample = 'noper_sample'
   sample = 'sample'
