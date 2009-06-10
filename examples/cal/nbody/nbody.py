@@ -253,96 +253,103 @@ def cal_nb_generate_local(n_bodies, dt, steps):
   r_force_vec = code.acquire_register()
   r_vel = code.acquire_register()
 
+  print "fn_bodies", fn_bodies
+
   code.add("dcl_input_position_interp(linear_noperspective) v0.xy__")
-  #cal.dcl_input(reg.v0.x___, USAGE=cal.usage.position, INTERP=cal.interp.linear_noperspective)
-  r_bodies = code.acquire_register((fn_bodies,) * 4)
+  #cal.dcl_input(reg.v0.x___, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
   r_numsteps = code.acquire_register((steps,) * 4)
+  r_bodies = code.acquire_register((fn_bodies,) * 4)
   #r_bodiesquare = code.acquire_register((float(fn_bodies**2),) * 4)
-  #r_G = code.acquire_register((G,) * 4)
-  #r_dt = code.acquire_register((dt,) * 4)
+  r_G = code.acquire_register((G,) * 4)
+  r_dt = code.acquire_register((dt,) * 4)
   cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
   cal.dcl_output(reg.o1, USAGE=cal.usage.generic)
+  cal.dcl_output(reg.o2, USAGE=cal.usage.generic)
   cal.dcl_resource(0, cal.pixtex_type.twod, cal.fmt.float, UNNORM=True) # positions
   cal.dcl_resource(1, cal.pixtex_type.twod, cal.fmt.float, UNNORM=True) # velocities
 
+  r_foo = code.acquire_register()
+  cal.mov(r_foo, r_foo('0000'))
+
   r_gpos = code.acquire_register()
-  #cal.mad(r_gpos, reg.v0.y, r_bodies.x, reg.v0.x)
+  cal.mad(r_gpos, reg.v0.y, r_bodies.x, reg.v0.x)
 
   r_gvel = code.acquire_register()
-  #cal.mad(r_gvel, r_bodies.x, r_bodies.x, r_gpos)
+  cal.mad(r_gvel, r_bodies.x, r_bodies.x, r_gpos)
 
-  #cal.ftoi(r_gpos, r_gpos)
-  #cal.ftoi(r_gvel, r_gvel)
+  cal.ftoi(r_gpos, r_gpos)
+  cal.ftoi(r_gvel, r_gvel)
 
-  #cal.sample(0, 0, r_lpos, reg.v0.xy)                # Local position
-  #cal.sample(1, 1, r_vel, reg.v0.xy)    # Load velocity
+  cal.sample(0, 0, r_lpos, reg.v0.xy)                # Local position
+  cal.sample(1, 1, r_vel, reg.v0.xy)    # Load velocity
 
-  #cal.mov(reg.g[r_gpos.x], r_lpos)
-  #cal.mov(reg.g[r_gvel.x], r_vel)
+  cal.mov(reg.g[r_gpos.x], r_lpos)
+  cal.mov(reg.g[r_gvel.x], r_vel)
 
-  #cal.mov(r_step, r_step('0000'))
+  cal.mov(r_step, r_step('0000'))
 
   cal.whileloop()
-
-  #cal.mov(r_count, r_count('0000'))                  # loop counter
-
-  #cal.whileloop()
-  # this is broken..
-  #cal.breakc(cal.relop.ge, 'r276', 'r275')
   cal.breakc(cal.relop.ge, r_step.x, r_numsteps)
+
+  cal.mov(r_count, r_count('0000'))                  # loop counter
+
+  cal.whileloop()
   cal.breakc(cal.relop.ge, r_count.x, r_bodies)
 
-#  # calculate force
-#  r_tmp = code.acquire_register()
-#  cal.ftoi(r_tmp, r_count)
-#
-#  cal.mov(r_rpos, reg.g[r_tmp.x])
-#
-#  # d_xyz
-#  cal.sub(r_diff, r_lpos.xyz0, r_rpos.xyz0)   # local pos - remote pos
-#
-#  # dist_tmp
-#  cal.mul(r_dist_vec, r_diff.xxxx, r_diff.xxxx)
-#  cal.mad(r_dist_vec, r_diff.yyyy, r_diff.yyyy, r_dist_vec)
-#  cal.mad(r_dist_vec, r_diff.zzzz, r_diff.zzzz, r_dist_vec)
-#  
-#  # distance
-#  # TODO - skip rest of force computation if distance is 0
-#  cal.sqrt_vec(r_dist, r_dist_vec)
-#
-#  # force G * ((m[i] * m[j]) / dist_tmp)
-#  cal.mul(r_force_tmp, r_lpos.wwww, r_rpos.wwww)
-#  cal.div(r_force_tmp, r_force_tmp, r_dist_vec, ZEROOP = cal.zeroop.zero)
-#  cal.mul(r_force_tmp, r_force_tmp, r_G)
-#
-#  # f_xyz
-#  # TODO - whats going on, is this right?
-#  cal.div(r_force_vec, r_diff.xyz0, r_dist.xyz1, ZEROOP = cal.zeroop.zero)
-#  cal.mul(r_force_vec, r_force_vec.xyz0, r_force_tmp.xyz0)
-#
-#  cal.sub(r_force, r_force.xyz0, r_force_vec.xyz0)
+  cal.add(r_foo, r_foo, r_foo('1111'))
 
-  #cal.add(r_count, r_count, r_count('1111'))
-  #cal.endloop()
+  # calculate force
+  r_tmp = code.acquire_register()
+  cal.ftoi(r_tmp, r_count)
+
+  cal.mov(r_rpos, reg.g[r_tmp.x])
+
+  # d_xyz
+  cal.sub(r_diff, r_lpos.xyz0, r_rpos.xyz0)   # local pos - remote pos
+
+  # dist_tmp
+  cal.mul(r_dist_vec, r_diff.xxxx, r_diff.xxxx)
+  cal.mad(r_dist_vec, r_diff.yyyy, r_diff.yyyy, r_dist_vec)
+  cal.mad(r_dist_vec, r_diff.zzzz, r_diff.zzzz, r_dist_vec)
+  
+  # distance
+  # TODO - skip rest of force computation if distance is 0
+  cal.sqrt_vec(r_dist, r_dist_vec)
+
+  # force G * ((m[i] * m[j]) / dist_tmp)
+  cal.mul(r_force_tmp, r_lpos.wwww, r_rpos.wwww)
+  cal.div(r_force_tmp, r_force_tmp, r_dist_vec, ZEROOP = cal.zeroop.zero)
+  cal.mul(r_force_tmp, r_force_tmp, r_G)
+
+  # f_xyz
+  # TODO - whats going on, is this right?
+  cal.div(r_force_vec, r_diff.xyz0, r_dist.xyz1, ZEROOP = cal.zeroop.zero)
+  cal.mul(r_force_vec, r_force_vec.xyz0, r_force_tmp.xyz0)
+
+  cal.sub(r_force, r_force.xyz0, r_force_vec.xyz0)
+
+  cal.add(r_count, r_count, r_count('1111'))
+  cal.endloop()
 
   # Acceleration
-#  cal.div(r_force, r_force.xyz0, r_lpos.wwww, ZEROOP = cal.zeroop.zero)
+  cal.div(r_force, r_force.xyz0, r_lpos.wwww, ZEROOP = cal.zeroop.zero)
 
   # Velocity
-#  cal.mad(r_vel, r_force, r_dt, r_vel)
+  cal.mad(r_vel, r_force, r_dt, r_vel)
 
   # Position
-#  cal.mad(reg.o0, r_vel.xyz0, r_dt.xyz0, r_lpos.xyzw)
+  cal.mad(reg.o0, r_vel.xyz0, r_dt.xyz0, r_lpos.xyzw)
 
   # store updated pos and vel
-  #cal.mov(reg.g[r_gpos.x], r_lpos)
-  #cal.mov(reg.g[r_gvel.x], r_vel)
+  cal.mov(reg.g[r_gpos.x], r_lpos)
+  cal.mov(reg.g[r_gvel.x], r_vel)
 
-  #cal.add(r_step, r_step, r_step('1111'))
+  cal.add(r_step, r_step, r_step('1111'))
   cal.endloop()
-#
-#  cal.mov(reg.o0, r_lpos)
-#  cal.mov(reg.o1, r_vel)
+
+  cal.mov(reg.o0, r_lpos)
+  cal.mov(reg.o1, r_vel)
+  cal.mov(reg.o2, r_foo)
   return code
 
 
@@ -371,7 +378,7 @@ if __name__ == '__main__':
   SQRT_NBODIES = 256
   N_BODIES = SQRT_NBODIES * SQRT_NBODIES
   DT = 0.1
-  STEPS = 10
+  STEPS = 12
   random.seed(0)
 
   #init_x = (3.0e11, 5.79e10, 1.082e11, 1.496e11, 2.279e11)
@@ -397,6 +404,7 @@ if __name__ == '__main__':
 
   #print "py_nb_step3 time", t2 - t1
 
+  debug = proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES)
   pos = [proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
   vel = [proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
 
@@ -417,11 +425,11 @@ if __name__ == '__main__':
     vel[0][i * 4 + 2] = 0.0
     vel[0][i * 4 + 3] = 0.0
 
-  code = cal_nb_generate_2d(SQRT_NBODIES, DT)
+  code = cal_nb_generate_local(SQRT_NBODIES, DT, 2)
   code.cache_code()
   print code.render_string
 
-  #code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES, env.cal_exec.FMT_FLOAT32_4))
+  code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES * 2, env.cal_exec.FMT_FLOAT32_4))
 
   #assert(False)
 
@@ -436,10 +444,15 @@ if __name__ == '__main__':
     code.set_remote_binding(reg.i1, vel[inp])
     code.set_remote_binding(reg.o0, pos[out])
     code.set_remote_binding(reg.o1, vel[out])
+    code.set_remote_binding(reg.o2, debug)
 
     domain = (0, 0, SQRT_NBODIES, SQRT_NBODIES)
 
+    #debug.clear()
+
     proc.execute(code, domain)
+
+    #print debug
 
   t2 = time.time()
   print "cal_nb_exec time", t2 - t1
