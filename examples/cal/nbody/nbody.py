@@ -64,8 +64,8 @@ def cal_nb_generate(n_bodies, dt):
   r_force_vec = code.acquire_register()
   r_vel = code.acquire_register()
 
-  code.add("dcl_input_position_interp(linear_noperspective) v0.x___")
-  #cal.dcl_input(reg.v0.x___, USAGE=cal.usage.position, INTERP=cal.interp.linear_noperspective)
+  #code.add("dcl_input_position_interp(linear_noperspective) v0.x___")
+  cal.dcl_input(reg.v0.x___, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
   r_bodies = code.acquire_register((fn_bodies,) * 4)
   r_G = code.acquire_register((G,) * 4)
   r_dt = code.acquire_register((dt,) * 4)
@@ -147,8 +147,8 @@ def cal_nb_generate_2d(n_bodies, dt):
   r_force_vec = code.acquire_register()
   r_vel = code.acquire_register()
 
-  code.add("dcl_input_position_interp(linear_noperspective) v0.xy__")
-  #cal.dcl_input(reg.v0.x___, USAGE=cal.usage.position, INTERP=cal.interp.linear_noperspective)
+  #code.add("dcl_input_position_interp(linear_noperspective) v0.xy__")
+  cal.dcl_input(reg.v0.x___, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
   r_bodies = code.acquire_register((fn_bodies,) * 4)
   r_G = code.acquire_register((G,) * 4)
   r_dt = code.acquire_register((dt,) * 4)
