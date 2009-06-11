@@ -122,10 +122,13 @@ class SHARINGMODEField(CALField):
 
 class TYPEField(CALField):
   def check(self, value):
-    return value in ('1d', '2d', '2dms_array', '2dmsaa', '3d', 'cubemap', 'cubemaparray', 'unkown', 'buffer')
+    return value in (1, 2, 3, '1d', '2d', '2dms_array', '2dmsaa', '3d', 'cubemap', 'cubemaparray', 'unkown', 'buffer')
 
   def render(self, value):
-    return value 
+    if type(value)==str:
+      return value 
+    else:
+      return str(value) + 'd'
     # this one is different beccause of UNNORM option - '_type(' and ')' is handled by inst
     # Furthermore, some instructions handle this differently, such as dclpt which does not
     # have the unnorm flag
