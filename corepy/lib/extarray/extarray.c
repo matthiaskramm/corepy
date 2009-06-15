@@ -874,28 +874,33 @@ ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
   self->huge = 0;
   self->do_free = 0;
 
-  if(!PyArg_ParseTupleAndKeywords(args, kwds, "i|lb",
+  if(!PyArg_ParseTupleAndKeywords(args, kwds, "i|kb",
       kwlist, &self->data_len, &self->memory, &self->huge)) {
     return -1;
   }
 
   //If memory is NULL and length is not zero, allocate some memory
-  //switch depending on whether huge was set
   if(self->memory != NULL || self->data_len == 0) {
     return 0;
   }
 
+  //Allocate our own memory
   self->do_free = 1;
   if(self->huge == 1) {
+    //Huge-page memory
+    Py_ssize_t m;
+
     if(has_huge_pages() == 0) {
       PyErr_SetString(PyExc_MemoryError,
           "No huge pages available, try regular pages");
       return -1;
     }
 
-    Py_ssize_t m;
+
     self->alloc_len = self->data_len;
     self->page_size = get_hugepage_size();
+
+    //Round the allocation up to a page
     m = self->alloc_len % self->page_size;
     if(m != 0) {
       self->alloc_len += self->page_size - m;
@@ -903,9 +908,13 @@ ExtBuffer_init(ExtBuffer* self, PyObject* args, PyObject* kwds)
 
     self->memory = alloc_hugemem(self->alloc_len);
   } else {
+    //Regular memory
     Py_ssize_t m;
+
     self->alloc_len = self->data_len;
     self->page_size = get_page_size();
+
+    //Round the allocation up to a page
     m = self->alloc_len % self->page_size;
     if(m != 0) {
       self->alloc_len += self->page_size - m;
