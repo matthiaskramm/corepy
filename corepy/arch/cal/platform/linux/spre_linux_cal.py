@@ -340,7 +340,7 @@ class Processor(spe.Processor):
     if height == 1:
       arr.shape = (width, comps)
     else:
-      arr.shape = (width, height, comps)
+      arr.shape = (buf.pitch, height, comps)
 
     return arr
   
