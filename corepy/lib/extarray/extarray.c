@@ -484,25 +484,32 @@ static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 // or free it.
 static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 {
-  //Py_ssize_t addr;
+  Py_ssize_t addr;
+  Py_ssize_t len;
 
-#if 0
-  if(!PyArg_ParseTuple(arg, "l", &addr)) {
+  if(!PyArg_ParseTuple(arg, "ll", &addr, &len)) {
     return NULL;
   }
-#endif
 
+  //Check that the length is a multiple of the itemsize.
+  if(len % self->itemsize != 0) {
+    PyErr_SetString(PyExc_TypeError,
+        "Memory length is not a multiple of array type");
+    return NULL;
+  }
+
+  //Free memory if needed
   if(self->memory != NULL && self->lock != 1) {
     self->free(self->memory);
   }
 
-  //self->memory = (void*)addr;
-  self->memory = (void*)PyLong_AsUnsignedLong(arg);
-  self->alloc_len = 0;
+  self->memory = (void*)addr;
+  //self->memory = (void*)PyLong_AsUnsignedLong(arg);
+  self->alloc_len = len;
+  self->data_len = len / self->itemsize;
   self->lock = 1;
 
-  Py_INCREF(Py_None);
-  return Py_None;
+  Py_RETURN_NONE;
 }
 
 
@@ -781,7 +788,7 @@ static PyMethodDef ExtArray_methods[] = {
   {"fromlist", (PyCFunction)ExtArray_fromlist, METH_O, "fromlist"},
   {"fromstring", (PyCFunction)ExtArray_fromstring, METH_O, "fromstring"},
   {"memory_lock", (PyCFunction)ExtArray_memory_lock, METH_O, "memory_lock"},
-  {"set_memory", (PyCFunction)ExtArray_set_memory, METH_O, "set_memory"},
+  {"set_memory", (PyCFunction)ExtArray_set_memory, METH_VARARGS, "set_memory"},
   {"synchronize", (PyCFunction)ExtArray_synchronize, METH_NOARGS, "synchronize"},
   {NULL}
 };

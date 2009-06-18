@@ -224,7 +224,7 @@ class Processor(spe.Processor):
 
         for (key, arr) in code._remote_bindings_arr.items():
           if isinstance(arr, extarray.extarray):
-            arr.set_memory(arr.gpu_mem_handle[0])
+            arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
           elif isinstance(arr, numpy.ndarray):
             cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
 
@@ -284,7 +284,7 @@ class Processor(spe.Processor):
     arr = extarray.extarray(typecode, 0)
 
     arr.data_len = mem[1] * height * comps
-    arr.set_memory(mem[0])
+    arr.set_memory(mem[0], arr.data_len * 4)
     arr.gpu_mem_handle = mem
     arr.gpu_device = self.device
     arr.gpu_width = width
@@ -357,7 +357,7 @@ class Processor(spe.Processor):
     del arr.gpu_width
     del arr.gpu_pitch
 
-    arr.set_memory(0)
+    arr.set_memory(0, 0)
     arr.data_len = 0
     return
 
@@ -475,6 +475,7 @@ def TestSimpleKernelNPy():
   #  arr_output[i] = 0.0
   print arr_input.shape
   print arr_output.shape
+  print type(arr_input.data)
 
   val = 0.0
   for i in xrange(0, SIZE):
