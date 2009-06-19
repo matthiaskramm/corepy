@@ -125,7 +125,7 @@ class x86_Nasm(object):
         elif op.index != None:
           return ref + "[%s + %s * %d]" % (op.base.name, op.index.name, op.scale)
         return ref + "[%s]" % (op.base.name)
-      elif self.addr != None:
+      elif op.addr != None:
         return "[0x%x]" % (op.addr)
     elif isinstance(op, (long, int)):
       return str(op)
