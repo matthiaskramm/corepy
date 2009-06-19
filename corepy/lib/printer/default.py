@@ -132,9 +132,10 @@ class Default(object):
   def str_op(self, op):
     t = type(op)
     if isinstance(op, spe.Register):
-      return str(op.reg)
+      print "reg", op
+      return str(op)
     elif isinstance(op, spe.Variable):
-      return str(op.reg.reg)
+      return str(op.reg)
     return str(op)
 
   def hex_inst(self, inst):
