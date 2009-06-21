@@ -132,7 +132,6 @@ class Default(object):
   def str_op(self, op):
     t = type(op)
     if isinstance(op, spe.Register):
-      print "reg", op
       return str(op)
     elif isinstance(op, spe.Variable):
       return str(op.reg)
