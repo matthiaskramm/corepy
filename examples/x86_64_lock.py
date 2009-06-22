@@ -111,3 +111,56 @@ print "time", t2 - t1
 print "val", data[0], ITERS * THREADS
 print "passed?", data[0] == ITERS * THREADS
 
+
+# Use a float value in an SSE register.
+data = extarray.extarray('f', 1)
+dbi = data.buffer_info()
+
+data[0] = 0.0
+data[1] = 1.0
+
+code = env.InstructionStream()
+x86.set_active_code(code)
+
+x86.mov(rcx, ITERS)
+x86.mov(rdi, dbi[0])
+x86.movss(xmm0, MemRef(rdi, 4, data_size = 32))
+
+lbl_loop = code.get_unique_label("loop")
+code.add(lbl_loop)
+
+# Read the data into rax
+# cmploop:
+#   add rax+1, storing in say rbx
+#   cmpxchg rbx, data
+#   jz cmploop
+
+x86.mov(eax, MemRef(dbi[0], data_size = 32))
+
+lbl_cmpxchg = code.get_unique_label("cmpxchg")
+code.add(lbl_cmpxchg)
+
+x86.movd(xmm1, eax)
+x86.addss(xmm1, xmm0)
+x86.movd(ebx, xmm1)
+x86.cmpxchg(MemRef(dbi[0], data_size = 32), ebx, lock = True)
+x86.jnz(lbl_cmpxchg)
+
+x86.dec(rcx)
+x86.jnz(lbl_loop)
+
+
+
+proc = env.Processor()
+t1 = time.time()
+ids = [proc.execute(code, mode = 'fp', async = True) for i in xrange(0, THREADS)]
+ret = [proc.join(i) for i in ids]
+t2 = time.time()
+
+print "ret", ret
+
+print
+print "time", t2 - t1
+print "val", data[0], ITERS * THREADS
+print "passed?", data[0] == ITERS * THREADS
+

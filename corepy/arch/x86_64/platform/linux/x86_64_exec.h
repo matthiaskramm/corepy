@@ -37,6 +37,7 @@
 #include <sys/mman.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdint.h>
 
 
 // ------------------------------------------------------------
@@ -48,15 +49,32 @@ typedef unsigned long addr_t;
 
 
 // Parameter passing structures
+/*rax             return value, free
+  rbx             used??
+  rcx             4th int arg, free
+  rdx             3rd int arg, free
+  rbp             used
+  rsi             2nd int arg, free
+  rdi             1st int arg, free
+  r8              5th int arg, free
+  r9              6th int arg, free
+  r10             free
+  r11             free
+  r12             used
+  r13             used
+  r14             used
+  r15             used
+*/
+
 struct ExecParams {
-  unsigned long p1;
-  unsigned long p2;
-  unsigned long p3;
-  unsigned long p4;
-  unsigned long p5;
-  unsigned long p6;
-  unsigned long p7;
-  unsigned long p8;
+  unsigned long p1; //rdi
+  unsigned long p2; //rsi
+  unsigned long p3; //rdx
+  unsigned long p4; //rcx
+  unsigned long p5; //r8
+  unsigned long p6; //r9
+  //unsigned long p7;
+  //unsigned long p8;
 };
 
 
@@ -78,6 +96,7 @@ struct ThreadInfo {
 
 // Function pointers for different return values
 typedef long (*Stream_func_int)(struct ExecParams);
+typedef long (*Stream_func_int_reg)(unsigned long p1, unsigned long p2, unsigned long p3, unsigned long p4, unsigned long p5, unsigned long p6);
 typedef float (*Stream_func_fp)(struct ExecParams);
 
 
@@ -168,7 +187,8 @@ void *run_stream_int(void *params) {
   struct ThreadParams *p = (struct ThreadParams *)params;
   pthread_cleanup_push(cleanup, params);
 
-  p->ret.l = ((Stream_func_int)p->addr)(p->params);
+  //p->ret.l = ((Stream_func_int)p->addr)(p->params);
+  p->ret.l = ((Stream_func_int_reg)p->addr)(p->params.p1, p->params.p2, p->params.p3, p->params.p4, p->params.p5, p->params.p6);
 
   pthread_cleanup_pop(0);
   return params;
@@ -206,6 +226,7 @@ struct ThreadInfo* execute_int_async(addr_t addr, struct ExecParams params) {
 
   tparams->addr = addr;
   tparams->params = params;
+  //memcpy(&tparams->params, &params, sizeof(struct ExecParams));
 
   rc = pthread_create(&tinfo->th, NULL, run_stream_int, (void *)tparams);
   if(rc) {
@@ -261,7 +282,8 @@ float join_fp(struct ThreadInfo* tinfo) {
 
 
 long execute_int(addr_t addr, struct ExecParams params) {
-  return ((Stream_func_int)addr)(params);
+  return ((Stream_func_int_reg)addr)(params.p1, params.p2, params.p3, params.p4, params.p5, params.p6);
+  //return ((Stream_func_int)addr)(params);
 }
 
 

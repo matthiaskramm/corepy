@@ -577,6 +577,17 @@ class mem16_xmm_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
+class mem16_simm8(MachineInstruction):
+  signature = (mem16_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    ret = common_memref(params['opcode'], operands['mem16'], params['modrm'])
+    if ret != None:
+      return [0x66] + ret + w8(operands['simm8'])
+  render = staticmethod(_render)
+
+
 class mem228(MachineInstruction):
   signature = (mem228_t,)
   opt_kw = ()
@@ -699,6 +710,17 @@ class mem32_reg32_imm8(MachineInstruction):
     ret = common_memref(params['opcode'], operands['mem32'], reg32.reg << 3, reg32.rex << 2)
     if ret != None:
       return ret + w8(operands['imm8'])
+  render = staticmethod(_render)
+
+
+class mem32_simm8(MachineInstruction):
+  signature = (mem32_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    ret = common_memref(params['opcode'], operands['mem32'], params['modrm'])
+    if ret != None:
+      return ret + w8(operands['simm8'])
   render = staticmethod(_render)
 
 
@@ -843,6 +865,17 @@ class mem64_mmx(MachineInstruction):
   
   def _render(params, operands):
     return common_memref(params['opcode'], operands['mem64'], operands['mmx'].reg << 3)
+  render = staticmethod(_render)
+
+
+class mem64_simm8(MachineInstruction):
+  signature = (mem64_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    ret = common_memref(params['opcode'], operands['mem64'], params['modrm'], 0x08)
+    if ret != None:
+      return ret + w8(operands['simm8'])
   render = staticmethod(_render)
 
 
@@ -1257,15 +1290,15 @@ class reg16_mem16_imm16(MachineInstruction):
   render = staticmethod(_render)
 
 
-class reg16_mem16_imm8(MachineInstruction):
-  signature = (reg16_t, mem16_t, imm8_t)
+class reg16_mem16_simm8(MachineInstruction):
+  signature = (reg16_t, mem16_t, simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
     reg16 = operands['reg16']
     ret = common_memref(params['opcode'], operands['mem16'], reg16.reg << 3, reg16.rex << 2)
     if ret != None:
-      return [0x66] + ret + w8(operands['imm8'])
+      return [0x66] + ret + w8(operands['simm8'])
   render = staticmethod(_render)
 
 
@@ -1332,8 +1365,8 @@ class reg16_reg16_imm8(MachineInstruction):
   render = staticmethod(_render)
 
   
-class reg16_reg16_imm8_rev(MachineInstruction):
-  signature = (reg16_t('rd'), reg16_t('ra'), imm8_t)
+class reg16_reg16_simm8_rev(MachineInstruction):
+  signature = (reg16_t('rd'), reg16_t('ra'), simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
@@ -1343,7 +1376,7 @@ class reg16_reg16_imm8_rev(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return [0x66] + rex + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['imm8'])
+    return [0x66] + rex + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['simm8'])
   render = staticmethod(_render)
 
   
@@ -1375,6 +1408,20 @@ class reg16_reg8(MachineInstruction):
       rex = []
 
     return [0x66] + rex + params['opcode'] + [0xC0 | (reg16.reg << 3) | reg8.reg]
+  render = staticmethod(_render)
+
+  
+class reg16_simm8(MachineInstruction):
+  signature = (reg16_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg16 = operands['reg16']
+    rex = [0x40 | reg16.rex]
+    if rex == [0x40]:
+      rex = []
+
+    return [0x66] + rex + params['opcode'] + [0xC0 | params['modrm'] | reg16.reg] + w8(operands['simm8'])
   render = staticmethod(_render)
 
   
@@ -1518,15 +1565,15 @@ class reg32_mem32_imm32(MachineInstruction):
   render = staticmethod(_render)
 
  
-class reg32_mem32_imm8(MachineInstruction):
-  signature = (reg32_t, mem32_t, imm8_t)
+class reg32_mem32_simm8(MachineInstruction):
+  signature = (reg32_t, mem32_t, simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
     reg32 = operands['reg32']
     ret = common_memref(params['opcode'], operands['mem32'], reg32.reg << 3, reg32.rex << 2)
     if ret != None:
-      return ret + w8(operands['imm8'])
+      return ret + w8(operands['simm8'])
   render = staticmethod(_render)
 
  
@@ -1659,8 +1706,8 @@ class reg32_reg32_imm32(MachineInstruction):
   render = staticmethod(_render)
 
   
-class reg32_reg32_imm8_rev(MachineInstruction):
-  signature = (reg32_t('rd'), reg32_t('ra'), imm8_t)
+class reg32_reg32_simm8_rev(MachineInstruction):
+  signature = (reg32_t('rd'), reg32_t('ra'), simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
@@ -1670,7 +1717,7 @@ class reg32_reg32_imm8_rev(MachineInstruction):
     if rex == [0x40]:
       rex = []
 
-    return rex + params['opcode'] + [0xC0 | (ra.reg << 3) | rd.reg] + w8(operands['imm8'])
+    return rex + params['opcode'] + [0xC0 | (ra.reg << 3) | rd.reg] + w8(operands['simm8'])
   render = staticmethod(_render)
 
   
@@ -1720,6 +1767,20 @@ class reg32_reg8(MachineInstruction):
   render = staticmethod(_render)      
 
 
+class reg32_simm8(MachineInstruction):
+  signature = (reg32_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg32 = operands['reg32']
+    rex = [0x40 | reg32.rex]
+    if rex == [0x40]:
+      rex = []
+
+    return rex + params['opcode'] + [0xC0 | params['modrm'] | operands['reg32'].reg] + w8(operands['simm8'])
+  render = staticmethod(_render)
+
+  
 class reg32_xmm(MachineInstruction):
   signature = (reg32_t, xmm_t)
   opt_kw = ()
@@ -1922,15 +1983,15 @@ class reg64_mem64_imm32(MachineInstruction):
   render = staticmethod(_render)
 
  
-class reg64_mem64_imm8(MachineInstruction):
-  signature = (reg64_t, mem64_t, imm8_t)
+class reg64_mem64_simm8(MachineInstruction):
+  signature = (reg64_t, mem64_t, simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
     reg64 = operands['reg64']
     ret = common_memref(params['opcode'], operands['mem64'], reg64.reg << 3, 0x08 | (reg64.rex << 2))
     if ret != None:
-      return ret + w8(operands['imm8'])
+      return ret + w8(operands['simm8'])
   render = staticmethod(_render)
 
  
@@ -2060,15 +2121,15 @@ class reg64_reg64_imm8(MachineInstruction):
 
 
 # Reverse the two register operands, for imul 
-class reg64_reg64_imm8_rev(MachineInstruction):
-  signature = (reg64_t('rd'), reg64_t('ra'), imm8_t)
+class reg64_reg64_simm8_rev(MachineInstruction):
+  signature = (reg64_t('rd'), reg64_t('ra'), simm8_t)
   opt_kw = ()
   
   def _render(params, operands):
     ra = operands['ra']
     rd = operands['rd']
     
-    return [0x48 | (rd.rex << 2) | ra.rex] + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['imm8'])
+    return [0x48 | (rd.rex << 2) | ra.rex] + params['opcode'] + [0xC0 | (rd.reg << 3) | ra.reg] + w8(operands['simm8'])
   render = staticmethod(_render)
 
   
@@ -2096,6 +2157,16 @@ class reg64_reg8(MachineInstruction):
   render = staticmethod(_render)      
 
 
+class reg64_simm8(MachineInstruction):
+  signature = (reg64_t, simm8_t)
+  opt_kw = ()
+  
+  def _render(params, operands):
+    reg64 = operands['reg64']
+    return [0x48 | reg64.rex] + params['opcode'] + [0xC0 | params['modrm'] | reg64.reg] + w8(operands['simm8'])
+  render = staticmethod(_render)
+
+  
 class reg64_xmm(MachineInstruction):
   signature = (reg64_t, xmm_t)
   opt_kw = ()

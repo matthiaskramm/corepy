@@ -91,6 +91,9 @@ class x86ImmediateOperand(x86InstructionOperand):
   def fits(self, value):
     return isinstance(value, (int, long)) and (self.range[0] <= value and value < self.range[1])
 
+  def __eq__(self, other):
+    return isinstance(other, x86ImmediateOperand) and self.range[0] >= other.range[0] and self.range[1] <= other.range[1]
+
 
 class x86LabelOperand(x86InstructionOperand):
   relative_op = True
@@ -157,26 +160,26 @@ class x86PrefixOperand(x86InstructionOperand):
 class Rel8off(x86ImmediateOperand):
   relative_op = True
 
-  def __eq__(self, other):
-    return isinstance(other, (Imm8, Rel8off, Imm16, Imm32, Rel32off, Imm64))
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm8, Rel8off, Imm16, Imm32, Rel32off, Imm64))
 
-class Imm8(x86ImmediateOperand):
-  def __eq__(self, other):
-    return isinstance(other, (Imm8, Imm16, Imm32, Rel32off, Imm64))
+class Imm8(x86ImmediateOperand): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm8, Imm16, Imm32, Rel32off, Imm64))
 
-class Imm16(x86ImmediateOperand):
-  def __eq__(self, other):
-    return isinstance(other, (Imm16, Imm32, Rel32off, Imm64))
+class Imm16(x86ImmediateOperand): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm16, Imm32, Rel32off, Imm64))
 
 class Rel32off(x86ImmediateOperand):
   relative_op = True
 
-  def __eq__(self, other):
-    return isinstance(other, (Imm32, Rel32off, Imm64))
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm32, Rel32off, Imm64))
 
-class Imm32(x86ImmediateOperand):
-  def __eq__(self, other):
-    return isinstance(other, (Imm32, Imm64))
+class Imm32(x86ImmediateOperand): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm32, Imm64))
 
 class Imm64(x86ImmediateOperand): pass
 
