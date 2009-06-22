@@ -94,6 +94,9 @@ class x86ImmediateOperand(x86InstructionOperand):
   def fits(self, value):
     return isinstance(value, (int, long)) and (self.range[0] <= value and value < self.range[1])
 
+  def __eq__(self, other):
+    return isinstance(other, x86ImmediateOperand) and self.range[0] >= other.range[0] and self.range[1] <= other.range[1]
+
     
 class x86LabelOperand(x86InstructionOperand):
   relative_op = True
@@ -158,31 +161,34 @@ class x86PrefixOperand(x86InstructionOperand):
 # The __eq__ methods here are a consequence of the ordering of the comparison
 # in the _sig_cmp method in spe.py
 
+# TODO - instead of comparing types, why not compare ranges?
+#  If self's range is a subrange of other, return true
+
 class Rel8off(x86ImmediateOperand):
   relative_op = True
 
-  def __eq__(self, other):
-    return isinstance(other, (Imm8, Rel8off, Imm16, Rel16off, Imm32, Rel32off))
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm8, Rel8off, Imm16, Rel16off, Imm32, Rel32off))
 
-class Imm8(x86ImmediateOperand):
-  def __eq__(self, other):
-    return isinstance(other, (Imm8, Imm16, Rel16off, Imm32, Rel32off))
+class Imm8(x86ImmediateOperand): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm8, Imm16, Rel16off, Imm32, Rel32off))
 
 class Rel16off(x86ImmediateOperand):
   relative_op = True
 
-  def __eq__(self, other):
-    return isinstance(other, (Imm16, Rel16off, Imm32, Rel32off))
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm16, Rel16off, Imm32, Rel32off))
 
-class Imm16(x86ImmediateOperand):
-  def __eq__(self, other):
-    return isinstance(other, (Imm16, Imm32, Rel32off))
+class Imm16(x86ImmediateOperand): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm16, Imm32, Rel32off))
 
 class Rel32off(x86ImmediateOperand):
   relative_op = True
 
-  def __eq__(self, other):
-    return isinstance(other, (Imm32, Rel32off))
+#  def __eq__(self, other):
+#    return isinstance(other, (Imm32, Rel32off))
 
 class Imm32(x86ImmediateOperand): pass
 

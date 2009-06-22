@@ -597,8 +597,8 @@ class DispatchInstruction(Instruction):
         break
 
     if instruction is None:
-      raise Exception("No instruction method found for operand types (%s)" % (
-        ','.join([str(arg_type.name) for arg_type in op_types],)))
+      raise Exception("Instruction %s does not support operand types (%s)" % (
+        type(self), ','.join([str(arg_type.name) for arg_type in op_types],)))
 #     else:
 #       print "(%s) -> (%s)" % (
 #         ','.join([str(arg_type.name) for arg_type in op_types],),

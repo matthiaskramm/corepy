@@ -86,7 +86,6 @@ def x86_imm_operand_type(op):
       return imm32_t
     else:
       raise Exception('int/long operand too large: %d' % op)
-
   return 
 
 def x86_reg_operand_type(op):    
@@ -160,6 +159,11 @@ def x86_mem_operand_type(op):
     return mem_t
   return
 
+# TODO - inline these for speed?
+# TODO - hmm, can this be eliminated completely?
+#  Rather than going through this process to determine a 'type' for an operand,
+#  each type should have a boolean check against the user operand.
+#  why wouldnt this work?
 def x86_type(op):
   t = x86_imm_operand_type(op)
 
@@ -170,25 +174,6 @@ def x86_type(op):
       if t is None:
         t = x86_mem_operand_type(op)
   return t
-
-#def x86_one_type(op):
-#  if op == 1:
-#    return one_t
-#  
-#  t = x86_imm_operand_type(op)
-#
-#  if t is None:
-#    t = x86_reg_operand_type(op)
-#
-#  return t
-
-#def x86_reloff_type(op):
-#  t = x86_reloff_operand_type(op)
-#
-#  if t is None:
-#    t = x86_reg_operand_type(op)
-#
-#  return t
 
 
 class x86Instruction(Instruction): pass
@@ -207,16 +192,16 @@ class x86DispatchInstruction(DispatchInstruction):
 
 class adc(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x10}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x10}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x10}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x10}),
     (eax_imm32,           {'opcode':[0x15],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x10}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x10}),
     (reg32_reg32,         {'opcode':[0x11],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x11],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x13],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x10}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x10}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x10}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x10}),
     (ax_imm16,            {'opcode':[0x66, 0x15],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x10}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x10}),
@@ -232,16 +217,16 @@ class adc(x86DispatchInstruction):
   
 class add(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x00}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x00}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x00}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x00}),
     (eax_imm32,           {'opcode':[0x05],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x00}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x00}),
     (reg32_reg32,         {'opcode':[0x01],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x01],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x03],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x00}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x00}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x00}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x00}),
     (ax_imm16,            {'opcode':[0x66, 0x05],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x00}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x00}),
@@ -257,16 +242,16 @@ class add(x86DispatchInstruction):
     
 class and_(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x20}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x20}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x20}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x20}),
     (eax_imm32,           {'opcode':[0x25],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x20}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x20}),
     (reg32_reg32,         {'opcode':[0x21],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x21],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x23],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x20}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x20}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x20}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x20}),
     (ax_imm16,            {'opcode':[0x66, 0x25],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x20}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x20}),
@@ -595,16 +580,16 @@ class cmovg(x86DispatchInstruction):
     
 class cmp(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x38}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x38}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x38}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x38}),
     (eax_imm32,           {'opcode':[0x3D],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x38}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x38}),
     (reg32_reg32,         {'opcode':[0x39],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x39],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x3B],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x38}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x38}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x38}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x38}),
     (ax_imm16,            {'opcode':[0x66, 0x3D],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x38}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x38}),
@@ -691,16 +676,16 @@ class imul(x86DispatchInstruction):
     (mem32,               {'opcode':[0xF7],             'modrm':0x28}),
     (reg32_reg32,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
     (reg32_mem32,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
-    (reg32_reg32_imm8_rev,{'opcode':[0x6B],             'modrm':None}),
-    (reg32_mem32_imm8,    {'opcode':[0x6B],             'modrm':None}),
+    (reg32_reg32_simm8_rev,{'opcode':[0x6B],             'modrm':None}),
+    (reg32_mem32_simm8,    {'opcode':[0x6B],             'modrm':None}),
     (reg32_reg32_imm32,   {'opcode':[0x69],             'modrm':None}),
     (reg32_mem32_imm32,   {'opcode':[0x69],             'modrm':None}),
     (reg16,               {'opcode':[0x66, 0xF7],       'modrm':0x28}),
     (mem16,               {'opcode':[0x66, 0xF7],       'modrm':0x28}),
     (reg16_reg16,         {'opcode':[0x66, 0x0F, 0xAF], 'modrm':None}),
     (reg16_mem16,         {'opcode':[0x66, 0x0F, 0xAF], 'modrm':None}),
-    (reg16_reg16_imm8_rev,{'opcode':[0x66, 0x6B],       'modrm':None}),
-    (reg16_mem16_imm8,    {'opcode':[0x66, 0x6B],       'modrm':None}),
+    (reg16_reg16_simm8_rev,{'opcode':[0x66, 0x6B],       'modrm':None}),
+    (reg16_mem16_simm8,    {'opcode':[0x66, 0x6B],       'modrm':None}),
     (reg16_reg16_imm16,   {'opcode':[0x66, 0x69],       'modrm':None}),
     (reg16_mem16_imm16,   {'opcode':[0x66, 0x69],       'modrm':None}),
     (reg8,                {'opcode':[0xF6],             'modrm':0x28}),
@@ -1068,16 +1053,16 @@ class not_(x86DispatchInstruction):
   
 class or_(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x08}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x08}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x08}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x08}),
     (eax_imm32,           {'opcode':[0x0D],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x08}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x08}),
     (mem32_reg32,         {'opcode':[0x09],             'modrm':None}),
     (reg32_reg32,         {'opcode':[0x09],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x0B],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x08}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x08}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x08}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x08}),
     (ax_imm16,            {'opcode':[0x66, 0x0D],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x08}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x08}),
@@ -1174,7 +1159,7 @@ class push(x86DispatchInstruction):
   dispatch = (
     (reg32,               {'opcode':[0x50],             'modrm':None}),
     (mem32,               {'opcode':[0xFF],             'modrm':0x30}),
-    (imm8,                {'opcode':[0x6A],             'modrm':None}),
+    (simm8,               {'opcode':[0x6A],             'modrm':None}),
     (imm16,               {'opcode':[0x66, 0x68],       'modrm':None}),
     (imm32,               {'opcode':[0x68],             'modrm':None}),
     (reg16,               {'opcode':[0x66, 0x50],       'modrm':None}),
@@ -1337,16 +1322,16 @@ class sar(x86DispatchInstruction):
     
 class sbb(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x18}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x18}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x18}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x18}),
     (eax_imm32,           {'opcode':[0x1D],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x18}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x18}),
     (reg32_reg32,         {'opcode':[0x19],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x19],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x1B],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x18}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x18}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x18}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x18}),
     (ax_imm16,            {'opcode':[0x66, 0x1D],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x18}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x18}),
@@ -1612,8 +1597,8 @@ class stosw(x86Instruction):
   
 class sub(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x28}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x28}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x28}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x28}),
     (eax_imm32,           {'opcode':[0x2D],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x28}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x28}),
@@ -1621,8 +1606,8 @@ class sub(x86DispatchInstruction):
     (mem32_reg32,         {'opcode':[0x29],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x2B],             'modrm':None}),
     (ax_imm16,            {'opcode':[0x66, 0x2D],       'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x28}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x28}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x28}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x28}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x28}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x28}),
     (reg16_reg16,         {'opcode':[0x66, 0x29],       'modrm':None}),
@@ -1688,16 +1673,16 @@ class xlatb(x86Instruction):
   
 class xor(x86DispatchInstruction):
   dispatch = (
-    (reg32_imm8,          {'opcode':[0x83],             'modrm':0x30}),
-    (mem32_imm8,          {'opcode':[0x83],             'modrm':0x30}),
+    (reg32_simm8,         {'opcode':[0x83],             'modrm':0x30}),
+    (mem32_simm8,         {'opcode':[0x83],             'modrm':0x30}),
     (eax_imm32,           {'opcode':[0x35],             'modrm':None}),
     (reg32_imm32,         {'opcode':[0x81],             'modrm':0x30}),
     (mem32_imm32,         {'opcode':[0x81],             'modrm':0x30}),
     (reg32_reg32,         {'opcode':[0x31],             'modrm':None}),
     (mem32_reg32,         {'opcode':[0x31],             'modrm':None}),
     (reg32_mem32,         {'opcode':[0x33],             'modrm':None}),
-    (reg16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x30}),
-    (mem16_imm8,          {'opcode':[0x66, 0x83],       'modrm':0x30}),
+    (reg16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x30}),
+    (mem16_simm8,         {'opcode':[0x66, 0x83],       'modrm':0x30}),
     (ax_imm16,            {'opcode':[0x66, 0x35],       'modrm':None}),
     (reg16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x30}),
     (mem16_imm16,         {'opcode':[0x66, 0x81],       'modrm':0x30}),
