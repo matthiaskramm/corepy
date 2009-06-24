@@ -36,7 +36,7 @@
 #include "calcl.h"
 
 #ifdef HAS_NUMPY
-#include <Numeric/arrayobject.h>
+#include <numpy/arrayobject.h>
 #endif
 
 //#ifndef _DEBUG
@@ -585,7 +585,7 @@ static PyObject* cal_set_ndarray_ptr(PyObject* self, PyObject* args)
   void* ptr;
   PyArrayObject* arr;
 
-  if(!PyArg_ParseTuple(args, "lO!", (void**)&ptr, &PyArray_Type, &arr)) {
+  if(!PyArg_ParseTuple(args, "O!l", &PyArray_Type, &arr, (void**)&ptr)) {
     return NULL;
   }
 

@@ -66,8 +66,9 @@ class InstructionStream(spe.InstructionStream):
     spe.InstructionStream.__init__(self)
 
     self._remote_bindings = {}
-    self._remote_bindings_arr = {}
+    self._remote_bindings_data = {}
     self._local_bindings = {}
+    self._declare_registers = {}
     return
 
   def make_executable(self):
@@ -87,7 +88,6 @@ class InstructionStream(spe.InstructionStream):
     return
   
   def acquire_register(self, type = None, reg = None):
-    
     if isinstance(type, (list, tuple)):
       # if this is a LiteralRegister, acquire and set the value
       l = spe.InstructionStream.acquire_register(self, type='l', reg=reg)
@@ -108,6 +108,26 @@ class InstructionStream(spe.InstructionStream):
 
   def _synthesize_prologue(self):
     self._prologue = 'il_ps_3_0\n'
+
+    # Add declare instructions for any bindings
+    #for (regname, (arr, kwargs)) in self._remote_bindings_data.items():
+    #  print "synth prolog check binding", regname, kwargs
+    #  # TODO - do this in set_bindings instead?
+    #  if kwargs.has_key('decl') and kwargs['decl'] == False:
+    #    continue;
+
+    #  # Switch on the regname
+    #  if regname[0] == 'o':
+    #    inst = isa.dcl_output(regname, **kwargs)
+    #    print "inserting inst", inst.render()
+    #    self._prologue += inst.render() + '\n'
+      #elif regname[0] == 'i':
+      #  dim = isa.pixtex_type.oned
+      #  #if self._remote_bindings[regname].
+      #  inst = isa.dcl_resource(regname[1:], **kwargs)
+      #  print "inserting inst", inst.render()
+      #  self._prologue += inst.render() + '\n'
+
     return
 
   def _synthesize_epilogue(self):
@@ -121,6 +141,8 @@ class InstructionStream(spe.InstructionStream):
     
     self._synthesize_prologue()
     self._synthesize_epilogue()
+
+    print "PROLOGUE", self._prologue
     
     for inst in self._instructions:
       if type(inst) == str:
@@ -132,6 +154,7 @@ class InstructionStream(spe.InstructionStream):
         render_string += inst.render() + '\n'
     self.render_string = self._prologue + render_string + self._epilogue
 
+    print self.render_string
     self.render_code = cal_exec.compile(self.render_string)
     self._cached = True
     return
@@ -162,13 +185,13 @@ class InstructionStream(spe.InstructionStream):
     if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
       regname = regname.name
 
-    self._remote_bindings_arr[regname] = arr
+    self._remote_bindings_data[regname] = arr
     self._remote_bindings[regname] = binding
-
+    self._cached = False
     return
 
   def get_remote_binding(self, regname):
-    return self._remote_bindings_arr[regname]
+    return self._remote_bindings_data[regname]
 
   def set_local_binding(self, regname, rec):
     #local = {"o1": (SIZE, SIZE, cal_exec.FMT_FLOAT32_4),
@@ -183,8 +206,12 @@ class InstructionStream(spe.InstructionStream):
 
   def get_local_binding(self, regname):
     return self._local_bindings[regname]
-      
 
+  def declare_register(regname, width, height, fmt, **kwargs)
+    # Declare a register for the user in the prologue.
+    # TODO - some error checking on the args here?
+    self._declare_registers[regname] = (width, height, fmt, kwargs)
+    return
 
 
 class Processor(spe.Processor):
@@ -222,14 +249,14 @@ class Processor(spe.Processor):
       try:
         import numpy
 
-        for (key, arr) in code._remote_bindings_arr.items():
+        for (key, arr) in code._remote_bindings_data.items():
           if isinstance(arr, extarray.extarray):
             arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
           elif isinstance(arr, numpy.ndarray):
             cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
 
       except ImportError:
-        for arr in code._remote_bindings_arr.values():
+        for arr in code._remote_bindings_data.values():
           arr.set_memory(arr.gpu_mem_handle[0])
       return
 
@@ -238,7 +265,7 @@ class Processor(spe.Processor):
     (th, code) = id
     cal_exec.join_stream(th)
 
-    for arr in code._remote_bindings_arr.values():
+    for arr in code._remote_bindings_data.values():
       arr.set_memory(arr.gpu_mem_handle[0])
     return
 
