@@ -207,7 +207,7 @@ class InstructionStream(spe.InstructionStream):
   def get_local_binding(self, regname):
     return self._local_bindings[regname]
 
-  def declare_register(regname, width, height, fmt, **kwargs)
+  def declare_register(regname, width, height, fmt, **kwargs):
     # Declare a register for the user in the prologue.
     # TODO - some error checking on the args here?
     self._declare_registers[regname] = (width, height, fmt, kwargs)
