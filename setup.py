@@ -81,12 +81,15 @@ elif py_platform == "linux-x86_64":
   if path.exists("/usr/lib/libaticalrt.so"):
     print "CAL is available; enabling CAL GPU support"
     define_macros = []
+    include_dirs=['/usr/local/atical/include']
 
     # Enable NumPy integration if Numpy is available
     try:
       import numpy
 
       define_macros = [('HAS_NUMPY', 1)]
+      include_dirs.append(numpy.get_include())
+
       print "NumPy is available; enabling CAL NumPy Array support"
       
     except ImportError:
@@ -95,7 +98,7 @@ elif py_platform == "linux-x86_64":
     ext_modules.append(
         Extension('corepy.arch.cal.platform.linux.cal_exec',
                   sources=['corepy/arch/cal/platform/linux/cal_exec.c'],
-                  include_dirs=['/usr/local/atical/include'],
+                  include_dirs=include_dirs,
                   depends = [],
                   libraries = ['aticalrt', 'aticalcl'],
                   define_macros = define_macros))

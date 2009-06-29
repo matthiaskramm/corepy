@@ -67,6 +67,8 @@ class InstructionStream(spe.InstructionStream):
 
     self._remote_bindings = {}
     self._remote_bindings_data = {}
+    self._copy_bindings = {}
+    self._copy_bindings_data = {}
     self._local_bindings = {}
     self._declare_registers = {}
     return
@@ -167,7 +169,7 @@ class InstructionStream(spe.InstructionStream):
 
   # GPU memory binding management
 
-  def set_remote_binding(self, regname, arr):
+  def set_remote_binding(self, regname, arr, copy_local = False):
     if isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle"):
       binding = arr.gpu_mem_handle
     else:
@@ -180,14 +182,18 @@ class InstructionStream(spe.InstructionStream):
         raise Exception("Not NumPy with a GPU memory buffer")
 
       buf = arr.base
-      binding = [buf.pointer, buf.pitch, buf.res]
+      binding = [buf.pointer, buf.pitch, buf.height, buf.format, buf.res]
 
     if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
       regname = regname.name
 
-    self._remote_bindings_data[regname] = arr
-    self._remote_bindings[regname] = binding
-    self._cached = False
+    if copy_local:
+      self._copy_bindings_data[regname] = arr
+      self._copy_bindings[regname] = binding
+    else:
+      self._remote_bindings_data[regname] = arr
+      self._remote_bindings[regname] = binding
+    #self._cached = False
     return
 
   def get_remote_binding(self, regname):
@@ -244,7 +250,7 @@ class Processor(spe.Processor):
       return (th, code)
     else:
       cal_exec.run_stream(code.render_code,
-          self.device, domain, code._local_bindings, code._remote_bindings)
+          self.device, domain, code._local_bindings, code._remote_bindings, code._copy_bindings)
 
       try:
         import numpy
@@ -255,8 +261,16 @@ class Processor(spe.Processor):
           elif isinstance(arr, numpy.ndarray):
             cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
 
+        for (key, arr) in code._copy_bindings_data.items():
+          if isinstance(arr, extarray.extarray):
+            arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
+          elif isinstance(arr, numpy.ndarray):
+            cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
+
       except ImportError:
         for arr in code._remote_bindings_data.values():
+          arr.set_memory(arr.gpu_mem_handle[0])
+        for arr in code._copy_bindings_data.values():
           arr.set_memory(arr.gpu_mem_handle[0])
       return
 
