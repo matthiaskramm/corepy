@@ -65,16 +65,36 @@ class InstructionStream(spe.InstructionStream):
   def __init__(self):
     spe.InstructionStream.__init__(self)
 
+    #self._cached = False
+    self.reset()
+    return
+
+  def __del__(self):
+    if self._cached:
+      cal_exec.free_image(self.render_code)
+      self.render_string = None
+    return
+
+
+  def reset(self):
+    spe.InstructionStream.reset(self)
     self._remote_bindings = {}
     self._remote_bindings_data = {}
     self._copy_bindings = {}
     self._copy_bindings_data = {}
     self._local_bindings = {}
     self._declare_registers = {}
+
+    if self._cached:
+      cal_exec.free_image(self.render_code)
+      self.render_string = None
+
     return
+
 
   def make_executable(self):
     return 
+
 
   def create_register_files(self):
     # Each declarative RegisterFiles entry is:
@@ -88,6 +108,7 @@ class InstructionStream(spe.InstructionStream):
     self._reg_type['r'] = reg.TempRegister
     self._reg_type['l'] = reg.LiteralRegister
     return
+
   
   def acquire_register(self, type = None, reg = None):
     if isinstance(type, (list, tuple)):
@@ -103,6 +124,7 @@ class InstructionStream(spe.InstructionStream):
       self._register_files[type(register)].release_register(register)
     # print 'release', str(self._register_files[type])
     return 
+
   
   # ------------------------------
   # Execute/ABI support
@@ -136,6 +158,7 @@ class InstructionStream(spe.InstructionStream):
     self._epilogue = 'end\n'
     return
 
+
   def cache_code(self):
     if self._cached == True:
       return
@@ -167,7 +190,10 @@ class InstructionStream(spe.InstructionStream):
     else:
       spe.InstructionStream.add(self, inst)
 
+
+  # ------------------------------
   # GPU memory binding management
+  # ------------------------------
 
   def set_remote_binding(self, regname, arr, copy_local = False):
     if isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle"):
@@ -246,7 +272,7 @@ class Processor(spe.Processor):
 
     if async:
       th = cal_exec.run_stream_async(code.render_code,
-          self.device, domain, code._local_bindings, code._remote_bindings)
+          self.device, domain, code._local_bindings, code._remote_bindings, code._copy_bindings)
       return (th, code)
     else:
       cal_exec.run_stream(code.render_code,
@@ -269,9 +295,9 @@ class Processor(spe.Processor):
 
       except ImportError:
         for arr in code._remote_bindings_data.values():
-          arr.set_memory(arr.gpu_mem_handle[0])
+          arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
         for arr in code._copy_bindings_data.values():
-          arr.set_memory(arr.gpu_mem_handle[0])
+          arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
       return
 
 
@@ -280,7 +306,7 @@ class Processor(spe.Processor):
     cal_exec.join_stream(th)
 
     for arr in code._remote_bindings_data.values():
-      arr.set_memory(arr.gpu_mem_handle[0])
+      arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
     return
 
 
