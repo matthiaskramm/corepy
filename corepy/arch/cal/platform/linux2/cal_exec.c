@@ -871,23 +871,28 @@ static PyObject* cal_alloc_local(PyObject* self, PyObject* args)
 
   //TODO - which of these are used?
   // should just be ptr and res
-  handle = PyList_New(4);
-  PyList_SET_ITEM(handle, 0, PyInt_FromLong(width));
-  PyList_SET_ITEM(handle, 1, PyInt_FromLong(height));
-  PyList_SET_ITEM(handle, 2, PyLong_FromUnsignedLong((unsigned long)fmt));
-  PyList_SET_ITEM(handle, 3, PyLong_FromUnsignedLong((unsigned long)res));
+  handle = PyList_New(2);
+  //PyList_SET_ITEM(handle, 0, PyInt_FromLong(width));
+  //PyList_SET_ITEM(handle, 1, PyInt_FromLong(height));
+  //PyList_SET_ITEM(handle, 2, PyLong_FromUnsignedLong((unsigned long)fmt));
+  PyList_SET_ITEM(handle, 0, PyLong_FromUnsignedLong((unsigned long)res));
+  PyList_SET_ITEM(handle, 1, PyLong_FromVoidPtr(NULL));
   return handle;
+  //return PyLong_FromUnsignedLong((unsigned long)res);
 }
 
 
 static PyObject* cal_free_local(PyObject* self, PyObject* args)
 {
-  CALuint pitch;
-  CALuint height;
-  CALformat fmt;
+  //CALuint pitch;
+  //CALuint height;
+  //CALformat fmt;
   CALresource res;
-  PyObject* tuple;
+  //PyObject* tuple;
 
+  res = (CALresource)PyLong_AsLong(args);
+
+#if 0
   tuple = PyList_AsTuple(args);
   if(!PyArg_ParseTuple(tuple, "IIII",
       (CALuint*)&pitch, (CALuint*)&height,
@@ -895,7 +900,7 @@ static PyObject* cal_free_local(PyObject* self, PyObject* args)
     return NULL;
   }
   Py_DECREF(tuple);
-
+#endif
   calResFree(res);
   
   Py_RETURN_NONE;
@@ -939,32 +944,37 @@ static PyObject* cal_alloc_remote(PyObject* self, PyObject* args)
 
   //TODO - which of these are used?
   // should just be ptr and res
-  handle = PyList_New(5);
-  PyList_SET_ITEM(handle, 0, PyLong_FromVoidPtr(ptr));
-  PyList_SET_ITEM(handle, 1, PyInt_FromLong(pitch));
-  PyList_SET_ITEM(handle, 2, PyInt_FromLong(height));
-  PyList_SET_ITEM(handle, 3, PyLong_FromUnsignedLong((unsigned long)fmt));
-  PyList_SET_ITEM(handle, 4, PyLong_FromUnsignedLong((unsigned long)res));
+  handle = PyList_New(3);
+  PyList_SET_ITEM(handle, 0, PyLong_FromUnsignedLong((unsigned long)res));
+  PyList_SET_ITEM(handle, 1, PyLong_FromVoidPtr(ptr));
+  PyList_SET_ITEM(handle, 2, PyInt_FromLong(pitch));
+  //PyList_SET_ITEM(handle, 2, PyInt_FromLong(height));
+  //PyList_SET_ITEM(handle, 3, PyLong_FromUnsignedLong((unsigned long)fmt));
   return handle;
 }
 
 
 static PyObject* cal_free_remote(PyObject* self, PyObject* args)
 {
-  CALvoid* ptr;
-  CALuint pitch;
-  CALuint height;
-  CALformat fmt;
+  //CALvoid* ptr;
+  //CALuint pitch;
+  //CALuint height;
+  //CALformat fmt;
   CALresource res;
-  PyObject* tuple;
+  //PyObject* tuple;
 
+  res = (CALresource)PyLong_AsLong(args);
+#if 0
   tuple = PyList_AsTuple(args);
-  if(!PyArg_ParseTuple(tuple, "lIIII",
-      (CALvoid**)&ptr, (CALuint*)&pitch, (CALuint*)&height,
-      (CALformat*)&fmt, (CALresource*)&res)) {
+  if(!PyArg_ParseTuple(tuple, "IlI",
+      (CALresource*)&res, (CALvoid**)&ptr, 
+      (CALuint*)&pitch)) {
+      //(CALuint*)&height,
+      //(CALformat*)&fmt, (CALresource*)&res)) {
     return NULL;
   }
   Py_DECREF(tuple);
+#endif
 
   calResUnmap(res);
   calResFree(res);
@@ -984,6 +994,8 @@ static PyObject* cal_set_ndarray_ptr(PyObject* self, PyObject* args)
   }
 
   arr->data = ptr;
+
+  //TODO - update the pointer in the base CALMemBuffer also
 
   Py_INCREF(Py_None);
   return Py_None;

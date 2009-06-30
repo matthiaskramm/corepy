@@ -213,9 +213,8 @@ class InstructionStream(spe.InstructionStream):
     if isinstance(hdl, extarray.extarray):
       if not hasattr(hdl, "gpu_mem_handle"):
         raise TypeError("Not an extarray with a GPU memory handle")
-      #binding = arr.gpu_mem_handle
-      # TODO - gpu_mem_handle has extra stuff in it now.. dont need it
-      binding = [hdl.gpu_mem_handle[4], hdl.gpu_mem_handle[0]]
+      #binding = hdl.gpu_mem_handle
+      binding = [hdl.gpu_mem_handle[0], hdl.gpu_mem_handle[1]]
 
     elif isinstance(hdl, numpy.ndarray):
       # NumPy array.. do we support it, and does it use a CAL buffer?
@@ -230,7 +229,8 @@ class InstructionStream(spe.InstructionStream):
       binding = [buf.res, buf.pointer]
 
     elif isinstance(hdl, LocalMemory):
-      binding = [hdl.binding[3], 0]
+      # TODO - maybe just create this?
+      binding = hdl.binding
 
     if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
       regname = regname.name
@@ -394,12 +394,12 @@ class Processor(spe.Processor):
     mem = cal_exec.alloc_remote(self.device, fmt, width, height, globl)
     arr = extarray.extarray(typecode, 0)
 
-    arr.data_len = mem[1] * height * comps
-    arr.set_memory(mem[0], arr.data_len * 4)
+    arr.data_len = mem[2] * height * comps
+    arr.set_memory(mem[1], arr.data_len * 4)
     arr.gpu_mem_handle = mem
     arr.gpu_device = self.device
     arr.gpu_width = width
-    arr.gpu_pitch = mem[1]
+    arr.gpu_pitch = mem[2]
     return arr
 
 
@@ -450,8 +450,8 @@ class Processor(spe.Processor):
       hdl.set_memory(0, 0)
       hdl.data_len = 0
     elif isinstance(hdl, LocalMemory):
-      cal.free_local(hdl.binding)
-      hdl.binding = None
+      cal.free_local(hdl.res)
+      hdl.res = None
     else:
       raise TypeError("Unknown handle type %s" % (type(hdl)))
     return
@@ -470,7 +470,7 @@ class Processor(spe.Processor):
         raise TypeError("dst is not an extarray with a GPU memory handle")
       # TODO - not very good just grabbing stuff inside the low-level bindings.
       #  make them be dictionaries, or standardize on their form everywhere?
-      dst_res = dst.gpu_mem_handle[4]
+      dst_res = dst.gpu_mem_handle[0]
     elif isinstance(dst, numpy.ndarray):
       # NumPy array.. do we support it, and does it use a CAL buffer?
       if not HAS_NUMPY:
@@ -480,12 +480,12 @@ class Processor(spe.Processor):
 
       dst_res = dst.base.res
     elif isinstance(dst, LocalMemory):
-      dst_res = dst.binding[3]
+      dst_res = dst.res
 
     if isinstance(src, extarray.extarray):
       if not hasattr(src, "gpu_mem_handle"):
         raise TypeError("src is not an extarray with a GPU memory handle")
-      src_res = src.gpu_mem_handle[4]
+      src_res = src.gpu_mem_handle[0]
     elif isinstance(src, numpy.ndarray):
       # NumPy array.. do we support it, and does it use a CAL buffer?
       if not HAS_NUMPY:
@@ -495,7 +495,7 @@ class Processor(spe.Processor):
 
       src_res = src.base.res
     elif isinstance(src, LocalMemory):
-      src_res = src.binding[3]
+      src_res = src.res
 
     # Start the copy
     hdl = cal_exec.copy_async(self.ctx, dst_res, src_res)
@@ -647,7 +647,6 @@ def TestSimpleKernel():
   for i in xrange(0, SIZE * SIZE * 4):
     if ext_output[i] != float(i + 1):
       print "ERROR index %d is %f, should be %f" % (i, ext_output[i], float(i + 1))
-
 
   proc.free(ext_input)
   proc.free(ext_output)
