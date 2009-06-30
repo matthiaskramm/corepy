@@ -83,6 +83,8 @@ class InstructionStream(spe.InstructionStream):
 
   def reset(self):
     spe.InstructionStream.reset(self)
+    self._bindings = {}
+    self._bindings_data = {}
     self._remote_bindings = {}
     self._remote_bindings_data = {}
     self._copy_bindings = {}
@@ -172,7 +174,7 @@ class InstructionStream(spe.InstructionStream):
     self._synthesize_prologue()
     self._synthesize_epilogue()
 
-    print "PROLOGUE", self._prologue
+    #print "PROLOGUE", self._prologue
     
     for inst in self._instructions:
       if type(inst) == str:
@@ -184,7 +186,7 @@ class InstructionStream(spe.InstructionStream):
         render_string += inst.render() + '\n'
     self.render_string = self._prologue + render_string + self._epilogue
 
-    print self.render_string
+    #print self.render_string
     self.render_code = cal_exec.compile(self.render_string)
     self._cached = True
     return
@@ -200,54 +202,111 @@ class InstructionStream(spe.InstructionStream):
   # GPU memory binding management
   # ------------------------------
 
-  def set_remote_binding(self, regname, arr, copy_local = False):
-    if isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle"):
-      binding = arr.gpu_mem_handle
-    elif isinstance(arr, numpy.ndarray):
+  def set_binding(self, regname, hdl):
+    # Don't want the C code to deal with all the different allocation types.
+    # What does the C code need? just pass that in.
+    # ctx for everthing
+    # regname, resource for each binding
+    #  remote bindings also need to get the new pointer back out
+
+    # TODO - standardize on all the internal resource handles!
+    if isinstance(hdl, extarray.extarray):
+      if not hasattr(hdl, "gpu_mem_handle"):
+        raise TypeError("Not an extarray with a GPU memory handle")
+      #binding = arr.gpu_mem_handle
+      # TODO - gpu_mem_handle has extra stuff in it now.. dont need it
+      binding = [hdl.gpu_mem_handle[4], hdl.gpu_mem_handle[0]]
+
+    elif isinstance(hdl, numpy.ndarray):
       # NumPy array.. do we support it, and does it use a CAL buffer?
       if not HAS_NUMPY:
         raise ImportError("NumPy array support requires NumPy installation")
 
-      if not isinstance(arr.base, cal_exec.calmembuffer):
+      if not isinstance(hdl.base, cal_exec.calmembuffer):
         raise TypeError("Not NumPy with a GPU memory buffer")
 
       # Build a binding from the underlying CAL buffer
-      buf = arr.base
-      binding = [buf.pointer, buf.pitch, buf.height, buf.format, buf.res]
+      buf = hdl.base
+      binding = [buf.res, buf.pointer]
+
+    elif isinstance(hdl, LocalMemory):
+      binding = [hdl.binding[3], 0]
 
     if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
       regname = regname.name
 
-    if copy_local:
-      self._copy_bindings_data[regname] = arr
-      self._copy_bindings[regname] = binding
-    else:
-      self._remote_bindings_data[regname] = arr
-      self._remote_bindings[regname] = binding
+    self._bindings_data[regname] = hdl
+    self._bindings[regname] = binding
     #self._cached = False
     return
 
-  def get_remote_binding(self, regname):
-    return self._remote_bindings_data[regname]
 
-  def set_local_binding(self, regname, rec):
-    #local = {"o1": (SIZE, SIZE, cal_exec.FMT_FLOAT32_4),
-    # TODO - better checking
-    if not isinstance(rec, (tuple, list)) and len(rec) != 3:
-      raise Exception("Invalid local binding record")
+#  def set_remote_binding(self, regname, arr, copy_local = False):
+#    if isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle"):
+#      binding = arr.gpu_mem_handle
+#    elif isinstance(arr, numpy.ndarray):
+#      # NumPy array.. do we support it, and does it use a CAL buffer?
+#      if not HAS_NUMPY:
+#        raise ImportError("NumPy array support requires NumPy installation")
+#
+#      if not isinstance(arr.base, cal_exec.calmembuffer):
+#        raise TypeError("Not NumPy with a GPU memory buffer")
+#
+#      # Build a binding from the underlying CAL buffer
+#      buf = arr.base
+#      binding = [buf.pointer, buf.pitch, buf.height, buf.format, buf.res]
+#
+#    if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
+#      regname = regname.name
+#
+#    if copy_local:
+#      self._copy_bindings_data[regname] = arr
+#      self._copy_bindings[regname] = binding
+#    else:
+#      self._remote_bindings_data[regname] = arr
+#      self._remote_bindings[regname] = binding
+#    #self._cached = False
+#    return
+#
+#  def get_remote_binding(self, regname):
+#    return self._remote_bindings_data[regname]
+#
+#  def set_local_binding(self, regname, rec):
+#    #local = {"o1": (SIZE, SIZE, cal_exec.FMT_FLOAT32_4),
+#    # TODO - better checking
+#    if not isinstance(rec, (tuple, list)) and len(rec) != 3:
+#      raise Exception("Invalid local binding record")
+#
+#    if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
+#      regname = regname.name
+#
+#    self._local_bindings[regname] = rec
+#
+#  def get_local_binding(self, regname):
+#    return self._local_bindings[regname]
+#
+#  def declare_register(regname, width, height, fmt, **kwargs):
+#    # Declare a register for the user in the prologue.
+#    # TODO - some error checking on the args here?
+#    self._declare_registers[regname] = (width, height, fmt, kwargs)
+#    return
 
-    if isinstance(regname, (reg.CALRegister, reg.CALBuffer)):
-      regname = regname.name
 
-    self._local_bindings[regname] = rec
+# ------------------------------------------------------------
+# Processor
+# ------------------------------------------------------------
 
-  def get_local_binding(self, regname):
-    return self._local_bindings[regname]
+class LocalMemory(object):
+  """
+  Handle representing a local GPU memory allocation.
+  """
 
-  def declare_register(regname, width, height, fmt, **kwargs):
-    # Declare a register for the user in the prologue.
-    # TODO - some error checking on the args here?
-    self._declare_registers[regname] = (width, height, fmt, kwargs)
+  def __init__(self, fmt, width, height, globl, binding):
+    self.fmt = fmt
+    self.width = width
+    self.height = height
+    self.globl = globl
+    self.binding = binding
     return
 
 
@@ -255,66 +314,29 @@ class Processor(spe.Processor):
   exec_module = cal_exec
 
   def __init__(self, device):
+    """Create a new Processor representing a particular GPU in the system, 
+       indexed by device."""
     spe.Processor.__init__(self)
 
     if device < 0 or device > N_GPUS:
       raise Exception("Invalid device number %d" % device)
 
+    self.ctx = cal_exec.alloc_ctx(device)
     self.device = device
     return
 
 
-  def execute(self, code, domain = None, async = False):
-    code.cache_code() 
-
-    if domain is None:
-      try:
-        input = code.get_remote_binding("i0")
-      except KeyError:
-        raise Exception("No domain specified and no remote i0 register bound")
-
-      domain = (0, 0, input.gpu_width, len(input) / input.gpu_width)
-
-    if async:
-      th = cal_exec.run_stream_async(code.render_code,
-          self.device, domain, code._local_bindings, code._remote_bindings, code._copy_bindings)
-      return (th, code)
-    else:
-      cal_exec.run_stream(code.render_code,
-          self.device, domain, code._local_bindings, code._remote_bindings, code._copy_bindings)
-
-      # Go through the bindings and re-set all the pointers
-      #  When a kernel is executed, remote memory has to be unmapped and
-      #  remapped, meaning the memory location can change.
-      for (key, arr) in code._remote_bindings_data.items():
-        if isinstance(arr, extarray.extarray):
-          arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
-        elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
-          cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
-
-      for (key, arr) in code._copy_bindings_data.items():
-        if isinstance(arr, extarray.extarray):
-          arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
-        elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
-          cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
-
-      return
-
-
-  def join(self, id):
-    (th, code) = id
-    cal_exec.join_stream(th)
-
-    for arr in code._remote_bindings_data.values():
-      if isinstance(arr, extarray.extarray):
-        arr.set_memory(arr.gpu_mem_handle[0], arr.data_len * arr.itemsize)
-      elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
-        cal_exec.set_ndarray_ptr(arr, code._remote_bindings[key][0])
+  def __del__(self):
+    cal_exec.free_ctx(self.ctx)
     return
 
 
-  # TODO - need to deal with format types
-  def alloc_remote(self, typecode, comps, width, height = 1, globl = False):
+  # ------------------------------
+  # Memory Management
+  # ------------------------------
+
+  def _get_fmt(self, typecode, comps):
+    # TODO - more format types
     if typecode == 'f':
       if comps == 1:
         fmt = cal_exec.FMT_FLOAT32_1
@@ -344,6 +366,25 @@ class Processor(spe.Processor):
         raise Exception("Number of components must be 1, 2, or 4")
     else:
       raise Exception("Unsupported data type: " + str(typecode))
+    return fmt
+
+
+  def alloc_local(self, typecode, comps, width, height = 1, globl = False):
+    """Allocate local GPU memory and return a handle for copying/binding."""
+    fmt = self._get_fmt(typecode, comps)
+    
+    if globl:
+      globl = cal_exec.GLOBAL_BUFFER
+
+    # Allocate GPU memory and create a LocalMemory handle
+    binding = cal_exec.alloc_local(self.device, fmt, width, height, globl)
+    hdl = LocalMemory(fmt, width, height, globl, binding)
+    return hdl
+
+
+  def alloc_remote(self, typecode, comps, width, height = 1, globl = False):
+    """Allocate an ExtArray backed by remote (main) memory."""
+    fmt = self._get_fmt(typecode, comps)
 
     if globl:
       globl = cal_exec.GLOBAL_BUFFER
@@ -363,38 +404,16 @@ class Processor(spe.Processor):
 
 
   def alloc_remote_npy(self, typecode, comps, width, height = 1, globl = False):
+    """Allocate a NumPy ndarray backed by remote (main) memory."""
     if not HAS_NUMPY:
       raise ImportError("NumPy array support requires NumPy installation")
 
+    fmt = self._get_fmt(typecode, comps)
     if typecode == 'f':
-      if comps == 1:
-        fmt = cal_exec.FMT_FLOAT32_1
-      elif comps == 2:
-        fmt = cal_exec.FMT_FLOAT32_2
-      elif comps == 4:
-        fmt = cal_exec.FMT_FLOAT32_4
-      else:
-        raise Exception("Number of components must be 1, 2, or 4")
       dtype = numpy.float32
     elif typecode == 'i':
-      if comps == 1:
-        fmt = cal_exec.FMT_SIGNED_INT32_1
-      elif comps == 2:
-        fmt = cal_exec.FMT_SIGNED_INT32_2
-      elif comps == 4:
-        fmt = cal_exec.FMT_SIGNED_INT32_4
-      else:
-        raise Exception("Number of components must be 1, 2, or 4")
       dtype = numpy.int32
     elif typecode == 'I':
-      if comps == 1:
-        fmt = cal_exec.FMT_UNSIGNED_INT32_1
-      elif comps == 2:
-        fmt = cal_exec.FMT_UNSIGNED_INT32_2
-      elif comps == 4:
-        fmt = cal_exec.FMT_UNSIGNED_INT32_4
-      else:
-        raise Exception("Number of components must be 1, 2, or 4")
       dtype = numpy.uint32
     else:
       raise Exception("Unsupported data type: " + str(typecode))
@@ -411,22 +430,129 @@ class Processor(spe.Processor):
       arr.shape = (buf.pitch, height, comps)
 
     return arr
-  
 
 
-  def free_remote(self, arr):
-    if not (isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle")):
-      raise Exception("Not a register or extarray with a GPU memory handle")
+  def free(self, hdl):
+    #if not (isinstance(arr, extarray.extarray) and hasattr(arr, "gpu_mem_handle")):
+    #  raise Exception("Not a register or extarray with a GPU memory handle")
 
-    cal_exec.free_remote(arr.gpu_mem_handle)
+    if isinstance(hdl, extarray.extarray):
+      if not hasattr(hdl, "gpu_mem_handle"):
+        raise TypeError("Not an extarray with a GPU memory handle")
 
-    del arr.gpu_mem_handle
-    del arr.gpu_device
-    del arr.gpu_width
-    del arr.gpu_pitch
+      cal_exec.free_remote(hdl.gpu_mem_handle)
 
-    arr.set_memory(0, 0)
-    arr.data_len = 0
+      del hdl.gpu_mem_handle
+      del hdl.gpu_device
+      del hdl.gpu_width
+      del hdl.gpu_pitch
+
+      hdl.set_memory(0, 0)
+      hdl.data_len = 0
+    elif isinstance(hdl, LocalMemory):
+      cal.free_local(hdl.binding)
+      hdl.binding = None
+    else:
+      raise TypeError("Unknown handle type %s" % (type(hdl)))
+    return
+
+
+  # ------------------------------
+  # Kernel Execution
+  # ------------------------------
+
+  def copy(self, dst, src, async = False):
+    """Copy memory from src to dst, using this GPU."""
+
+    # Figure out what dst and src are and extract the resource handles
+    if isinstance(dst, extarray.extarray):
+      if not hasattr(dst, "gpu_mem_handle"):
+        raise TypeError("dst is not an extarray with a GPU memory handle")
+      # TODO - not very good just grabbing stuff inside the low-level bindings.
+      #  make them be dictionaries, or standardize on their form everywhere?
+      dst_res = dst.gpu_mem_handle[4]
+    elif isinstance(dst, numpy.ndarray):
+      # NumPy array.. do we support it, and does it use a CAL buffer?
+      if not HAS_NUMPY:
+        raise ImportError("NumPy array support requires NumPy installation")
+      if not isinstance(arr.base, cal_exec.calmembuffer):
+        raise TypeError("Not NumPy with a GPU memory buffer")
+
+      dst_res = dst.base.res
+    elif isinstance(dst, LocalMemory):
+      dst_res = dst.binding[3]
+
+    if isinstance(src, extarray.extarray):
+      if not hasattr(src, "gpu_mem_handle"):
+        raise TypeError("src is not an extarray with a GPU memory handle")
+      src_res = src.gpu_mem_handle[4]
+    elif isinstance(src, numpy.ndarray):
+      # NumPy array.. do we support it, and does it use a CAL buffer?
+      if not HAS_NUMPY:
+        raise ImportError("NumPy array support requires NumPy installation")
+      if not isinstance(arr.base, cal_exec.calmembuffer):
+        raise TypeError("Not NumPy with a GPU memory buffer")
+
+      src_res = src.base.res
+    elif isinstance(src, LocalMemory):
+      src_res = src.binding[3]
+
+    # Start the copy
+    hdl = cal_exec.copy_async(self.ctx, dst_res, src_res)
+
+    if async:
+      return hdl
+
+    # Not async, complete the copy here.
+    cal_exec.copy_join(self.ctx, hdl)
+    return
+
+
+  def execute(self, code, domain = None, async = False):
+    code.cache_code() 
+
+    if domain is None:
+      try:
+        input = code.get_remote_binding("i0")
+      except KeyError:
+        raise Exception("No domain specified and no remote i0 register bound")
+
+      domain = (0, 0, input.gpu_width, len(input) / input.gpu_width)
+
+    if async:
+      th = cal_exec.run_stream_async(code.render_code,
+          self.ctx, domain, code._bindings)
+      return (th, code)
+    else:
+      cal_exec.run_stream(code.render_code, self.ctx, domain, code._bindings)
+
+      # Go through the bindings and re-set all the pointers
+      #  When a kernel is executed, remote memory has to be unmapped and
+      #  remapped, meaning the memory location can change.
+      for (key, arr) in code._bindings_data.items():
+        binding = code._bindings[key]
+        if isinstance(arr, extarray.extarray):
+          arr.set_memory(binding[1], arr.data_len * arr.itemsize)
+        elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
+          cal_exec.set_ndarray_ptr(arr, binding[1])
+      return
+
+
+  def join(self, hdl):
+    # TODO - do something better to differentiate
+    if len(hdl) == 2:
+      # Join a kernel execution
+      (th, code) = hdl
+      cal_exec.join_stream(th)
+
+      for arr in code._remote_bindings_data.values():
+        binding = code._bindings[key]
+        if isinstance(arr, extarray.extarray):
+          arr.set_memory(bindings[1], arr.data_len * arr.itemsize)
+        elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
+          cal_exec.set_ndarray_ptr(arr, bindings[1])
+    elif len(hdl) == 3:
+      cal_exec.copy_join(self.ctx, hdl)
     return
 
 
@@ -472,9 +598,9 @@ def TestCompileExec():
   t2 = time.time()
   print "run time", t2 - t1
 
-  cal_exec.free_remote(input)
-  cal_exec.free_remote(output)
-  #cal_exec.free_remote(glob)
+  cal_exec.free(input)
+  cal_exec.free(output)
+  #cal_exec.free(glob)
   cal_exec.free_image(image)
   return
 
@@ -482,7 +608,7 @@ def TestCompileExec():
 def TestRemoteAlloc():
   mem_handle = cal_exec.alloc_remote(cal_exec.FMT_FLOAT32_4, 1024, 1024, 0)
   print "mem handle", mem_handle
-  cal_exec.free_remote(mem_handle)
+  cal_exec.free(mem_handle)
   return
 
 
@@ -512,8 +638,8 @@ def TestSimpleKernel():
   print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
-  code.set_remote_binding("o0", ext_output)
-  code.set_remote_binding("i0", ext_input)
+  code.set_binding("o0", ext_output)
+  code.set_binding("i0", ext_input)
 
   proc.execute(code, domain)
 
@@ -523,8 +649,8 @@ def TestSimpleKernel():
       print "ERROR index %d is %f, should be %f" % (i, ext_output[i], float(i + 1))
 
 
-  proc.free_remote(ext_input)
-  proc.free_remote(ext_output)
+  proc.free(ext_input)
+  proc.free(ext_output)
   return
 
 
@@ -541,9 +667,9 @@ def TestSimpleKernelNPy():
   #for i in xrange(0, SIZE * SIZE * 4):
   #  arr_input[i] = float(i + 1)
   #  arr_output[i] = 0.0
-  print arr_input.shape
-  print arr_output.shape
-  print type(arr_input.data)
+  #print arr_input.shape
+  #print arr_output.shape
+  #print type(arr_input.data)
 
   val = 0.0
   for i in xrange(0, SIZE):
@@ -565,8 +691,8 @@ def TestSimpleKernelNPy():
   print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
-  code.set_remote_binding("o0", arr_output)
-  code.set_remote_binding("i0", arr_input)
+  code.set_binding("o0", arr_output)
+  code.set_binding("i0", arr_input)
 
   proc.execute(code, domain)
 
@@ -582,14 +708,36 @@ def TestSimpleKernelNPy():
   return
 
 
+def TestCopy():
+  SIZE = 128
+  proc = Processor(0)
+
+  arr_inp = proc.alloc_remote('f', 4, SIZE, SIZE)
+  arr_out = proc.alloc_remote('f', 4, SIZE, SIZE)
+  local1 = proc.alloc_local('f', 4, SIZE, SIZE)
+  local2 = proc.alloc_local('f', 4, SIZE, SIZE)
+
+  arr_out.clear()
+  for i in xrange(0, SIZE * SIZE * 4):
+    arr_inp[i] = float(i)
+
+  proc.copy(local1, arr_inp)
+  proc.copy(local2, local1)
+  proc.copy(arr_out, local2)
+
+  for i in xrange(0, SIZE * SIZE * 4):
+    assert(arr_out[i] == float(i))
+
+  return
+
+
 if __name__ == '__main__':
   print "GPUs available:", N_GPUS
   #TestCompileExec()
   #TestRemoteAlloc()
   TestSimpleKernel()
+  TestCopy()
 
-  try:
-    import numpy
+  if HAS_NUMPY:
     TestSimpleKernelNPy()
-  except ImportError: pass
 
