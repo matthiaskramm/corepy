@@ -497,7 +497,7 @@ class Processor(spe.Processor):
         elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
           cal_exec.set_ndarray_ptr(arr, bindings[1])
     elif len(hdl) == 3:
-      cal_exec.copy_join(self.ctx, hdl)
+      cal_exec.join_copy(self.ctx, hdl)
     return
 
 
@@ -695,6 +695,15 @@ def TestCopyPerf():
   bytes = 16 * SIZE * SIZE
   mb = 1024.0 ** 2
 
+  proc1.copy(arr_out, arr_inp)
+  proc1.copy(arr_out, arr_inp)
+  t1 = time.time()
+  proc1.copy(arr_out, arr_inp)
+  t2 = time.time()
+
+  print "remote->remote copy time", t2 - t1
+  print "%f mbytes/sec" % ((float(bytes) / float(t2 - t1)) / mb)
+
   proc1.copy(local1, arr_inp)
   proc1.copy(local1, arr_inp)
   t1 = time.time()
@@ -710,7 +719,7 @@ def TestCopyPerf():
   proc1.copy(local2, local1)
   t2 = time.time()
 
-  print "local->local (cross GPU) copy time", t2 - t1
+  print "local->local (intra GPU) copy time", t2 - t1
   print "%f mbytes/sec" % ((float(bytes) / float(t2 - t1)) / mb)
 
   proc1.copy(arr_out, local2)
