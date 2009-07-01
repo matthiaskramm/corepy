@@ -177,338 +177,6 @@ static PyObject* cal_free_ctx(PyObject* self, PyObject* arg)
 }
 
 
-#if 0
-//Allocate local memory, copy remote memory to the local, and bind the local
-//memory instead of the user's remote memory.
-static struct CopyBindingRecord* cal_bind_copy_memory(PyObject* bind_dict,
-    CALuint dev_num, CALcontext ctx, CALmodule mod)
-{
-  PyObject* key;
-  PyObject* value;
-  Py_ssize_t pos = 0;
-  struct CopyBindingRecord* recs;
-  int ret;
-  int i;
-
-  recs = malloc(sizeof(struct CopyBindingRecord) * PyDict_Size(bind_dict));
-
-  for(i = 0; PyDict_Next(bind_dict, &pos, &key, &value); i++) {
-    char* regname;
-    CALresource res;
-    CALname name;
-    CALuint width;
-    CALuint height;
-    CALformat fmt;
-    CALresallocflags flag = 0;
-    CALevent event;
-
-    regname = PyString_AsString(key); 
-
-    width = PyInt_AsLong(PyList_GetItem(value, 1));
-    height = PyInt_AsLong(PyList_GetItem(value, 2));
-    fmt = PyLong_AsUnsignedLong(PyList_GetItem(value, 3));
-    res = (CALresource)PyLong_AsLong(PyList_GetItem(value, 4));
-
-    if(!strcmp("g[]", regname)) {
-      flag = CAL_RESALLOC_GLOBAL_BUFFER;
-    }
-
-#ifdef _DEBUG
-    printf("binding remote memory: %s\n", regname);
-#endif
-
-    //Need to call unMap, GetName, SetMem
-    calResUnmap(res);
-
-    if(calCtxGetMem(&recs[i].remotemem, ctx, res) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxGetMem", NULL);
-
-    //if(calModuleGetName(&name, ctx, mod, regname) != CAL_RESULT_OK) {
-    ret = calModuleGetName(&name, ctx, mod, regname);
-    if(ret != CAL_RESULT_OK)
-      CAL_ERROR("calModuleGetName", NULL);
-
-    //Allocate the memory first
-    if(height == 1) { //1d allocation
-      if(calResAllocLocal1D(&recs[i].localres,
-          cal_devices[dev_num], width, fmt, flag) != CAL_RESULT_OK)
-        CAL_ERROR("calResAllocLocal1D", NULL);
-    } else {  //2d allocation
-      if(calResAllocLocal2D(&recs[i].localres,
-          cal_devices[dev_num], width, height, fmt, flag) != CAL_RESULT_OK)
-        CAL_ERROR("calResAllocLocal2D", NULL);
-    }
-
-    if(calCtxGetMem(&recs[i].localmem, ctx, recs[i].localres) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxGetMem", NULL);
-
-    if(calCtxSetMem(ctx, name, recs[i].localmem) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxSetMem", NULL);
-
-    //TODO - other register types to copy?  cb?
-    if(!strcmp("g[]", regname) || regname[0] == 'i') {
-      //puts("copying remote memory to local memory");
-      //OK, copy the remote memory to the local memory.
-      if(calMemCopy(&event, ctx, recs[i].remotemem, recs[i].localmem, 0) != CAL_RESULT_OK)
-        CAL_ERROR("calMemCopy", NULL);
-
-      while(calCtxIsEventDone(ctx, event) == CAL_RESULT_PENDING);
-    }
-
-    //TODO - need to save the mem, localmem, and localres handles for later!
-    //Could modify the bind_dict -- replace each value with a tuple containing
-    // the old value and the extra information
-    //Build and return a new dictionary or C array of handles to use later.
-    // Could create a C struct to hold the handles directly..
-    //  How do elements get related back to the bind_dict?
-    //   Keep a PyObject reference to the value (binding) in the struct, and
-    //    refer to that for updating the re-mapped memory pointer.
-    Py_INCREF(key);
-    Py_INCREF(value);
-    recs[i].regname = key;
-    recs[i].binding = value;
-  }
-
-  return recs;
-}
-
-
-//After executing, copy local memory back to its remote memory location
-//(depending on the register type), and remap the remote memory allocations.
-
-static int cal_remap_copy_memory(struct CopyBindingRecord* recs,
-                                 int len, CALcontext ctx)
-{
-  int i;
-  char* regname;
-  CALvoid* ptr;
-  CALvoid* oldptr;
-  CALuint pitch;
-  CALuint height;
-  CALformat fmt;
-  CALresource res;
-  CALevent event;
-  PyObject* tuple;
-
-  for(i = 0; i < len; i++) {
-    regname = PyString_AsString(recs[i].regname);
-    tuple = PyList_AsTuple(recs[i].binding); 
-    if(!PyArg_ParseTuple(tuple, 
-        "liill;cal_remap_copy_memory(): remote bindings must have 5 components",
-        &oldptr, &pitch, &height, &fmt, &res)) {
-      return -1;
-    }
-
-    Py_DECREF(tuple);
-
-    //Copy the local memory back to the remote memory
-    if(!strcmp("g[]", regname) || regname[0] == 'o') {
-      //puts("copying local memory back out to remote memory");
-      if(calMemCopy(&event, ctx, recs[i].localmem, recs[i].remotemem, 0) != CAL_RESULT_OK)
-        CAL_ERROR("calMemCopy", -1);
-      
-      while(calCtxIsEventDone(ctx, event) == CAL_RESULT_PENDING);
-    }
-
-    //Free the local memory
-    calCtxReleaseMem(ctx, recs[i].remotemem);
-    calCtxReleaseMem(ctx, recs[i].localmem);
-    calResFree(recs[i].localres);
-
-    //Re-map remote memory and set the pointer in the binding
-    if(calResMap(&ptr, &pitch, res, 0) != CAL_RESULT_OK)
-      CAL_ERROR("calResMap", -1);
-
-    if(ptr != oldptr) {
-      PyList_SetItem(recs[i].binding, 0, PyLong_FromVoidPtr(ptr));
-      //PyList_SetItem(recs[i].binding, 1, PyInt_FromLong(pitch));
-    }
-
-    Py_DECREF(recs[i].regname);
-    Py_DECREF(recs[i].binding);
-  }
-
-  free(recs);
-  return 0;
-}
-
-
-//Unmap remote memory allocations, and bind them to their registers prior to
-//kernel execution.
-static int cal_bind_remote_memory(PyObject* bind_dict,
-                                  CALcontext ctx, CALmodule mod)
-{
-  PyObject* key;
-  PyObject* value;
-  Py_ssize_t pos = 0;
-  int ret;
-
-  while(PyDict_Next(bind_dict, &pos, &key, &value)) {
-    char* regname;
-    CALresource res;
-    CALmem mem;
-    CALname name;
-
-    regname = PyString_AsString(key); 
-    res = (CALresource)PyLong_AsLong(PyList_GetItem(value, 4));
-
-#ifdef _DEBUG
-    printf("binding remote memory: %s\n", regname);
-#endif
-
-    //Need to call unMap, GetName, SetMem
-    calResUnmap(res);
-
-    if(calCtxGetMem(&mem, ctx, res) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxGetMem", -1);
-
-    //if(calModuleGetName(&name, ctx, mod, regname) != CAL_RESULT_OK) {
-    ret = calModuleGetName(&name, ctx, mod, regname);
-    if(ret != CAL_RESULT_OK)
-      CAL_ERROR("calModuleGetName", -1);
-
-    if(calCtxSetMem(ctx, name, mem) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxSetMem", -1);
-  }
-
-  return 0;
-}
-
-
-//Remap remote memory allocations after kernel execution.
-static int cal_remap_remote_memory(PyObject* bind_dict)
-{
-  PyObject* key;
-  PyObject* value;
-  Py_ssize_t pos = 0;
-  char* regname;
-  CALvoid* ptr;
-  CALvoid* oldptr;
-  CALuint pitch;
-  CALuint height;
-  CALformat fmt;
-  CALresource res;
-  PyObject* tuple;
-
-  while(PyDict_Next(bind_dict, &pos, &key, &value)) {
-    regname = PyString_AsString(key);
-    tuple = PyList_AsTuple(value); 
-    if(!PyArg_ParseTuple(tuple, 
-        "liill;cal_remap_remote_memory(): remote bindings must have 5 components",
-        &oldptr, &pitch, &height, &fmt, &res)) {
-      return -1;
-    }
-
-    Py_DECREF(tuple);
-
-    if(calResMap(&ptr, &pitch, res, 0) != CAL_RESULT_OK)
-      CAL_ERROR("calResMap", -1);
-
-    if(ptr != oldptr) {
-      PyList_SetItem(value, 0, PyLong_FromVoidPtr(ptr));
-      //PyList_SetItem(value, 1, PyInt_FromLong(pitch)); //TODO - needed?
-    }
-  }
-
-
-  return 0;
-}
-
-
-//Allocate and bind local memory allocations prior to kernel execution
-static CALresource* cal_bind_local_memory(PyObject* bind_dict,
-    CALuint dev_num, CALcontext ctx, CALmodule mod)
-{
-  PyObject* key;
-  PyObject* value;
-  Py_ssize_t pos = 0;
-  Py_ssize_t size = PyDict_Size(bind_dict);
-  CALresource* res;
-  int i;
-
-  if(size == 0) {
-    return NULL;
-  }
- 
-  res = malloc(sizeof(CALresource) * size); 
-
-  // dictionary of local memory to bind (regname -> (w, h, fmt))
-  for(i = 0; PyDict_Next(bind_dict, &pos, &key, &value); i++) {
-    char* regname;
-    CALuint width;
-    CALuint height;
-    CALformat fmt;
-    CALmem mem;
-    CALname name;
-    CALresallocflags flag = 0;
-
-    regname = PyString_AsString(key); 
-    if(!PyArg_ParseTuple(value, "iii", &width, &height, &fmt)) {
-      free(res);
-      return NULL;
-    }
-
-#ifdef _DEBUG
-    printf("binding local memory %s %d %d %d\n", regname, width, height, fmt);
-#endif
-
-    if(!strcmp("g[]", regname)) {
-      flag = CAL_RESALLOC_GLOBAL_BUFFER;
-    }
-
-    //Allocate the memory first
-    if(height == 1) { //1d allocation
-      if(calResAllocLocal1D(&res[i], cal_devices[dev_num], width, fmt, flag)
-          != CAL_RESULT_OK) {
-        free(res);
-        CAL_ERROR("calResAllocLocal1D", NULL);
-      }
-    } else {  //2d allocation
-      if(calResAllocLocal2D(&res[i],
-          cal_devices[dev_num], width, height, fmt, flag) != CAL_RESULT_OK) {
-        free(res);
-        CAL_ERROR("calResAllocLocal2D", NULL);
-      }
-    }
-
-    if(calCtxGetMem(&mem, ctx, res[i]) != CAL_RESULT_OK) {
-      free(res);
-      CAL_ERROR("calCtxGetMem", NULL);
-    }
-
-    if(calModuleGetName(&name, ctx, mod, regname) != CAL_RESULT_OK) {
-      free(res);
-      CAL_ERROR("calModuleGetName", NULL);
-    }    
-
-    if(calCtxSetMem(ctx, name, mem) != CAL_RESULT_OK) {
-      free(res);
-      CAL_ERROR("calCtxSetMem", NULL);
-    }
-  }
-
-  return res;
-}
-
-
-//Free local memory allocations after kernel executions
-static void cal_free_local_memory(CALresource* res, Py_ssize_t num_res)
-{
-  int i;
-
-  if(num_res == 0) {
-    return;
-  }
- 
-  for(i = 0; i < num_res; i++) {
-    calResFree(res[i]);
-  }
-
-  free(res);
-}
-#endif
-
-
 //Copy memory from one CAL memory allocation to another.
 //Arguments:
 // context
@@ -516,6 +184,8 @@ static void cal_free_local_memory(CALresource* res, Py_ssize_t num_res)
 // src resource
 static PyObject* cal_copy_async(PyObject* self, PyObject* args)
 {
+  PyObject* dst_binding;
+  PyObject* src_binding;
   CALcontext ctx;
   CALresource dst_res;
   CALresource src_res;
@@ -523,9 +193,13 @@ static PyObject* cal_copy_async(PyObject* self, PyObject* args)
   CALmem src_mem;
   CALevent event;
 
-  if(!PyArg_ParseTuple(args, "III", &ctx, &dst_res, &src_res)) {
+  if(!PyArg_ParseTuple(args, "IO!O!", &ctx,
+      &PyList_Type, &dst_binding, &PyList_Type, &src_binding)) {
     return NULL;
   }
+
+  dst_res = (CALresource)PyLong_AsLong(PyList_GetItem(dst_binding, 0));
+  src_res = (CALresource)PyLong_AsLong(PyList_GetItem(src_binding, 0));
 
   if(calCtxGetMem(&src_mem, ctx, src_res) != CAL_RESULT_OK)
     CAL_ERROR("calCtxGetMem (src)", NULL);
@@ -545,7 +219,7 @@ static PyObject* cal_copy_async(PyObject* self, PyObject* args)
 }
 
 
-static PyObject* cal_copy_join(PyObject* self, PyObject* args)
+static PyObject* cal_join_copy(PyObject* self, PyObject* args)
 {
   CALcontext ctx;
   CALmem dst_mem;
@@ -614,7 +288,8 @@ static CALmem* cal_acquire_bindings(CALcontext ctx, CALmodule mod,
 
 //Release bindings after kernel execution.
 // Remote allocations are re-mapped and their pointer updated.
-static int cal_release_bindings(CALcontext ctx, PyObject* bind_dict, CALmem* mem)
+static int cal_release_bindings(CALcontext ctx, PyObject* bind_dict,
+                                CALmem* mem)
 {
   PyObject* key;
   PyObject* value;
@@ -767,7 +442,6 @@ static PyObject* cal_run_stream(PyObject* self, PyObject* args)
   //Acquire the memory bindings
   mem = cal_acquire_bindings(ctx, mod, bindings);
   if(mem == NULL) {
-  //if(cal_acquire_bindings(ctx, mod, bindings) != 0) {
     return NULL;
   }
 
@@ -826,41 +500,22 @@ static PyObject* cal_alloc_local(PyObject* self, PyObject* args)
       CAL_ERROR("calResAllocLocal2D", NULL);
   }
 
-  //TODO - which of these are used?
-  // should just be ptr and res
   handle = PyList_New(2);
-  //PyList_SET_ITEM(handle, 0, PyInt_FromLong(width));
-  //PyList_SET_ITEM(handle, 1, PyInt_FromLong(height));
-  //PyList_SET_ITEM(handle, 2, PyLong_FromUnsignedLong((unsigned long)fmt));
   PyList_SET_ITEM(handle, 0, PyLong_FromUnsignedLong((unsigned long)res));
   PyList_SET_ITEM(handle, 1, PyLong_FromVoidPtr(NULL));
   return handle;
-  //return PyLong_FromUnsignedLong((unsigned long)res);
 }
 
 
 static PyObject* cal_free_local(PyObject* self, PyObject* args)
 {
-  //CALuint pitch;
-  //CALuint height;
-  //CALformat fmt;
   CALresource res;
-  //PyObject* tuple;
 
-  res = (CALresource)PyLong_AsLong(args);
+  res = (CALresource)PyLong_AsLong(PyList_GetItem(args, 0));
   if(res == -1 && PyErr_Occurred()) {
     return NULL;
   }
 
-#if 0
-  tuple = PyList_AsTuple(args);
-  if(!PyArg_ParseTuple(tuple, "IIII",
-      (CALuint*)&pitch, (CALuint*)&height,
-      (CALformat*)&fmt, (CALresource*)&res)) {
-    return NULL;
-  }
-  Py_DECREF(tuple);
-#endif
   calResFree(res);
   
   Py_RETURN_NONE;
@@ -902,43 +557,23 @@ static PyObject* cal_alloc_remote(PyObject* self, PyObject* args)
   if(calResMap(&ptr, &pitch, res, 0) != CAL_RESULT_OK)
     CAL_ERROR("calResMap", NULL);
 
-  //TODO - which of these are used?
-  // should just be ptr and res
+  //Create a 'binding' to pass back to Python.
   handle = PyList_New(3);
   PyList_SET_ITEM(handle, 0, PyLong_FromUnsignedLong((unsigned long)res));
   PyList_SET_ITEM(handle, 1, PyLong_FromVoidPtr(ptr));
   PyList_SET_ITEM(handle, 2, PyInt_FromLong(pitch));
-  //PyList_SET_ITEM(handle, 2, PyInt_FromLong(height));
-  //PyList_SET_ITEM(handle, 3, PyLong_FromUnsignedLong((unsigned long)fmt));
   return handle;
 }
 
 
 static PyObject* cal_free_remote(PyObject* self, PyObject* args)
 {
-  //CALvoid* ptr;
-  //CALuint pitch;
-  //CALuint height;
-  //CALformat fmt;
   CALresource res;
-  //PyObject* tuple;
 
-  res = (CALresource)PyLong_AsLong(args);
+  res = (CALresource)PyLong_AsLong(PyList_GetItem(args, 0));
   if(res == -1 && PyErr_Occurred()) {
     return NULL;
   }
-
-#if 0
-  tuple = PyList_AsTuple(args);
-  if(!PyArg_ParseTuple(tuple, "IlI",
-      (CALresource*)&res, (CALvoid**)&ptr, 
-      (CALuint*)&pitch)) {
-      //(CALuint*)&height,
-      //(CALformat*)&fmt, (CALresource*)&res)) {
-    return NULL;
-  }
-  Py_DECREF(tuple);
-#endif
 
   calResUnmap(res);
   calResFree(res);
@@ -980,7 +615,7 @@ static PyMethodDef module_methods[] = {
   {"alloc_ctx", cal_alloc_ctx, METH_O, "Allocate a CAL context"},
   {"free_ctx", cal_free_ctx, METH_O, "Release a CAL context"},
   {"copy_async", cal_copy_async, METH_VARARGS, "Start a GPU memory copy"},
-  {"copy_join", cal_copy_join, METH_VARARGS, "Finish a GPU memory copy"},
+  {"join_copy", cal_join_copy, METH_VARARGS, "Finish a GPU memory copy"},
   {"run_stream", cal_run_stream, METH_VARARGS, "Run a kernel on a GPU"},
   {"run_stream_async", cal_run_stream_async, METH_VARARGS, "Run a kernel on a GPU"},
   {"join_stream", cal_join_stream, METH_O, "Join a running kernel"},
