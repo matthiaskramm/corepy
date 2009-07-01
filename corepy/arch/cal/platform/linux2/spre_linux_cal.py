@@ -437,10 +437,12 @@ class Processor(spe.Processor):
     #  raise Exception("Not a register or extarray with a GPU memory handle")
 
     if isinstance(hdl, extarray.extarray):
+      print "freeing extarray"
       if not hasattr(hdl, "gpu_mem_handle"):
         raise TypeError("Not an extarray with a GPU memory handle")
 
-      cal_exec.free_remote(hdl.gpu_mem_handle)
+      print hdl.gpu_mem_handle
+      cal_exec.free_remote(hdl.gpu_mem_handle[0])
 
       del hdl.gpu_mem_handle
       del hdl.gpu_device
@@ -450,6 +452,7 @@ class Processor(spe.Processor):
       hdl.set_memory(0, 0)
       hdl.data_len = 0
     elif isinstance(hdl, LocalMemory):
+      print "freeing local memomry"
       cal.free_local(hdl.res)
       hdl.res = None
     else:
@@ -480,7 +483,7 @@ class Processor(spe.Processor):
 
       dst_res = dst.base.res
     elif isinstance(dst, LocalMemory):
-      dst_res = dst.res
+      dst_res = dst.binding[0]
 
     if isinstance(src, extarray.extarray):
       if not hasattr(src, "gpu_mem_handle"):
@@ -495,7 +498,7 @@ class Processor(spe.Processor):
 
       src_res = src.base.res
     elif isinstance(src, LocalMemory):
-      src_res = src.res
+      src_res = src.binding[0]
 
     # Start the copy
     hdl = cal_exec.copy_async(self.ctx, dst_res, src_res)

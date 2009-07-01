@@ -891,6 +891,9 @@ static PyObject* cal_free_local(PyObject* self, PyObject* args)
   //PyObject* tuple;
 
   res = (CALresource)PyLong_AsLong(args);
+  if(res == -1 && PyErr_Occurred()) {
+    return NULL;
+  }
 
 #if 0
   tuple = PyList_AsTuple(args);
@@ -964,6 +967,10 @@ static PyObject* cal_free_remote(PyObject* self, PyObject* args)
   //PyObject* tuple;
 
   res = (CALresource)PyLong_AsLong(args);
+  if(res == -1 && PyErr_Occurred()) {
+    return NULL;
+  }
+
 #if 0
   tuple = PyList_AsTuple(args);
   if(!PyArg_ParseTuple(tuple, "IlI",
