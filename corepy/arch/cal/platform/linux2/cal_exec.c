@@ -72,17 +72,19 @@ typedef struct CALMemBuffer {
 static PyTypeObject CALMemBufferType;
 
 
-//Internal structure used for keeping track of various handles for copy_local
-// bindings.  An array of this struct gets created prior to executing code,
-// then used and released immediately after in the run_stream() calls.
+//Internal structure for maintaining handles during asynchronous kernel
+//execution.  A pointer to this is returned back to python when the kernel
+//is started.  Python passes the pointer back in to the join call to finish
+//the kernel execution.
 
-struct CopyBindingRecord {
-  CALmem remotemem;
-  CALmem localmem;
-  CALresource localres;
+struct ThreadInfo {
+  //Dictionary of memory bindings (regname -> [CALresource, void*])
+  PyObject* bindings;
+  CALmem* mem;
 
-  PyObject* regname;
-  PyObject* binding;
+  CALcontext ctx;
+  CALmodule mod;
+  CALevent event;
 };
 
 
@@ -95,12 +97,12 @@ CALdeviceinfo* cal_device_info = NULL;
 // CAL kernel compilation
 //
 
+//Take a string, compile it, and return a kernel image ready to execute
 static PyObject* cal_compile(PyObject* self, PyObject* arg)
 {
   char* kernel = NULL;
   CALobject obj = NULL;
   CALimage img = NULL;
-  //Take a string, compile it, and return a kernel image ready to execute
 
 #ifdef _DEBUG
   CALuint ver[3];
@@ -131,6 +133,7 @@ static PyObject* cal_compile(PyObject* self, PyObject* arg)
 }
 
 
+//Free a compiled kernel image
 static PyObject* cal_free_image(PyObject* self, PyObject* arg)
 {
   CALimage img = NULL;
@@ -142,6 +145,7 @@ static PyObject* cal_free_image(PyObject* self, PyObject* arg)
 }
 
 
+//Return the number of available GPUs
 static PyObject* cal_get_num_gpus(PyObject* self, PyObject* arg)
 {
   return PyInt_FromLong((unsigned int)cal_device_count);
@@ -560,35 +564,24 @@ static PyObject* cal_copy_join(PyObject* self, PyObject* args)
 }
 
 
-struct ThreadInfo {
-  PyObject* bindings;
-  //CALresource* local_res;
-  //struct CopyBindingRecord* recs;
-
-  CALcontext ctx;
-  CALmodule mod;
-  CALevent event;
-
-  //int num_local_res;
-  //int num_recs;
-};
-
-
 //Bind memory allocations to registers prior to kernel execution.
 // Remote allocations are unmapped first.
-static int cal_acquire_bindings(CALcontext ctx, CALmodule mod,
-                                PyObject* bind_dict)
+static CALmem* cal_acquire_bindings(CALcontext ctx, CALmodule mod,
+                                    PyObject* bind_dict)
 {
   PyObject* key;
   PyObject* value;
   Py_ssize_t pos = 0;
+  CALmem* mem;
   int ret;
+  int i;
 
-  while(PyDict_Next(bind_dict, &pos, &key, &value)) {
+  mem = malloc(sizeof(CALmem) * PyDict_Size(bind_dict));
+
+  for(i = 0; PyDict_Next(bind_dict, &pos, &key, &value); i++) {
     char* regname;
     CALresource res;
     CALvoid* ptr;
-    CALmem mem;
     CALname name;
 
     regname = PyString_AsString(key); 
@@ -604,30 +597,31 @@ static int cal_acquire_bindings(CALcontext ctx, CALmodule mod,
       calResUnmap(res);
     }
 
-    if(calCtxGetMem(&mem, ctx, res) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxGetMem", -1);
+    if(calCtxGetMem(&mem[i], ctx, res) != CAL_RESULT_OK)
+      CAL_ERROR("calCtxGetMem", NULL);
 
     ret = calModuleGetName(&name, ctx, mod, regname);
     if(ret != CAL_RESULT_OK)
-      CAL_ERROR("calModuleGetName", -1);
+      CAL_ERROR("calModuleGetName", NULL);
 
-    if(calCtxSetMem(ctx, name, mem) != CAL_RESULT_OK)
-      CAL_ERROR("calCtxSetMem", -1);
+    if(calCtxSetMem(ctx, name, mem[i]) != CAL_RESULT_OK)
+      CAL_ERROR("calCtxSetMem", NULL);
   }
 
-  return 0;
+  return mem;
 }
 
 
 //Release bindings after kernel execution.
 // Remote allocations are re-mapped and their pointer updated.
-static int cal_release_bindings(PyObject* bind_dict)
+static int cal_release_bindings(CALcontext ctx, PyObject* bind_dict, CALmem* mem)
 {
   PyObject* key;
   PyObject* value;
   Py_ssize_t pos = 0;
+  int i;
 
-  while(PyDict_Next(bind_dict, &pos, &key, &value)) {
+  for(i = 0; PyDict_Next(bind_dict, &pos, &key, &value); i++) {
     char* regname;
     CALvoid* ptr;
     CALvoid* oldptr;
@@ -644,8 +638,11 @@ static int cal_release_bindings(PyObject* bind_dict)
     if(ptr != oldptr) {
       PyList_SetItem(value, 1, PyLong_FromVoidPtr(ptr));
     }
+
+    calCtxReleaseMem(ctx, mem[i]);
   }
 
+  free(mem);
   return 0;
 }
 
@@ -659,6 +656,7 @@ static PyObject* cal_run_stream_async(PyObject* self, PyObject* args)
   // domain (x, y, w, h)
   // dictionary of memory to bind (regname -> [CALresource, void*])
   PyObject* bindings;
+  CALmem* mem;
   CALimage img;
   CALcontext ctx;
   CALdomain dom;
@@ -682,24 +680,11 @@ static PyObject* cal_run_stream_async(PyObject* self, PyObject* args)
     CAL_ERROR("calModuleLoad", NULL);
 
 
-  //Set up all the memory bindings
-  //recs = cal_bind_copy_memory(copy_bindings, dev_num, ctx, mod);
-  //if(recs == NULL) {
-  //  return NULL;
-  //}
-
-  //if(cal_bind_remote_memory(remote_bindings, ctx, mod) != 0) {
-  //  return NULL;
-  //}
-
-  if(cal_acquire_bindings(ctx, mod, bindings) != 0) {
+  //Acquire the memory bindings
+  mem = cal_acquire_bindings(ctx, mod, bindings);
+  if(mem == NULL) {
     return NULL;
   }
-
-  //local_res = cal_bind_local_memory(local_bindings, dev_num, ctx, mod);
-  //if(local_res == NULL && PyDict_Size(local_bindings) != 0) {
-  //  return NULL;
-  //}
 
 
   //Execute the kernel
@@ -712,17 +697,16 @@ static PyObject* cal_run_stream_async(PyObject* self, PyObject* args)
   if(calCtxIsEventDone(ctx, event) == CAL_RESULT_BAD_HANDLE)
     CAL_ERROR("calCtxIsEventDone", NULL);
 
+
+  //Set up the ThreadInfo struct to keep track of the handles
   ti = malloc(sizeof(struct ThreadInfo));
   ti->bindings = bindings;
   Py_INCREF(bindings);
 
-  //ti->local_res = local_res;
-  //ti->recs = recs;
+  ti->mem = mem;
   ti->ctx = ctx;
   ti->mod = mod;
   ti->event = event;
-  //ti->num_local_res = PyDict_Size(local_bindings);
-  //ti->num_recs = PyDict_Size(copy_bindings);
   return PyLong_FromVoidPtr(ti);
 }
 
@@ -738,13 +722,8 @@ static PyObject* cal_join_stream(PyObject* self, PyObject* args)
     sched_yield();
   }
 
-
   //Remap/free memory bindings
-  //cal_remap_copy_memory(ti->recs, ti->num_recs, ti->ctx);
-  //cal_free_local_memory(ti->local_res, ti->num_local_res);
-  //cal_remap_remote_memory(ti->bindings);
-
-  cal_release_bindings(ti->bindings);
+  cal_release_bindings(ti->ctx, ti->bindings, ti->mem);
   Py_DECREF(ti->bindings);
 
   calModuleUnload(ti->ctx, ti->mod);
@@ -761,14 +740,9 @@ static PyObject* cal_run_stream(PyObject* self, PyObject* args)
   // kernel image
   // context
   // domain (x, y, w, h)
-  // dictionary of local memory to bind (regname -> (w, h, fmt))
-  // dictionary of remote memory to bind (regname -> memhandle)
-  // dictionary of remote memory to copy local and bind (regname -> memhandle)
-  //PyObject* copy_bindings;
-  //PyObject* remote_bindings;
+  // dictionary of memory to bind (regname -> [CALresource, void*])
   PyObject* bindings;
-  //CALresource* local_res;
-  //struct CopyBindingRecord* recs;
+  CALmem* mem;
   CALimage img;
   CALdomain dom;
   CALcontext ctx;
@@ -790,25 +764,12 @@ static PyObject* cal_run_stream(PyObject* self, PyObject* args)
     CAL_ERROR("calModuleLoad", NULL);
 
 
-  //Set up all the memory bindings
-  //recs = cal_bind_copy_memory(copy_bindings, dev_num, ctx, mod);
-  //if(recs == NULL) {
-  //  return NULL;
-  //}
-
-  //if(cal_bind_remote_memory(remote_bindings, ctx, mod) != 0) {
-  //  return NULL;
-  //}
-
-  if(cal_acquire_bindings(ctx, mod, bindings) != 0) {
+  //Acquire the memory bindings
+  mem = cal_acquire_bindings(ctx, mod, bindings);
+  if(mem == NULL) {
+  //if(cal_acquire_bindings(ctx, mod, bindings) != 0) {
     return NULL;
   }
-
-  //local_res = cal_bind_local_memory(local_bindings, dev_num, ctx, mod);
-  //if(local_res == NULL && PyDict_Size(local_bindings) != 0) {
-  //  return NULL;
-  //}
-
 
   //Execute the kernel
   if(calModuleGetEntry(&entry, ctx, mod, "main") != CAL_RESULT_OK)
@@ -823,11 +784,7 @@ static PyObject* cal_run_stream(PyObject* self, PyObject* args)
 
 
   //Remap/free memory bindings
-  //cal_remap_copy_memory(recs, PyDict_Size(copy_bindings), ctx);
-  //cal_remap_remote_memory(remote_bindings);
-  //cal_free_local_memory(local_res, PyDict_Size(local_bindings));
-
-  cal_release_bindings(bindings);
+  cal_release_bindings(ctx, bindings, mem);
 
   calModuleUnload(ctx, mod);
 
