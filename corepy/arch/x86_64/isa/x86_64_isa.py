@@ -1449,7 +1449,7 @@ class push(x86DispatchInstruction):
     # TODO - add keyword arg to override operand size?
     #(imm8,                {'opcode':[0x6A],             'modrm':None}),
     #(imm16,               {'opcode':[0x66, 0x68],       'modrm':None}),
-    (imm32,               {'opcode':[0x68],             'modrm':None}),
+    (imm64,               {'opcode':[0x68],             'modrm':None}),
     (reg16,               {'opcode':[0x50],             'modrm':None}),
     (mem16,               {'opcode':[0x66, 0xFF],       'modrm':0x30}))
     
