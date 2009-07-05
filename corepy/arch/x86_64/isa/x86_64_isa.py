@@ -829,7 +829,7 @@ class imul(x86DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x28}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x28}),
-    (reg64_reg64,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
+    (reg64_reg64_rev,     {'opcode':[0x0F, 0xAF],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
     (reg64_reg64_simm8_rev,{'opcode':[0x6B],             'modrm':None}),
     (reg64_mem64_simm8,    {'opcode':[0x6B],             'modrm':None}),
@@ -837,7 +837,7 @@ class imul(x86DispatchInstruction):
     (reg64_mem64_imm32,   {'opcode':[0x69],             'modrm':None}),
     (reg32,               {'opcode':[0xF7],             'modrm':0x28}),
     (mem32,               {'opcode':[0xF7],             'modrm':0x28}),
-    (reg32_reg32,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
+    (reg32_reg32_rev,     {'opcode':[0x0F, 0xAF],       'modrm':None}),
     (reg32_mem32,         {'opcode':[0x0F, 0xAF],       'modrm':None}),
     (reg32_reg32_simm8_rev,{'opcode':[0x6B],             'modrm':None}),
     (reg32_mem32_simm8,    {'opcode':[0x6B],             'modrm':None}),
