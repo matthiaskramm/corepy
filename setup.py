@@ -96,8 +96,8 @@ elif py_platform == "linux-x86_64":
       print "NumPy NOT available; disabling CAL NumPy Array support"
 
     ext_modules.append(
-        Extension('corepy.arch.cal.platform.linux.cal_exec',
-                  sources=['corepy/arch/cal/platform/linux/cal_exec.c'],
+        Extension('corepy.arch.cal.platform.linux2.cal_exec',
+                  sources=['corepy/arch/cal/platform/linux2/cal_exec.c'],
                   include_dirs=include_dirs,
                   depends = [],
                   libraries = ['aticalrt', 'aticalcl'],

@@ -37,8 +37,8 @@ def test_4comp():
   cal.iadd(r[0], r[0], r[0])
   cal.mov(reg.o0, r[0])
 
-  code.set_remote_binding(reg.i0, inp)
-  code.set_remote_binding(reg.o0, out)
+  code.set_binding(reg.i0, inp)
+  code.set_binding(reg.o0, out)
 
   code.cache_code()
   print code.render_string
@@ -81,8 +81,8 @@ def test_1comp():
 
   cal.mov(reg.o0.x, r)
 
-  code.set_remote_binding(reg.i0, inp)
-  code.set_remote_binding(reg.o0, out)
+  code.set_binding(reg.i0, inp)
+  code.set_binding(reg.o0, out)
 
   code.cache_code()
   print code.render_string
@@ -122,9 +122,9 @@ def test_foo():
   cal.mov('o0', 'r0')
   cal.mov('g[0]', 'r0')
 
-  code.set_remote_binding('cb0', cb)
-  code.set_remote_binding('o0', out)
-  code.set_remote_binding('g[]', gb)
+  code.set_binding('cb0', cb)
+  code.set_binding('o0', out)
+  code.set_binding('g[]', gb)
 
   code.cache_code()
   print code.render_string
@@ -137,7 +137,7 @@ def test_foo():
 
 
 if __name__ == '__main__':
-  #test_4comp()
-  #test_1comp()
+  test_4comp()
+  test_1comp()
   test_foo()
 

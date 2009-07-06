@@ -24,8 +24,14 @@ cal.sample(0, 0, reg.o0, reg.v0.x)
 
 code.set_binding(reg.i0, inp)
 code.set_binding(reg.o0, out)
+
+code.print_code()
 proc.execute(code)
 
 print "inp", inp
 print "out", out
+
+import corepy.lib.printer as printer
+
+printer.PrintInstructionStream(code, printer.CAL_Asm())
 

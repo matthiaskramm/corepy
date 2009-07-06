@@ -34,6 +34,7 @@ from spu_asm import SPU_Asm
 from x86_64_asm import x86_64_Asm
 from x86_64_nasm import x86_64_Nasm
 from x86_nasm import x86_Nasm
+from cal_asm import CAL_Asm
 
 
 def PrintInstructionStream(code, module, fd = sys.stdout):

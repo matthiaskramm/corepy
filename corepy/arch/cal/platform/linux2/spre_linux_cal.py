@@ -236,6 +236,33 @@ class InstructionStream(spe.InstructionStream):
       return None
 
 
+  # ------------------------------
+  # Debugging
+  # ------------------------------
+
+  def print_code2(self, pro = False, epi = False):
+    """
+    Print the instruction stream.
+    """
+
+    if self._cached == False:
+      self.cache_code()
+
+    if not self._debug:
+      import corepy.lib.printer as printer
+
+      module = printer.Default(#show_prologue = pro, show_epilogue = epi,
+                               line_numbers = True)
+      printer.PrintInstructionStream(self, module)
+
+    else:
+      # Debugging mode.. fall back to the parent print_code
+      # TODO - this won't work right now...
+      spe.InstructionStream.print_code(self)
+    return
+
+
+
 
 # ------------------------------------------------------------
 # Processor
@@ -345,6 +372,7 @@ class Processor(spe.Processor):
     arr.gpu_device = self.device
     arr.gpu_width = width
     arr.gpu_pitch = mem[2]
+    arr.gpu_height = height
     return arr
 
 
@@ -458,11 +486,18 @@ class Processor(spe.Processor):
 
     if domain is None:
       try:
-        input = code.get_remote_binding("i0")
+        arr = code.get_binding("o0")
       except KeyError:
-        raise Exception("No domain specified and no remote i0 register bound")
+        raise Exception("No domain specified and no o0 register bound")
 
-      domain = (0, 0, input.gpu_width, len(input) / input.gpu_width)
+      if isinstance(arr, extarray.extarray):
+        domain = (0, 0, arr.gpu_width, arr.gpu_height)
+      elif isinstance(arr, numpy.ndarray):
+        domain = (0, 0, arr.base.width, arr.base.height)
+      elif isinstance(arr, LocalMemory):
+        domain = (0, 0, arr.width, arr.height)
+      else:
+        raise Exception("Invalid o0 binding!")
 
     if async:
       th = cal_exec.run_stream_async(code.render_code,

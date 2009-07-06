@@ -26,21 +26,66 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-import corepy.corepy_conf as conf
+import corepy.spre.spe as spe
+import corepy.arch.cal.isa as cal
 
-platform_imports = [
-  'Processor', 'InstructionStream', 'cal_exec']
+class CAL_Asm(object):
+  """
+  CAL IL-compatible assembly syntax printer.
 
+  Output syntax from this printer is designed to look like CAL IL syntax
+  assembly code.
 
-#platform_string = '%(os)s.spre_%(os)s_cal' % {'os': conf.OS}
-platform_string = 'linux2.spre_linux_cal'
+  Several options are available for modifying the output (with defaults):
+    show_prologue = True    Whether the prologue code should be printed
+    show_epilogue = False   Whether the epilogue code should be printed
+    verbose = False         Print extra comment information
+  """
 
+  def __init__(self, show_prologue = True, show_epilogue = False,
+                     comment_chan = False, verbose = False):
+    self.show_prologue = show_prologue
+    self.show_epilogue = show_epilogue
+    self.comment_chan = comment_chan
+    self.verbose = verbose
 
-if conf.VERBOSE:
-  print '# Platform:', platform_string
+    return
 
-platform_module = __import__(platform_string, globals(), locals(), platform_imports)
+  def __del__(self):
+    return
 
-for cls in platform_imports:
-  locals()[cls] = getattr(platform_module, cls)
+  def header(self, fd):
+    return
+
+  def footer(self, fd):
+    return
+
+  def prologue(self, fd):
+    """ Allow the module to print a prologue header if desired.
+        The return value should be a boolean indicating whether prologue
+        instructions should be printed. """
+    # CAL has a trivial/nonstandard prologue, just print it here.
+    print >>fd, "\til_ps_3_0"
+    return False
+
+  def epilogue(self, fd):
+    """ Allow the module to print a prologue header if desired.
+        The return value should be a boolean indicating whether epilogue
+        instructions should be printed. """
+    # CAL has no epilogue, so always return false.
+    return False
+
+  def body(self, fd):
+    return
+
+  def label(self, fd, lbl):
+    print >>fd, "\n%s:" % lbl.name
+    return
+
+  def instruction(self, fd, inst):
+    # On CAL, instructions are rendered to IL-compatible strings.
+    # So just render the instructions and print the strings.
+    print >>fd, "\t%s" % (inst.render())
+    return
+
 

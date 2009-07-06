@@ -1177,8 +1177,9 @@ class InstructionStream(object):
     if self._cached == False:
       self.cache_code()
 
-    print 'code addr:', self.render_code.buffer_info()[0],
-    print 'instructions:', len(self.render_code)
+    if isinstance(self.render_code, extarray.extarray):
+      print 'code addr:', self.render_code.buffer_info()[0],
+      print 'instructions:', len(self.render_code)
 
     if not self._debug:
       import corepy.lib.printer as printer
