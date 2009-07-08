@@ -1159,8 +1159,9 @@ class push(x86DispatchInstruction):
   dispatch = (
     (reg32,               {'opcode':[0x50],             'modrm':None}),
     (mem32,               {'opcode':[0xFF],             'modrm':0x30}),
-    (simm8,               {'opcode':[0x6A],             'modrm':None}),
-    (imm16,               {'opcode':[0x66, 0x68],       'modrm':None}),
+    # TODO - add keyword arg to override operand size?
+    #(simm8,               {'opcode':[0x6A],             'modrm':None}),
+    #(imm16,               {'opcode':[0x66, 0x68],       'modrm':None}),
     (imm32,               {'opcode':[0x68],             'modrm':None}),
     (reg16,               {'opcode':[0x66, 0x50],       'modrm':None}),
     (mem16,               {'opcode':[0x66, 0xFF],       'modrm':0x30}))
