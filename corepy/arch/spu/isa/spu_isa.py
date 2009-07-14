@@ -33,1136 +33,1107 @@ __doc__="""
 ISA for the Cell Broadband Engine's SPU.
 """
 
-# Only used for branch instructions
-def spu_type(op):
-  if isinstance(op, bool):
-    return P
-  elif isinstance(op, (int, long)):
-    if I7.fits(op):
-      return I7
-    if I8.fits(op):
-      return I8
-    if I9.fits(op):
-      return I9
-    if I10.fits(op):
-      return I10
-    if I16.fits(op):
-      return I16
-    if I18.fits(op):
-      return I18
-  elif isinstance(op, Label):
-    return LBL16
-  elif isinstance(op, Register):
-    return T3
-  return
-
-# TODO - get rid of these and use the parent classes directly?
-class SPUInstruction(Instruction): pass
-class SPUDispatchInstruction(DispatchInstruction):
-  type_id = [spu_type]
-
-
-class lqx(SPUInstruction):
+class lqx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':452}
   cycles = (1, 6, 0)
 
 
-class stqx(SPUInstruction):
+class stqx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':324}
   cycles = (1, 6, 0)
 
 
-class cbx(SPUInstruction):
+class cbx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':468}
   cycles = (1, 4, 0)
 
 
-class chx(SPUInstruction):
+class chx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':469}
   cycles = (1, 4, 0)
 
 
-class cwx(SPUInstruction):
+class cwx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':470}
   cycles = (1, 4, 0)
 
 
-class cdx(SPUInstruction):
+class cdx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':471}
   cycles = (1, 4, 0)
 
 
-class ah(SPUInstruction):
+class ah(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':200}
   cycles = (0, 2, 0)
 
 
-class a(SPUInstruction):
+class a(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':192}
   cycles = (0, 2, 0)
 
 
-class sfh(SPUInstruction):
+class sfh(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':72}
   cycles = (0, 2, 0)
 
 
-class sf(SPUInstruction):
+class sf(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':64}
   cycles = (0, 2, 0)
 
 
-class addx(SPUInstruction):
+class addx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':832}
   cycles = (0, 2, 0)
 
 
-class cg(SPUInstruction):
+class cg(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':194}
   cycles = (0, 2, 0)
 
 
-class cgx(SPUInstruction):
+class cgx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':834}
   cycles = (0, 2, 0)
 
 
-class sfx(SPUInstruction):
+class sfx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':833}
   cycles = (0, 2, 0)
 
 
-class bg(SPUInstruction):
+class bg(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':66}
   cycles = (0, 2, 0)
 
 
-class bgx(SPUInstruction):
+class bgx(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':835}
   cycles = (0, 2, 0)
 
 
-class mpy(SPUInstruction):
+class mpy(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':964}
   cycles = (0, 7, 0)
 
 
-class mpyu(SPUInstruction):
+class mpyu(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':972}
   cycles = (0, 7, 0)
 
 
-class mpyh(SPUInstruction):
+class mpyh(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':965}
   cycles = (0, 7, 0)
 
 
-class mpys(SPUInstruction):
+class mpys(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':967}
   cycles = (0, 7, 0)
 
 
-class mpyhh(SPUInstruction):
+class mpyhh(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':966}
   cycles = (0, 7, 0)
 
 
-class mpyhha(SPUInstruction):
+class mpyhha(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':838}
   cycles = (0, 7, 0)
 
 
-class mpyhhu(SPUInstruction):
+class mpyhhu(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':974}
   cycles = (0, 7, 0)
 
 
-class mpyhhau(SPUInstruction):
+class mpyhhau(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':846}
   cycles = (0, 7, 0)
 
 
-class clz(SPUInstruction):
+class clz(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':677}
   cycles = (0, 2, 0)
 
 
-class cntb(SPUInstruction):
+class cntb(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':692}
   cycles = (0, 4, 0)
 
 
-class fsmb(SPUInstruction):
+class fsmb(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':438}
   cycles = (1, 4, 0)
 
 
-class fsmh(SPUInstruction):
+class fsmh(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':437}
   cycles = (1, 4, 0)
 
 
-class fsm(SPUInstruction):
+class fsm(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':436}
   cycles = (1, 4, 0)
 
 
-class gbb(SPUInstruction):
+class gbb(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':434}
   cycles = (1, 4, 0)
 
 
-class gbh(SPUInstruction):
+class gbh(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':433}
   cycles = (1, 4, 0)
 
 
-class gb(SPUInstruction):
+class gb(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':432}
   cycles = (1, 4, 0)
 
 
-class avgb(SPUInstruction):
+class avgb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':211}
   cycles = (0, 4, 0)
 
 
-class absdb(SPUInstruction):
+class absdb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':83}
   cycles = (0, 4, 0)
 
 
-class sumb(SPUInstruction):
+class sumb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':595}
   cycles = (0, 4, 0)
 
 
-class xsbh(SPUInstruction):
+class xsbh(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':694}
   cycles = (0, 2, 0)
 
 
-class xshw(SPUInstruction):
+class xshw(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':686}
   cycles = (0, 2, 0)
 
 
-class xswd(SPUInstruction):
+class xswd(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':678}
   cycles = (0, 2, 0)
 
 
-class and_(SPUInstruction):
+class and_(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':193}
   cycles = (0, 2, 0)
 
 
-class andc(SPUInstruction):
+class andc(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':705}
   cycles = (0, 2, 0)
 
 
-class or_(SPUInstruction):
+class or_(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':65}
   cycles = (0, 2, 0)
 
 
-class orc(SPUInstruction):
+class orc(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':713}
   cycles = (0, 2, 0)
 
 
-class orx(SPUInstruction):
+class orx(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':496}
   cycles = (1, 4, 0)
 
 
-class xor(SPUInstruction):
+class xor(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':577}
   cycles = (0, 2, 0)
 
 
-class nand(SPUInstruction):
+class nand(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':201}
   cycles = (0, 2, 0)
 
 
-class nor(SPUInstruction):
+class nor(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':73}
   cycles = (0, 2, 0)
 
 
-class eqv(SPUInstruction):
+class eqv(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':585}
   cycles = (0, 2, 0)
 
 
-class shlh(SPUInstruction):
+class shlh(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':95}
   cycles = (0, 4, 0)
 
 
-class shl(SPUInstruction):
+class shl(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':91}
   cycles = (0, 4, 0)
 
 
-class shlqbi(SPUInstruction):
+class shlqbi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':475}
   cycles = (1, 4, 0)
 
 
-class shlqby(SPUInstruction):
+class shlqby(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':479}
   cycles = (1, 4, 0)
 
 
-class shlqbybi(SPUInstruction):
+class shlqbybi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':463}
   cycles = (1, 4, 0)
 
 
-class roth(SPUInstruction):
+class roth(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':92}
   cycles = (0, 4, 0)
 
 
-class rot(SPUInstruction):
+class rot(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':88}
   cycles = (0, 4, 0)
 
 
-class rotqby(SPUInstruction):
+class rotqby(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':476}
   cycles = (1, 4, 0)
 
 
-class rotqbybi(SPUInstruction):
+class rotqbybi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':460}
   cycles = (1, 4, 0)
 
 
-class rotqbi(SPUInstruction):
+class rotqbi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':472}
   cycles = (1, 4, 0)
 
 
-class rothm(SPUInstruction):
+class rothm(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':93}
   cycles = (0, 4, 0)
 
 
-class rotm(SPUInstruction):
+class rotm(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':89}
   cycles = (0, 4, 0)
 
 
-class rotqmby(SPUInstruction):
+class rotqmby(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':477}
   cycles = (1, 4, 0)
 
 
-class rotqmbybi(SPUInstruction):
+class rotqmbybi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':461}
   cycles = (1, 4, 0)
 
 
-class rotqmbi(SPUInstruction):
+class rotqmbi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':473}
   cycles = (1, 4, 0)
 
 
-class rotmah(SPUInstruction):
+class rotmah(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':94}
   cycles = (0, 4, 0)
 
 
-class rotma(SPUInstruction):
+class rotma(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':90}
   cycles = (0, 4, 0)
 
 
-class heq(SPUInstruction):
+class heq(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':984}
   cycles = (0, 2, 0)
 
 
-class hgt(SPUInstruction):
+class hgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':600}
   cycles = (0, 2, 0)
 
 
-class hlgt(SPUInstruction):
+class hlgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':728}
   cycles = (0, 2, 0)
 
 
-class ceqb(SPUInstruction):
+class ceqb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':976}
   cycles = (0, 2, 0)
 
 
-class ceqh(SPUInstruction):
+class ceqh(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':968}
   cycles = (0, 2, 0)
 
 
-class ceq(SPUInstruction):
+class ceq(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':960}
   cycles = (0, 2, 0)
 
 
-class cgtb(SPUInstruction):
+class cgtb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':592}
   cycles = (0, 2, 0)
 
 
-class cgth(SPUInstruction):
+class cgth(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':584}
   cycles = (0, 2, 0)
 
 
-class cgt(SPUInstruction):
+class cgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':576}
   cycles = (0, 2, 0)
 
 
-class clgtb(SPUInstruction):
+class clgtb(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':720}
   cycles = (0, 2, 0)
 
 
-class clgth(SPUInstruction):
+class clgth(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':712}
   cycles = (0, 2, 0)
 
 
-class clgt(SPUInstruction):
+class clgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':704}
   cycles = (0, 2, 0)
 
 
-class bi(SPUInstruction):
+class bi(Instruction):
   machine_inst = OPCD_A_D_E
   params = {'OPCD':424}
   cycles = (1, 4, 0)
 
 
-class iret(SPUInstruction):
+class iret(Instruction):
   machine_inst = OPCD_A_D_E
   params = {'OPCD':426}
   cycles = (1, 4, 0)
 
 
-class bisled(SPUInstruction):
+class bisled(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':427}
   cycles = (1, 4, 0)
 
 
-class bisl(SPUInstruction):
+class bisl(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':425}
   cycles = (1, 4, 0)
 
 
-class biz(SPUInstruction):
+class biz(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':296}
   cycles = (1, 4, 0)
 
 
-class binz(SPUInstruction):
+class binz(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':297}
   cycles = (1, 4, 0)
 
 
-class bihz(SPUInstruction):
+class bihz(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':294}
   cycles = (1, 4, 0)
 
 
-class bihnz(SPUInstruction):
+class bihnz(Instruction):
   machine_inst = OPCD_A_T_D_E
   params = {'OPCD':299}
   cycles = (1, 4, 0)
 
 
 # TODO - can we check that if P is set then RO is zero as required?
-class hbr(SPUDispatchInstruction):
+class hbr(DispatchInstruction):
   cycles = (1, 15, 0)
   dispatch = (
     (OPCD_RO_A_P,   {'OPCD':428}),
     (OPCD_LBL9_A_P, {'OPCD':428}))
 
 
-class fa(SPUInstruction):
+class fa(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':708}
   cycles = (0, 6, 0)
 
 
-class dfa(SPUInstruction):
+class dfa(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':716}
   cycles = (0, 13, 6)
 
 
-class fs(SPUInstruction):
+class fs(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':709}
   cycles = (0, 6, 0)
 
 
-class dfs(SPUInstruction):
+class dfs(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':717}
   cycles = (0, 13, 6)
 
 
-class fm(SPUInstruction):
+class fm(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':710}
   cycles = (0, 6, 0)
 
 
-class dfm(SPUInstruction):
+class dfm(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':718}
   cycles = (0, 13, 6)
 
 
-class dfma(SPUInstruction):
+class dfma(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':860}
   cycles = (0, 13, 6)
 
 
-class dfnms(SPUInstruction):
+class dfnms(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':862}
   cycles = (0, 13, 6)
 
 
-class dfms(SPUInstruction):
+class dfms(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':861}
   cycles = (0, 13, 6)
 
 
-class dfnma(SPUInstruction):
+class dfnma(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':863}
   cycles = (0, 13, 6)
 
 
-class frest(SPUInstruction):
+class frest(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':440}
   cycles = (1, 4, 0)
 
 
-class frsqest(SPUInstruction):
+class frsqest(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':441}
   cycles = (1, 4, 0)
 
 
-class fi(SPUInstruction):
+class fi(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':980}
   cycles = (0, 7, 0)
 
 
-class frds(SPUInstruction):
+class frds(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':953}
   cycles = (0, 13, 6)
 
 
-class fesd(SPUInstruction):
+class fesd(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':952}
   cycles = (0, 13, 6)
 
 
-class fceq(SPUInstruction):
+class fceq(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':962}
   cycles = (0, 2, 0)
 
 
-class fcmeq(SPUInstruction):
+class fcmeq(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':970}
   cycles = (0, 2, 0)
 
 
-class fcgt(SPUInstruction):
+class fcgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':706}
   cycles = (0, 2, 0)
 
 
-class fcmgt(SPUInstruction):
+class fcmgt(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':714}
   cycles = (0, 2, 0)
 
 
-class fscrwr(SPUInstruction):
+class fscrwr(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':954}
   cycles = (0, 7, 0)
 
 
-class fscrrd(SPUInstruction):
+class fscrrd(Instruction):
   machine_inst = OPCD_T
   params = {'OPCD':920}
   cycles = (0, 13, 6)
 
 
-class stop(SPUInstruction):
+class stop(Instruction):
   machine_inst = OPCD_STOP_SIG
   params = {'OPCD':0}
   cycles = (1, 4, 0)
 
 
-class stopd(SPUInstruction):
+class stopd(Instruction):
   machine_inst = OPCD_B_A_T
   params = {'OPCD':320}
   cycles = (1, 4, 0)
 
 
-class lnop(SPUInstruction):
+class lnop(Instruction):
   machine_inst = OPCD
   params = {'OPCD':1}
   cycles = (1, 0, 0)
 
 
-class nop(SPUInstruction):
+class nop(Instruction):
   machine_inst = OPCD_T
   params = {'OPCD':513}
   cycles = (0, 0, 0)
 
 
-class sync(SPUInstruction):
+class sync(Instruction):
   machine_inst = OPCD_CF
   params = {'OPCD':2}
   cycles = (1, 4, 0)
 
 
-class dsync(SPUInstruction):
+class dsync(Instruction):
   machine_inst = OPCD
   params = {'OPCD':3}
   cycles = (1, 4, 0)
 
 
-class mfspr(SPUInstruction):
+class mfspr(Instruction):
   machine_inst = OPCD_SA_T
   params = {'OPCD':12}
   cycles = (1, 6, 0)
 
 
-class mtspr(SPUInstruction):
+class mtspr(Instruction):
   machine_inst = OPCD_SA_T
   params = {'OPCD':268}
   cycles = (1, 6, 0)
 
 
-class rdch(SPUInstruction):
+class rdch(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':13}
   cycles = (1, 6, 0)
 
 
-class rchcnt(SPUInstruction):
+class rchcnt(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':15}
   cycles = (1, 6, 0)
 
 
-class wrch(SPUInstruction):
+class wrch(Instruction):
   machine_inst = OPCD_A_T
   params = {'OPCD':269}
   cycles = (1, 6, 0)
 
 
-class mpya(SPUInstruction):
+class mpya(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':12}
   cycles = (0, 7, 0)
 
 
-class selb(SPUInstruction):
+class selb(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':8}
   cycles = (0, 2, 0)
 
 
-class shufb(SPUInstruction):
+class shufb(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':11}
   cycles = (1, 4, 0)
 
 
-class fma(SPUInstruction):
+class fma(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':14}
   cycles = (0, 6, 0)
 
 
-class fnms(SPUInstruction):
+class fnms(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':13}
   cycles = (0, 6, 0)
 
 
-class fms(SPUInstruction):
+class fms(Instruction):
   machine_inst = OPCD_T_B_A_C
   params = {'OPCD':15}
   cycles = (0, 6, 0)
 
 
-class cbd(SPUInstruction):
+class cbd(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':500}
   cycles = (1, 4, 0)
 
 
-class chd(SPUInstruction):
+class chd(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':501}
   cycles = (1, 4, 0)
 
 
-class cwd(SPUInstruction):
+class cwd(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':502}
   cycles = (1, 4, 0)
 
 
-class cdd(SPUInstruction):
+class cdd(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':503}
   cycles = (1, 4, 0)
 
 
-class shlhi(SPUInstruction):
+class shlhi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':127}
   cycles = (0, 4, 0)
 
 
-class shli(SPUInstruction):
+class shli(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':123}
   cycles = (0, 4, 0)
 
 
-class shlqbii(SPUInstruction):
+class shlqbii(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':507}
   cycles = (1, 4, 0)
 
 
-class shlqbyi(SPUInstruction):
+class shlqbyi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':511}
   cycles = (1, 4, 0)
 
 
-class rothi(SPUInstruction):
+class rothi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':124}
   cycles = (0, 4, 0)
 
 
-class roti(SPUInstruction):
+class roti(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':120}
   cycles = (0, 4, 0)
 
 
-class rotqbyi(SPUInstruction):
+class rotqbyi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':508}
   cycles = (1, 4, 0)
 
 
-class rotqbii(SPUInstruction):
+class rotqbii(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':504}
   cycles = (1, 4, 0)
 
 
-class rothmi(SPUInstruction):
+class rothmi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':125}
   cycles = (0, 4, 0)
 
 
-class rotmi(SPUInstruction):
+class rotmi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':121}
   cycles = (0, 4, 0)
 
 
-class rotqmbyi(SPUInstruction):
+class rotqmbyi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':509}
   cycles = (1, 4, 0)
 
 
-class rotqmbii(SPUInstruction):
+class rotqmbii(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':505}
   cycles = (1, 4, 0)
 
 
-class rotmahi(SPUInstruction):
+class rotmahi(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':126}
   cycles = (0, 4, 0)
 
 
-class rotmai(SPUInstruction):
+class rotmai(Instruction):
   machine_inst = OPCD_I7_A_T
   params = {'OPCD':122}
   cycles = (0, 4, 0)
 
 
-class csflt(SPUInstruction):
+class csflt(Instruction):
   machine_inst = OPCD_I8_A_T
   params = {'OPCD':474}
   cycles = (0, 7, 0)
 
 
-class cflts(SPUInstruction):
+class cflts(Instruction):
   machine_inst = OPCD_I8_A_T
   params = {'OPCD':472}
   cycles = (0, 7, 0)
 
 
-class cuflt(SPUInstruction):
+class cuflt(Instruction):
   machine_inst = OPCD_I8_A_T
   params = {'OPCD':475}
   cycles = (0, 7, 0)
 
 
-class cfltu(SPUInstruction):
+class cfltu(Instruction):
   machine_inst = OPCD_I8_A_T
   params = {'OPCD':473}
   cycles = (0, 7, 0)
 
 
-class lqd(SPUInstruction):
+class lqd(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':52}
   cycles = (1, 6, 0)
 
 
-class stqd(SPUInstruction):
+class stqd(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':36}
   cycles = (1, 6, 0)
 
 
-class ahi(SPUInstruction):
+class ahi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':29}
   cycles = (0, 2, 0)
 
 
-class ai(SPUInstruction):
+class ai(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':28}
   cycles = (0, 2, 0)
 
 
-class sfhi(SPUInstruction):
+class sfhi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':13}
   cycles = (0, 2, 0)
 
 
-class sfi(SPUInstruction):
+class sfi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':12}
   cycles = (0, 2, 0)
 
 
-class mpyi(SPUInstruction):
+class mpyi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':116}
   cycles = (0, 7, 0)
 
 
-class mpyui(SPUInstruction):
+class mpyui(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':117}
   cycles = (0, 7, 0)
 
 
-class andbi(SPUInstruction):
+class andbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':22}
   cycles = (0, 2, 0)
 
 
-class andhi(SPUInstruction):
+class andhi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':21}
   cycles = (0, 2, 0)
 
 
-class andi(SPUInstruction):
+class andi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':20}
   cycles = (0, 2, 0)
 
 
-class orbi(SPUInstruction):
+class orbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':6}
   cycles = (0, 2, 0)
 
 
-class orhi(SPUInstruction):
+class orhi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':5}
   cycles = (0, 2, 0)
 
 
-class ori(SPUInstruction):
+class ori(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':4}
   cycles = (0, 2, 0)
 
 
-class xorbi(SPUInstruction):
+class xorbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':70}
   cycles = (0, 2, 0)
 
 
-class xorhi(SPUInstruction):
+class xorhi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':69}
   cycles = (0, 2, 0)
 
 
-class xori(SPUInstruction):
+class xori(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':68}
   cycles = (0, 2, 0)
 
 
-class heqi(SPUInstruction):
+class heqi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':127}
   cycles = (0, 2, 0)
 
 
-class hgti(SPUInstruction):
+class hgti(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':79}
   cycles = (0, 2, 0)
 
 
-class hlgti(SPUInstruction):
+class hlgti(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':95}
   cycles = (0, 2, 0)
 
 
-class ceqbi(SPUInstruction):
+class ceqbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':126}
   cycles = (0, 2, 0)
 
 
-class ceqhi(SPUInstruction):
+class ceqhi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':125}
   cycles = (0, 2, 0)
 
 
-class ceqi(SPUInstruction):
+class ceqi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':124}
   cycles = (0, 2, 0)
 
 
-class cgtbi(SPUInstruction):
+class cgtbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':78}
   cycles = (0, 2, 0)
 
 
-class cgthi(SPUInstruction):
+class cgthi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':77}
   cycles = (0, 2, 0)
 
 
-class cgti(SPUInstruction):
+class cgti(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':76}
   cycles = (0, 2, 0)
 
 
-class clgtbi(SPUInstruction):
+class clgtbi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':94}
   cycles = (0, 2, 0)
 
 
-class clgthi(SPUInstruction):
+class clgthi(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':93}
   cycles = (0, 2, 0)
 
 
-class clgti(SPUInstruction):
+class clgti(Instruction):
   machine_inst = OPCD_I10_A_T
   params = {'OPCD':92}
   cycles = (0, 2, 0)
 
 
-class lqa(SPUInstruction):
+class lqa(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':97}
   cycles = (1, 6, 0)
 
 
-class lqr(SPUInstruction):
+class lqr(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':103}
   cycles = (1, 6, 0)
 
 
-class stqa(SPUInstruction):
+class stqa(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':65}
   cycles = (1, 6, 0)
 
 
-class stqr(SPUInstruction):
+class stqr(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':71}
   cycles = (1, 6, 0)
 
 
-class ilh(SPUInstruction):
+class ilh(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':131}
   cycles = (0, 2, 0)
 
 
-class ilhu(SPUInstruction):
+class ilhu(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':130}
   cycles = (0, 2, 0)
 
 
-class il(SPUInstruction):
+class il(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':129}
   cycles = (0, 2, 0)
 
 
-class iohl(SPUInstruction):
+class iohl(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':193}
   cycles = (0, 2, 0)
 
 
-class fsmbi(SPUInstruction):
+class fsmbi(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':101}
   cycles = (1, 4, 0)
 
 
-class br(SPUDispatchInstruction):
+class br(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16,    {'OPCD':100}),
@@ -1170,7 +1141,7 @@ class br(SPUDispatchInstruction):
 
 
 # TODO - how can I do absolute branches?
-class bra(SPUInstruction):
+class bra(Instruction):
   machine_inst = OPCD_I16
   params = {'OPCD':96}
   cycles = (1, 4, 0)
@@ -1178,61 +1149,61 @@ class bra(SPUInstruction):
 
 # TODO - I16 has two zero bits appended, do I handle this correctly?
 # What is the correct way, anyway?
-class brsl(SPUDispatchInstruction):
+class brsl(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16_T,    {'OPCD':102}),
     (OPCD_LBL16_T,  {'OPCD':102}))
 
 
-class brasl(SPUInstruction):
+class brasl(Instruction):
   machine_inst = OPCD_I16_T
   params = {'OPCD':98}
   cycles = (1, 4, 0)
 
 
-class brnz(SPUDispatchInstruction):
+class brnz(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16_T,    {'OPCD':66}),
     (OPCD_LBL16_T,  {'OPCD':66}))
 
 
-class brz(SPUDispatchInstruction):
+class brz(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16_T,    {'OPCD':64}),
     (OPCD_LBL16_T,  {'OPCD':64}))
 
 
-class brhnz(SPUDispatchInstruction):
+class brhnz(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16,    {'OPCD':70}),
     (OPCD_LBL16,  {'OPCD':70}))
 
 
-class brhz(SPUDispatchInstruction):
+class brhz(DispatchInstruction):
   cycles = (1, 4, 0)
   dispatch = (
     (OPCD_I16,    {'OPCD':68}),
     (OPCD_LBL16,  {'OPCD':68}))
 
 
-class hbra(SPUInstruction):
+class hbra(Instruction):
   machine_inst = OPCD_LBL9_I16
   params = {'OPCD':8}
   cycles = (1, 15, 0)
 
 
-class hbrr(SPUDispatchInstruction):
+class hbrr(DispatchInstruction):
   cycles = (1, 15, 0)
   dispatch = (
     (OPCD_ROA_I16,     {'OPCD':9}),
     (OPCD_LBL9_LBL16,  {'OPCD':9}))
 
 
-class ila(SPUInstruction):
+class ila(Instruction):
   machine_inst = OPCD_I18_T
   params = {'OPCD':33}
   cycles = (0, 2, 0)

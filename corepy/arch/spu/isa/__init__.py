@@ -72,6 +72,6 @@ def get_active_code():
 
 for l in locals().values():
   if isinstance(l, type):
-    if issubclass(l, SPUInstruction) or issubclass(l, SPUDispatchInstruction):
+    if issubclass(l, Instruction) or issubclass(l, DispatchInstruction):
       l.active_code = property(__get_active_code) 
 

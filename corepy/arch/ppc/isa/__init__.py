@@ -58,22 +58,8 @@ def get_active_code():
 # _ppc_active_code_prop = property(get_active_code)
 
 # Build the instructions
-# for inst in ppc_isa.PPC_ISA:
-#   name = inst[0]
-#   machine_inst = getattr(machine, name)
-  
-#   # asm_order = inst[1]['asm']
-#   members = {}
-#   for key in inst[1].keys():
-#     members[key] = inst[1][key]
-
-#   members['asm_order'] =  members['asm']
-#   members['machine_inst'] =  machine_inst
-#   members['active_code']  = property(__get_active_code) # _ppc_active_code_prop
-#   globals()[inst[0]] = type(name, (spe.Instruction,), members)
-
 for l in locals().values():
-  if isinstance(l, type) and issubclass(l, (PPCInstruction, PPCDispatchInstruction)):
+  if isinstance(l, type) and issubclass(l, (Instruction, DispatchInstruction)):
     l.active_code = property(__get_active_code) 
 
 

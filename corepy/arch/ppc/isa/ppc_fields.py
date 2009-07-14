@@ -102,9 +102,6 @@ class ImmediateField(PPCField):
   def check(self, value):
     return isinstance(value, (int, long)) and self.range[0] <= value and value < self.range[1]
 
-  def __eq__(self, other):
-    return isinstance(other, (type(self), type(IMM_DUMMY)))
-
 
 class TruncatedField(ImmediateField):
   """
@@ -123,11 +120,6 @@ class TruncatedField(ImmediateField):
 class LabelField(TruncatedField):
   def check(self, value):
     return isinstance(value, Label)
-
-
-class Immediate(object): pass
-
-IMM_DUMMY = Immediate()
 
 
 # TODO - AWF - huh???

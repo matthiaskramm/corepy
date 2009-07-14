@@ -53,8 +53,8 @@ class SPUField(InstructionOperand):
   def render(self, value):
     return (long(value) & self.bit_mask)  << self.shift
 
-  def __eq__(self, other):
-    return type(self) == type(other)
+  #def __eq__(self, other):
+  #  return type(self) == type(other)
 
 
 class RegisterField(SPUField):
@@ -74,8 +74,8 @@ class RegisterField(SPUField):
     else:
       return (long(value) & self.bit_mask) << self.shift
 
-  def __eq__(self, other):
-    return isinstance(other, (RegisterField, Immediate7))
+  #def __eq__(self, other):
+  #  return isinstance(other, (RegisterField, Immediate7))
 
 
 class ImmediateField(SPUField):
@@ -120,32 +120,27 @@ class ROField(InstructionOperand):
     return isinstance(value, (int, long)) and self.range[0] <= value and value < self.range[1]
 
 
-class Immediate7(ImmediateField):
-  def __eq__(self, other):
-    return isinstance(other, (Immediate7, ROField, Immediate8, Immediate10, Immediate16, Immediate18, RegisterField))
+#class Immediate7(ImmediateField): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Immediate7, ROField, Immediate8, Immediate10, Immediate16, Immediate18, RegisterField))
 
 
-class Immediate8(ImmediateField):
-  def __eq__(self, other):
-    return isinstance(other, (ROField, Immediate8, Immediate10, Immediate16, Immediate18, RegisterField))
+#class Immediate8(ImmediateField): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (ROField, Immediate8, Immediate10, Immediate16, Immediate18, RegisterField))
 
 
-class Immediate9(ImmediateField):
-  def __eq__(self, other):
-    return isinstance(other, (ROField, Immediate10, Immediate16, Immediate18, RegisterField))
+#class Immediate10(ImmediateField): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Immediate10, Immediate16, Immediate18, RegisterField))
 
 
-class Immediate10(ImmediateField):
-  def __eq__(self, other):
-    return isinstance(other, (Immediate10, Immediate16, Immediate18, RegisterField))
+#class Immediate16(ImmediateField): pass
+#  def __eq__(self, other):
+#    return isinstance(other, (Immediate16, Immediate18, RegisterField))
 
 
-class Immediate16(ImmediateField):
-  def __eq__(self, other):
-    return isinstance(other, (Immediate16, Immediate18, RegisterField))
-
-
-class Immediate18(ImmediateField): pass
+#class Immediate18(ImmediateField): pass
 
 
 # TODO - AWF - are the bit ranges right?
@@ -179,12 +174,11 @@ CF = ImmediateField("CF", (11,11), (0, 2), 0)   # Channel synchronization
 
 # Immediate operand fields
 # TODO - AWF - some instructions have tighter immediate ranges
-I7 = Immediate7("I7", (11,17), (-64, 128))
-I8 = Immediate8("I8", (10,17), (0, 256))
-I9 = Immediate8("I9", (10,17), (-512, 512)) # Just here for ROField equality
-I10 = Immediate10("I10", (8, 17), (-512, 1024))
-I16 = Immediate16("I16", (9, 24), (-32768, 65536))
-I18 = Immediate18("I18", (7, 24), (-131072, 262144))
+I7 = ImmediateField("I7", (11,17), (-64, 128))
+I8 = ImmediateField("I8", (10,17), (0, 256))
+I10 = ImmediateField("I10", (8, 17), (-512, 1024))
+I16 = ImmediateField("I16", (9, 24), (-32768, 65536))
+I18 = ImmediateField("I18", (7, 24), (-131072, 262144))
 
 # Label operand fields
 LBL9 = LabelField("LBL9", (-512, 512))
