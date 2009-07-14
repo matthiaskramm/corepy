@@ -478,8 +478,7 @@ class Instruction(object):
     # is set.
     self.active_code_used = None    
 
-    # Allow the user to create an instruction without adding it to
-    # active code.  Used for debugging purposes.
+    # Allow the user to create an instruction without adding it to active code.
     ignore_active = False
     if koperands.has_key('ignore_active'):
       ignore_active = koperands['ignore_active']
@@ -488,7 +487,7 @@ class Instruction(object):
     if self.active_code is not None and not ignore_active:
       self.active_code.add(self)
       self.active_code_used = self.active_code
-    
+
     return
 
   def validate_operands(self, *operands, **koperands):
@@ -543,17 +542,6 @@ class Instruction(object):
     self._operands["position"] = pos
 
 
-#def _sig_cmp(sig, user):
-#  if len(sig) != len(user):
-#    return False
-
-#  for s, u in zip(sig, user):
-#    # Test s against u, since user will be more specific and use __eq__()
-#    if not u == s:
-#      return False
-#  return True
-
-
 class DispatchInstruction(Instruction):
   """
   DispatchInstruction is a one-to-many mapping of Instructions 
@@ -572,46 +560,82 @@ class DispatchInstruction(Instruction):
   attribute.  DispatchInstruction abuses things a bit and creates an
   instance attribute for instruction.
   """
-  type_id = [type]
+#  type_id = [type]
   dispatch = ()
 
   def __init__(self, *operands, **koperands):
-    # Get a list of the types of the operands
-    type_func = self.type_id[0]
-    op_types = tuple([type_func(arg) for arg in operands])
+    # Attempt to find a dispatch entry that matches the operands.
+    self.machine_inst = None
 
-    # Find the method that matches the operand type list
-    instruction = None
-    params = None
-    for entry in self.dispatch:
-#      print "[check] (%s) -> (%s)" % (
-#        ','.join([str(arg_type.name) for arg_type in op_types],),
-#        ','.join([str(arg_type.name) for arg_type in entry[0].signature],)
-#        )
+    for machine_inst, params in self.dispatch:
+      #print "[check] (%s)" % (
+      #  ','.join([str(arg_type.name) for arg_type in entry[0].signature],)),
 
-      #if _sig_cmp(entry[0].signature, op_types):
-      # Careful to test sig against types so the right __eq__() is called
-      if op_types == entry[0].signature:
-        instruction = entry[0]
-        params = entry[1]
+      # entry[0].signature contains the fields to check
+      if len(operands) != len(machine_inst.signature):
+        # Signature is a different length, so it can't match.
+        #print "LEN FAIL"
+        continue
+
+      match = True
+      for i, field in enumerate(machine_inst.signature):
+        if not field.check(operands[i]):
+          match = False
+          break
+
+      if match:
+        #print "MATCH"
+        # Entire signature matched, break out.
+        self.machine_inst = machine_inst
+        self.params = params
         break
 
-    if instruction is None:
+
+    if self.machine_inst is None:
       raise Exception("Instruction %s does not support operand types (%s)" % (
         type(self), ','.join([str(arg_type.name) for arg_type in op_types],)))
-#     else:
-#       print "(%s) -> (%s)" % (
-#         ','.join([str(arg_type.name) for arg_type in op_types],),
-#         ','.join([str(arg_type.name) for arg_type in instruction.signature],)
-#         )
-        
 
-    # Set our instruction type
-    self.machine_inst = instruction
-    self.params = params
-    
-    # Call the main Instruction constructor
-    Instruction.__init__(self, *operands, **koperands)
+
+    # Skip the Instruction constructor and do mostly the same work here.
+    # The operands have already been validated, so no need to re-do that.
+
+    # Remember what the user passed in for debugging
+    # TODO - not just for debugging! remove the underscore, too
+    self._supplied_operands = operands
+    self._supplied_koperands = koperands    
+
+    # Do what validate_operands does, skipping the checks done already
+    self._operands = {}
+
+    for i, op_type in enumerate(self.machine_inst.signature):
+      # Store ops by name and position.
+      self._operands[op_type.name] = self._operands[i] = operands[i]
+        
+    for op_type in self.machine_inst.opt_kw:
+      kw = op_type.name
+      if koperands.has_key(kw):
+        if op_type.check(koperands[kw]):
+          self._operands[kw] = koperands[kw]
+      elif op_type.default is not None:
+        self._operands[kw] = op_type.default
+
+
+    # If active code is present, add ourself to it and remember that
+    # we did so.  active_code_used is checked by InstructionStream
+    # to avoid double adds from code.add(inst(...)) when active_code
+    # is set.
+    self.active_code_used = None    
+
+    # Allow the user to create an instruction without adding it to active code.
+    ignore_active = False
+    if koperands.has_key('ignore_active'):
+      ignore_active = koperands['ignore_active']
+      del koperands['ignore_active']
+
+    if self.active_code is not None and not ignore_active:
+      self.active_code.add(self)
+      self.active_code_used = self.active_code
+
     return
 
 

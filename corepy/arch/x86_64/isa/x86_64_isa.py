@@ -26,10 +26,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-#from isa2 import Register, MemRef, Instruction, DispatchInstruction, InstructionOperand
-from corepy.spre.spe import Register, Instruction, DispatchInstruction, InstructionOperand, Label
-from corepy.arch.x86_64.types.registers import GPRegister8, GPRegister16, GPRegister32, GPRegister64, FPRegister, MMXRegister, XMMRegister
-from corepy.arch.x86_64.lib.memory import MemoryReference, MemRef
+from corepy.spre.spe import Instruction, DispatchInstruction
 
 from x86_64_fields import *
 from x86_64_insts import *
@@ -72,116 +69,6 @@ gp32_map = {0: eax_t}
 gp64_map = {0: rax_t}
 fp_map = {0: st0_t}
 
-def x86_imm_operand_type(op):
-  if isinstance(op, (int, long)):
-    if op == 1:
-      return one_t
-    elif rel8off_t.fits(op):
-      return rel8off_t
-    elif imm8_t.fits(op):
-      return imm8_t
-    elif imm16_t.fits(op):
-      return imm16_t
-    elif rel32off_t.fits(op):
-      return rel32off_t
-    elif imm32_t.fits(op):
-      return imm32_t
-    elif imm64_t.fits(op):
-      return imm64_t
-    else:
-      raise Exception('int/long operand too large: %d' % op)
-  return 
-
-def x86_reg_operand_type(op):    
-  if isinstance(op, GPRegister8):
-    if op.reg in gp8_map.keys():
-      return gp8_map[op.reg]
-    else:
-      return reg8_t
-  elif isinstance(op, GPRegister16):
-    if op.reg in gp16_map.keys():
-      return gp16_map[op.reg]
-    else:
-      return reg16_t
-  elif isinstance(op, GPRegister32):
-    if op.reg in gp32_map.keys():
-      return gp32_map[op.reg]
-    else:
-      return reg32_t
-  elif isinstance(op, GPRegister64):
-    if op.reg in gp64_map.keys():
-      return gp64_map[op.reg]
-    else:
-      return reg64_t
-  elif isinstance(op, FPRegister):
-    if op.reg in fp_map.keys():
-      return fp_map[op.reg]
-    else:
-      return regst_t
-  elif isinstance(op, MMXRegister):
-    return mmx_t
-  elif isinstance(op, XMMRegister):
-    return xmm_t
-  return
-
-def x86_reloff_operand_type(op):
-  if isinstance(op, (int, long)):
-    if rel8off_t.fits(op):
-      return rel8off_t
-    elif rel32off_t.fits(op):
-      return rel32off_t
-    else:
-      raise Exception('int/long operand too large: %d' % op)
-  elif isinstance(op, Label):
-    if lbl8off_t.fits(op):
-      return lbl8off_t
-    elif lbl32off_t.fits(op):
-      return lbl32off_t
-    else:
-      raise Exception('int/long operand too large: %s' % str(op))
-  return
-
-def x86_mem_operand_type(op):
-  if isinstance(op, MemoryReference):
-    if op.data_size == 64:
-      return mem64_t
-    if op.data_size == 32:
-      return mem32_t
-    if op.data_size == 16:
-      return mem16_t
-    if op.data_size == 8:
-      return mem8_t
-    if op.data_size == 80:
-      return mem80_t
-    if op.data_size == 128:
-      return mem128_t
-    if op.data_size == 228:
-      return mem228_t
-    if op.data_size == 512:
-      return mem512_t
-    if op.data_size == 752:
-      return mem752_t
-    if op.data_size != None and __annoy__:
-      print "MemRef has size of %d bits, this is may not work as expected." % (op.data_size)
-    return mem_t
-  return
-
-def x86_type(op):
-  t = x86_imm_operand_type(op)
-
-  if t is None:
-    t = x86_reg_operand_type(op)
-    if t is None:
-      t = x86_reloff_operand_type(op)
-      if t is None:
-        t = x86_mem_operand_type(op)
-  return t
-
-
-class x86Instruction(Instruction): pass
-class x86DispatchInstruction(DispatchInstruction):
-  type_id = [x86_type]
-
 
 # ------------------------------
 # x86 Instructions
@@ -192,7 +79,7 @@ class x86DispatchInstruction(DispatchInstruction):
 # (32bit default) mode is assumed here.
 
 
-class adc(x86DispatchInstruction):
+class adc(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x10}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x10}),
@@ -225,7 +112,7 @@ class adc(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x10],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x12],             'modrm':None}))
   
-class add(x86DispatchInstruction):
+class add(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x00}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x00}),
@@ -258,7 +145,7 @@ class add(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x00],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x02],             'modrm':None}))
     
-class and_(x86DispatchInstruction):
+class and_(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x20}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x20}),
@@ -291,7 +178,7 @@ class and_(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x20],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x22],             'modrm':None}))
 
-class bsf(x86DispatchInstruction):
+class bsf(DispatchInstruction):
   dispatch = (
     (reg64_reg64,         {'opcode':[0x0F, 0xBC],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0xBC],       'modrm':None}),
@@ -300,7 +187,7 @@ class bsf(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xBC],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0xBC],       'modrm':None}))
     
-class bsr(x86DispatchInstruction):
+class bsr(DispatchInstruction):
   dispatch = (
     (reg64_reg64,         {'opcode':[0x0F, 0xBD],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0xBD],       'modrm':None}),
@@ -309,12 +196,12 @@ class bsr(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xBD],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0xBD],       'modrm':None}))
   
-class bswap(x86DispatchInstruction):
+class bswap(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0x0F, 0xC8],       'modrm':None}),
     (reg32,               {'opcode':[0x0F, 0xC8],       'modrm':None}))
 
-class bt(x86DispatchInstruction):
+class bt(DispatchInstruction):
   dispatch = (
     (reg64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x20}),
     (mem64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x20}),
@@ -329,7 +216,7 @@ class bt(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xA3],       'modrm':None}),
     (mem16_reg16,         {'opcode':[0x0F, 0xA3],       'modrm':None}))
   
-class btc(x86DispatchInstruction):
+class btc(DispatchInstruction):
   dispatch = (
     (reg64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x38}),
     (mem64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x38}),
@@ -344,7 +231,7 @@ class btc(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xBB],       'modrm':None}),
     (mem16_reg16,         {'opcode':[0x0F, 0xBB],       'modrm':None}))
   
-class btr(x86DispatchInstruction):
+class btr(DispatchInstruction):
   dispatch = (
     (reg64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x30}),
     (mem64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x30}),
@@ -359,7 +246,7 @@ class btr(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xB3],       'modrm':None}),
     (mem16_reg16,         {'opcode':[0x0F, 0xB3],       'modrm':None}))
   
-class bts(x86DispatchInstruction):
+class bts(DispatchInstruction):
   dispatch = (
     (reg64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x28}),
     (mem64_imm8,          {'opcode':[0x0F, 0xBA],       'modrm':0x28}),
@@ -374,7 +261,7 @@ class bts(x86DispatchInstruction):
     (reg16_reg16,         {'opcode':[0x0F, 0xAB],       'modrm':None}),
     (mem16_reg16,         {'opcode':[0x0F, 0xAB],       'modrm':None}))
 
-class call(x86DispatchInstruction):
+class call(DispatchInstruction):
   dispatch = (
     (lbl32off,            {'opcode':[0xE8],             'modrm':None}),
     (rel32off,            {'opcode':[0xE8],             'modrm':None}),
@@ -383,43 +270,43 @@ class call(x86DispatchInstruction):
     (reg16,               {'opcode':[0xFF],             'modrm':0x10}),
     (mem16,               {'opcode':[0x66, 0xFF],       'modrm':0x10}))
   
-class cbw(x86Instruction):
+class cbw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x98],       'modrm':None}
   
-class cdq(x86Instruction):
+class cdq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x99],             'modrm':None}
   
-class cdqe(x86Instruction):
+class cdqe(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0x98],       'modrm':None}
   
-class clc(x86Instruction):
+class clc(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xF8],             'modrm':None}
   
-class cld(x86Instruction):
+class cld(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xFC],             'modrm':None}
   
-class clflush(x86Instruction):
+class clflush(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0xAE],       'modrm':0x38}
   
-class cli(x86Instruction):
+class cli(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xFA],             'modrm':None}
   
-class clts(x86Instruction):
+class clts(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x06],       'modrm':None}
   
-class cmc(x86Instruction):
+class cmc(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xF5],             'modrm':None}
   
-class cmovo(x86DispatchInstruction):
+class cmovo(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x40],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x40],       'modrm':None}),
@@ -428,7 +315,7 @@ class cmovo(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x40],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x40],       'modrm':None}))
     
-class cmovno(x86DispatchInstruction):
+class cmovno(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x41],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x41],       'modrm':None}),
@@ -437,7 +324,7 @@ class cmovno(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x41],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x41],       'modrm':None}))
     
-class cmovb(x86DispatchInstruction):
+class cmovb(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x42],       'modrm':None}),
@@ -446,7 +333,7 @@ class cmovb(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x42],       'modrm':None}))
     
-class cmovc(x86DispatchInstruction):
+class cmovc(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x42],       'modrm':None}),
@@ -455,7 +342,7 @@ class cmovc(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x42],       'modrm':None}))
     
-class cmovnae(x86DispatchInstruction):
+class cmovnae(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x42],       'modrm':None}),
@@ -464,7 +351,7 @@ class cmovnae(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x42],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x42],       'modrm':None}))
     
-class cmovnb(x86DispatchInstruction):
+class cmovnb(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x43],       'modrm':None}),
@@ -473,7 +360,7 @@ class cmovnb(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x43],       'modrm':None}))
     
-class cmovnc(x86DispatchInstruction):
+class cmovnc(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x43],       'modrm':None}),
@@ -482,7 +369,7 @@ class cmovnc(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x43],       'modrm':None}))
     
-class cmovae(x86DispatchInstruction):
+class cmovae(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x43],       'modrm':None}),
@@ -491,7 +378,7 @@ class cmovae(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x43],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x43],       'modrm':None}))
   
-class cmovz(x86DispatchInstruction):
+class cmovz(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x44],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x44],       'modrm':None}),
@@ -500,7 +387,7 @@ class cmovz(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x44],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x44],       'modrm':None}))
   
-class cmove(x86DispatchInstruction):
+class cmove(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x44],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x44],       'modrm':None}),
@@ -509,7 +396,7 @@ class cmove(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x44],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x44],       'modrm':None}))
     
-class cmovnz(x86DispatchInstruction):
+class cmovnz(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x45],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x45],       'modrm':None}),
@@ -518,7 +405,7 @@ class cmovnz(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x45],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x45],       'modrm':None}))
   
-class cmovne(x86DispatchInstruction):
+class cmovne(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x45],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x45],       'modrm':None}),
@@ -527,7 +414,7 @@ class cmovne(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x45],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x45],       'modrm':None}))
     
-class cmovbe(x86DispatchInstruction):
+class cmovbe(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x46],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x46],       'modrm':None}),
@@ -536,7 +423,7 @@ class cmovbe(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x46],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x46],       'modrm':None}))
     
-class cmovna(x86DispatchInstruction):
+class cmovna(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x46],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x46],       'modrm':None}),
@@ -545,7 +432,7 @@ class cmovna(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x46],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x46],       'modrm':None}))
     
-class cmovnbe(x86DispatchInstruction):
+class cmovnbe(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x47],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x47],       'modrm':None}),
@@ -554,7 +441,7 @@ class cmovnbe(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x47],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x47],       'modrm':None}))
     
-class cmova(x86DispatchInstruction):
+class cmova(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x47],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x47],       'modrm':None}),
@@ -563,7 +450,7 @@ class cmova(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x47],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x47],       'modrm':None}))
     
-class cmovs(x86DispatchInstruction):
+class cmovs(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x48],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x48],       'modrm':None}),
@@ -572,7 +459,7 @@ class cmovs(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x48],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x48],       'modrm':None}))
   
-class cmovns(x86DispatchInstruction):
+class cmovns(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x49],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x49],       'modrm':None}),
@@ -581,7 +468,7 @@ class cmovns(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x49],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x49],       'modrm':None}))
     
-class cmovp(x86DispatchInstruction):
+class cmovp(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4A],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4A],       'modrm':None}),
@@ -590,7 +477,7 @@ class cmovp(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4A],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4A],       'modrm':None}))
   
-class cmovpe(x86DispatchInstruction):
+class cmovpe(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4A],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4A],       'modrm':None}),
@@ -599,7 +486,7 @@ class cmovpe(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4A],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4A],       'modrm':None}))
   
-class cmovnp(x86DispatchInstruction):
+class cmovnp(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4B],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4B],       'modrm':None}),
@@ -608,7 +495,7 @@ class cmovnp(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4B],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4B],       'modrm':None}))
     
-class cmovpo(x86DispatchInstruction):
+class cmovpo(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4B],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4B],       'modrm':None}),
@@ -617,7 +504,7 @@ class cmovpo(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4B],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4B],       'modrm':None}))
     
-class cmovl(x86DispatchInstruction):
+class cmovl(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4C],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4C],       'modrm':None}),
@@ -626,7 +513,7 @@ class cmovl(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4C],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4C],       'modrm':None}))
   
-class cmovnge(x86DispatchInstruction):
+class cmovnge(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4C],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4C],       'modrm':None}),
@@ -635,7 +522,7 @@ class cmovnge(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4C],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4C],       'modrm':None}))
     
-class cmovnl(x86DispatchInstruction):
+class cmovnl(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4D],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4D],       'modrm':None}),
@@ -644,7 +531,7 @@ class cmovnl(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4D],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4D],       'modrm':None}))
   
-class cmovge(x86DispatchInstruction):
+class cmovge(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4D],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4D],       'modrm':None}),
@@ -653,7 +540,7 @@ class cmovge(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4D],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4D],       'modrm':None}))
     
-class cmovle(x86DispatchInstruction):
+class cmovle(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4E],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4E],       'modrm':None}),
@@ -662,7 +549,7 @@ class cmovle(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4E],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4E],       'modrm':None}))
     
-class cmovng(x86DispatchInstruction):
+class cmovng(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4E],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4E],       'modrm':None}),
@@ -671,7 +558,7 @@ class cmovng(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4E],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4E],       'modrm':None}))
   
-class cmovnle(x86DispatchInstruction):
+class cmovnle(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4F],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4F],       'modrm':None}),
@@ -680,7 +567,7 @@ class cmovnle(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4F],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4F],       'modrm':None}))
     
-class cmovg(x86DispatchInstruction):
+class cmovg(DispatchInstruction):
   dispatch = (
     (reg64_reg64_rev,     {'opcode':[0x0F, 0x4F],       'modrm':None}),
     (reg64_mem64,         {'opcode':[0x0F, 0x4F],       'modrm':None}),
@@ -689,7 +576,7 @@ class cmovg(x86DispatchInstruction):
     (reg16_reg16_rev,     {'opcode':[0x0F, 0x4F],       'modrm':None}),
     (reg16_mem16,         {'opcode':[0x0F, 0x4F],       'modrm':None}))
     
-class cmp(x86DispatchInstruction):
+class cmp(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x38}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x38}),
@@ -722,23 +609,23 @@ class cmp(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x38],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x3A],             'modrm':None}))
     
-class cmpsb(x86Instruction):
+class cmpsb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xA6],             'modrm':None}
   
-class cmpsd(x86Instruction):
+class cmpsd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xA7],             'modrm':None}
   
-class cmpsw(x86Instruction):
+class cmpsw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0xA7],       'modrm':None}
   
-class cmpsq(x86Instruction):
+class cmpsq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xA7],       'modrm':None}
   
-class cmpxchg(x86DispatchInstruction):
+class cmpxchg(DispatchInstruction):
   dispatch = (
     (reg64_reg64,         {'opcode':[0x0F, 0xB1],       'modrm':None}),
     (mem64_reg64,         {'opcode':[0x0F, 0xB1],       'modrm':None}),
@@ -749,23 +636,23 @@ class cmpxchg(x86DispatchInstruction):
     (reg8_reg8,           {'opcode':[0x0F, 0xB0],       'modrm':None}),
     (mem8_reg8,           {'opcode':[0x0F, 0xB0],       'modrm':None}))
 
-class cmpxchg8b(x86Instruction):
+class cmpxchg8b(Instruction):
   machine_inst = mem64_32
   params = {'opcode':[0x0F, 0xC7],       'modrm':0x08}
   
-class cmpxchg16b(x86Instruction):
+class cmpxchg16b(Instruction):
   machine_inst = mem128
   params = {'opcode':[0x0F, 0xC7],       'modrm':0x08}
   
-class cpuid(x86Instruction):
+class cpuid(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0xA2],       'modrm':None}
  
-class cqo(x86Instruction):
+class cqo(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0x99],       'modrm':None}
   
-class crc32(x86DispatchInstruction):
+class crc32(DispatchInstruction):
   dispatch = (
     (reg64_reg64, {'opcode':[0x0F, 0x38, 0xF1], 'modrm':None, 'prefix':[0xF2]}),
     (reg64_mem64, {'opcode':[0x0F, 0x38, 0xF1], 'modrm':None, 'prefix':[0xF2]}),
@@ -778,15 +665,15 @@ class crc32(x86DispatchInstruction):
     (reg32_reg8,  {'opcode':[0x0F, 0x38, 0xF0], 'modrm':None, 'prefix':[0xF2]}),
     (reg32_mem8,  {'opcode':[0x0F, 0x38, 0xF0], 'modrm':None, 'prefix':[0xF2]}))
   
-class cwd(x86Instruction):
+class cwd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x99],       'modrm':None}
   
-class cwde(x86Instruction):
+class cwde(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x98],             'modrm':None}
   
-class dec(x86DispatchInstruction):
+class dec(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xFF],             'modrm':0x08}),
     (mem64,               {'opcode':[0xFF],             'modrm':0x08}),
@@ -797,7 +684,7 @@ class dec(x86DispatchInstruction):
     (reg8,                {'opcode':[0xFE],             'modrm':0x08}),
     (mem8,                {'opcode':[0xFE],             'modrm':0x08}))
     
-class div(x86DispatchInstruction):
+class div(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x30}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x30}),
@@ -808,15 +695,15 @@ class div(x86DispatchInstruction):
     (reg8,                {'opcode':[0xF6],             'modrm':0x30}),
     (mem8,                {'opcode':[0xF6],             'modrm':0x30}))
     
-class enter(x86Instruction):
+class enter(Instruction):
   machine_inst = imm16_imm8
   params = {'opcode':[0xC8],             'modrm':None}
   
-class hlt(x86Instruction):
+class hlt(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xF4],             'modrm':None}
   
-class idiv(x86DispatchInstruction):
+class idiv(DispatchInstruction):
   dispatch = (
     (reg32,               {'opcode':[0xF7],             'modrm':0x38}),
     (mem32,               {'opcode':[0xF7],             'modrm':0x38}),
@@ -825,7 +712,7 @@ class idiv(x86DispatchInstruction):
     (reg8,                {'opcode':[0xF6],             'modrm':0x38}),
     (mem8,                {'opcode':[0xF6],             'modrm':0x38}))
   
-class imul(x86DispatchInstruction):
+class imul(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x28}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x28}),
@@ -854,7 +741,7 @@ class imul(x86DispatchInstruction):
     (reg8,                {'opcode':[0xF6],             'modrm':0x28}),
     (mem8,                {'opcode':[0xF6],             'modrm':0x28}))
   
-class in_(x86DispatchInstruction):
+class in_(DispatchInstruction):
   dispatch = (
     (eax_dx,              {'opcode':[0xED],             'modrm':None}),
     (ax_dx,               {'opcode':[0x66, 0xED],       'modrm':None}),
@@ -863,7 +750,7 @@ class in_(x86DispatchInstruction):
     (ax_imm8,             {'opcode':[0x66, 0xE5],       'modrm':None}),
     (al_imm8,             {'opcode':[0xE4],             'modrm':None}))
     
-class inc(x86DispatchInstruction):
+class inc(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xFF],             'modrm':0x00}),
     (mem64,               {'opcode':[0xFF],             'modrm':0x00}),
@@ -874,124 +761,124 @@ class inc(x86DispatchInstruction):
     (reg8,                {'opcode':[0xFE],             'modrm':0x00}),
     (mem8,                {'opcode':[0xFE],             'modrm':0x00}))
     
-class insb(x86Instruction):
+class insb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x6C],             'modrm':None}
   
-class insd(x86Instruction):
+class insd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x6D],             'modrm':None}
   
-class insw(x86Instruction):
+class insw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x6D],       'modrm':None}
   
-class int_(x86Instruction):
+class int_(Instruction):
   machine_inst = imm8
   params = {'opcode':[0xCD],             'modrm':None}
   
-class int_3(x86Instruction):
+class int_3(Instruction):
   """NOTE - this is a special form of 'int 3' used for debugging; see the
      architecture manuals for more information."""
   machine_inst = no_op
   params = {'opcode':[0xCC],             'modrm':None}
   
-class invd(x86Instruction):
+class invd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x08],       'modrm':None}
   
-class invlpg(x86Instruction):
+class invlpg(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x01],       'modrm':0x38}
   
-class iret(x86Instruction):
+class iret(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xCF],             'modrm':None}
   
-class iretd(x86Instruction):
+class iretd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xCF],             'modrm':None}
   
-class iretq(x86Instruction):
+class iretq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xCF],       'modrm':None}
   
-class ja(x86DispatchInstruction):
+class ja(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x77], [0x0F, 0x87]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x77], [0x0F, 0x87]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x77],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x87],       'modrm':None}))
     
-class jae(x86DispatchInstruction):
+class jae(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x73],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x83],       'modrm':None}))
     
-class jb(x86DispatchInstruction):
+class jb(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x72],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x82],       'modrm':None}))
   
-class jbe(x86DispatchInstruction):
+class jbe(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x76], [0x0F, 0x86]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x76], [0x0F, 0x86]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x76],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x86],       'modrm':None}))
     
-class jc(x86DispatchInstruction):
+class jc(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x72],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x82],       'modrm':None}))
     
-class je(x86DispatchInstruction):
+class je(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x74], [0x0F, 0x84]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x74], [0x0F, 0x84]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x74],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x84],       'modrm':None}))
 
-class jecxz(x86DispatchInstruction):
+class jecxz(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0x67, 0xE3],       'modrm':None}),
     (rel8off,             {'opcode':[0x67, 0xE3],       'modrm':None}))
   
-class jg(x86DispatchInstruction):
+class jg(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7F], [0x0F, 0x8F]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7F], [0x0F, 0x8F]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7F],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8F],       'modrm':None}))
 
-class jge(x86DispatchInstruction):
+class jge(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7D], [0x0F, 0x8D]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7D], [0x0F, 0x8D]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7D],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8D],       'modrm':None}))
 
-class jl(x86DispatchInstruction):
+class jl(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7C], [0x0F, 0x8C]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7C], [0x0F, 0x8C]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7C],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8C],       'modrm':None}))
 
-class jle(x86DispatchInstruction):
+class jle(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7E], [0x0F, 0x8E]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7E], [0x0F, 0x8E]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7E],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8E],       'modrm':None}))
 
-class jmp(x86DispatchInstruction):
+class jmp(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0xEB], [0xE9]],   'modrm':None}),
     (rel32_8off,          {'opcode':[[0xEB], [0xE9]],   'modrm':None}),
@@ -1002,211 +889,211 @@ class jmp(x86DispatchInstruction):
     (reg16,               {'opcode':[0xFF],             'modrm':0x20}),
     (mem16,               {'opcode':[0x66, 0xFF],       'modrm':0x20}))
     
-class jna(x86DispatchInstruction):
+class jna(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x76], [0x0F, 0x86]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x76], [0x0F, 0x86]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x76],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x86],       'modrm':None}))
     
-class jnae(x86DispatchInstruction):
+class jnae(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x72], [0x0F, 0x82]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x72],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x82],       'modrm':None}))
     
-class jnb(x86DispatchInstruction):
+class jnb(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x73],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x83],       'modrm':None}))
     
-class jnbe(x86DispatchInstruction):
+class jnbe(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x77], [0x0F, 0x87]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x77], [0x0F, 0x87]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x77],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x87],       'modrm':None}))
     
-class jnc(x86DispatchInstruction):
+class jnc(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x73], [0x0F, 0x83]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x73],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x83],       'modrm':None}))
     
-class jne(x86DispatchInstruction):
+class jne(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x75], [0x0F, 0x85]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x75], [0x0F, 0x85]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x75],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x85],       'modrm':None}))
     
-class jng(x86DispatchInstruction):
+class jng(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7E], [0x0F, 0x8E]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7E], [0x0F, 0x8E]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7E],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8E],       'modrm':None}))
     
-class jnge(x86DispatchInstruction):
+class jnge(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7C], [0x0F, 0x8C]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7C], [0x0F, 0x8C]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7C],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8C],       'modrm':None}))
     
-class jnl(x86DispatchInstruction):
+class jnl(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7D], [0x0F, 0x8D]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7D], [0x0F, 0x8D]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7D],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8D],       'modrm':None}))
   
-class jnle(x86DispatchInstruction):
+class jnle(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7F], [0x0F, 0x8F]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7F], [0x0F, 0x8F]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7F],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8F],       'modrm':None}))
   
-class jno(x86DispatchInstruction):
+class jno(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x71], [0x0F, 0x81]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x71], [0x0F, 0x81]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x71],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x81],       'modrm':None}))
   
-class jnp(x86DispatchInstruction):
+class jnp(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7B], [0x0F, 0x8B]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7B], [0x0F, 0x8B]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7B],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8B],       'modrm':None}))
   
-class jns(x86DispatchInstruction):
+class jns(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x79], [0x0F, 0x89]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x79], [0x0F, 0x89]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x79],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x89],       'modrm':None}))
   
-class jnz(x86DispatchInstruction):
+class jnz(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x75], [0x0F, 0x85]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x75], [0x0F, 0x85]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x75],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x85],       'modrm':None}))
     
-class jo(x86DispatchInstruction):
+class jo(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x70], [0x0F, 0x80]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x70], [0x0F, 0x80]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x70],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x80],       'modrm':None}))
 
-class jp(x86DispatchInstruction):
+class jp(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7A], [0x0F, 0x8A]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7A], [0x0F, 0x8A]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7A],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8A],       'modrm':None}))
 
-class jpe(x86DispatchInstruction):
+class jpe(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7A], [0x0F, 0x8A]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7A], [0x0F, 0x8A]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7A],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8A],       'modrm':None}))
 
-class jpo(x86DispatchInstruction):
+class jpo(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x7B], [0x0F, 0x8B]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x7B], [0x0F, 0x8B]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x7B],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x8B],       'modrm':None}))
 
-class jrcxz(x86DispatchInstruction):
+class jrcxz(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE3],             'modrm':None}),
     (rel8off,             {'opcode':[0xE3],             'modrm':None}))
   
-class js(x86DispatchInstruction):
+class js(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x78], [0x0F, 0x88]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x78], [0x0F, 0x88]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x78],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x88],       'modrm':None}))
     
-class jz(x86DispatchInstruction):
+class jz(DispatchInstruction):
   dispatch = (
     (lbl32_8off,          {'opcode':[[0x74], [0x0F, 0x84]], 'modrm':None}),
     (rel32_8off,          {'opcode':[[0x74], [0x0F, 0x84]], 'modrm':None}))
     #(rel8off,             {'opcode':[0x74],             'modrm':None}),
     #(rel32off,            {'opcode':[0x0F, 0x84],       'modrm':None}))
   
-class lahf(x86Instruction):
+class lahf(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9F],             'modrm':None}
   
-class lea(x86DispatchInstruction):
+class lea(DispatchInstruction):
   dispatch = (
     (reg64_mem,           {'opcode':[0x8D],             'modrm':0x00}),
     (reg32_mem,           {'opcode':[0x8D],             'modrm':0x00}),
     (reg16_mem,           {'opcode':[0x8D],             'modrm':0x00}))
     
-class leave(x86Instruction):
+class leave(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xC9],             'modrm':None}
   
-class lfence(x86Instruction):
+class lfence(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0xAE, 0xE8], 'modrm':None}
   
-class lodsb(x86Instruction):
+class lodsb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAC],             'modrm':None}
   
-class lodsd(x86Instruction):
+class lodsd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAD],             'modrm':None}
   
-class lodsq(x86Instruction):
+class lodsq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xAD],       'modrm':None}
   
-class lodsw(x86Instruction):
+class lodsw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0xAD],       'modrm':None}
   
-class loop(x86DispatchInstruction):
+class loop(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE2],             'modrm':None}),
     (rel8off,             {'opcode':[0xE2],             'modrm':None}))
 
-class loope(x86DispatchInstruction):
+class loope(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE1],             'modrm':None}),
     (rel8off,             {'opcode':[0xE1],             'modrm':None}))
 
-class loopne(x86DispatchInstruction):
+class loopne(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE0],             'modrm':None}),
     (rel8off,             {'opcode':[0xE0],             'modrm':None}))
 
-class loopnz(x86DispatchInstruction):
+class loopnz(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE0],             'modrm':None}),
     (rel8off,             {'opcode':[0xE0],             'modrm':None}))
 
-class loopz(x86DispatchInstruction):
+class loopz(DispatchInstruction):
   dispatch = (
     (lbl8off,             {'opcode':[0xE1],             'modrm':None}),
     (rel8off,             {'opcode':[0xE1],             'modrm':None}))
 
-class lzcnt(x86DispatchInstruction):
+class lzcnt(DispatchInstruction):
   dispatch = (
     (reg64_reg64, {'opcode':[0x0F, 0xBD], 'modrm':None, 'prefix':[0xF3]}),
     (reg64_mem64, {'opcode':[0x0F, 0xBD], 'modrm':None, 'prefix':[0xF3]}),
@@ -1215,11 +1102,11 @@ class lzcnt(x86DispatchInstruction):
     (reg16_reg16, {'opcode':[0x0F, 0xBD], 'modrm':None, 'prefix':[0xF3]}),
     (reg16_mem16, {'opcode':[0x0F, 0xBD], 'modrm':None, 'prefix':[0xF3]}))
             
-class mfence(x86Instruction):
+class mfence(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0xAE, 0xF0], 'modrm':None}
   
-class mov(x86DispatchInstruction):
+class mov(DispatchInstruction):
   dispatch = (
     # TODO - implement moffset* operands!
     (reg64_imm32,         {'opcode':[0xC7],             'modrm':0x00}),
@@ -1244,29 +1131,29 @@ class mov(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x88],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x8A],             'modrm':None}))
 
-class movnti(x86DispatchInstruction):
+class movnti(DispatchInstruction):
   dispatch = (
     (mem64_reg64,         {'opcode':[0x0F, 0xC3],       'modrm':None}),
     (mem32_reg32,         {'opcode':[0x0F, 0xC3],       'modrm':None}))
   # SSE2!
 
-class movsb(x86Instruction):
+class movsb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xA4],             'modrm':None}
   
-class movsd(x86Instruction):
+class movsd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xA5],             'modrm':None}
   
-class movsq(x86Instruction):
+class movsq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xA5],       'modrm':None}
   
-class movsw(x86Instruction):
+class movsw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0xA5],       'modrm':None}
   
-class movsx(x86DispatchInstruction):
+class movsx(DispatchInstruction):
   dispatch = (
     (reg64_reg8,          {'opcode':[0x0F, 0xBE], 'modrm':None, 'prefix':[]}),
     (reg64_mem8,          {'opcode':[0x0F, 0xBE], 'modrm':None, 'prefix':[]}),
@@ -1279,12 +1166,12 @@ class movsx(x86DispatchInstruction):
     (reg16_reg8,          {'opcode':[0x0F, 0xBE], 'modrm':None}),
     (reg16_mem8,          {'opcode':[0x0F, 0xBE], 'modrm':None}))
   
-class movsxd(x86DispatchInstruction):
+class movsxd(DispatchInstruction):
   dispatch = (
     (reg64_reg32,          {'opcode':[0x63],       'modrm':None}),
     (reg64_mem32,          {'opcode':[0x63],       'modrm':None}))
 
-class movzx(x86DispatchInstruction):
+class movzx(DispatchInstruction):
   dispatch = (
     (reg64_reg8,          {'opcode':[0x0F, 0xB6], 'modrm':None, 'prefix':[]}),
     (reg64_mem8,          {'opcode':[0x0F, 0xB6], 'modrm':None, 'prefix':[]}),
@@ -1297,7 +1184,7 @@ class movzx(x86DispatchInstruction):
     (reg16_reg8,          {'opcode':[0x0F, 0xB6], 'modrm':None}),
     (reg16_mem8,          {'opcode':[0x0F, 0xB6], 'modrm':None}))
   
-class mul(x86DispatchInstruction):
+class mul(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x20}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x20}),
@@ -1308,7 +1195,7 @@ class mul(x86DispatchInstruction):
     (reg8,                {'opcode':[0xF6],             'modrm':0x20}),
     (mem8,                {'opcode':[0xF6],             'modrm':0x20}))
   
-class neg(x86DispatchInstruction):
+class neg(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x18}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x18}),
@@ -1321,11 +1208,11 @@ class neg(x86DispatchInstruction):
   
 # TODO - REX prefix isn't needed for the reg64/mem64 versions.. what to do?
 # Could add an extra 'rex' param indicating whether REX is needed..
-class nop(x86Instruction):
+class nop(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x90],             'modrm':None}
   
-class not_(x86DispatchInstruction):
+class not_(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0xF7],             'modrm':0x10}),
     (mem64,               {'opcode':[0xF7],             'modrm':0x10}),
@@ -1336,7 +1223,7 @@ class not_(x86DispatchInstruction):
     (reg8,                {'opcode':[0xF6],             'modrm':0x10}),
     (mem8,                {'opcode':[0xF6],             'modrm':0x10}))
   
-class or_(x86DispatchInstruction):
+class or_(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x08}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x08}),
@@ -1369,7 +1256,7 @@ class or_(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x08],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x0A],             'modrm':None}))
     
-class out(x86DispatchInstruction):
+class out(DispatchInstruction):
   dispatch = (
     (dx_eax,              {'opcode':[0xEF],             'modrm':None}),
     (dx_ax,               {'opcode':[0x66, 0xEF],       'modrm':None}),
@@ -1378,30 +1265,30 @@ class out(x86DispatchInstruction):
     (imm8_ax,             {'opcode':[0x66, 0xE7],       'modrm':None}),
     (imm8_al,             {'opcode':[0xE6],             'modrm':None}))
     
-class outsb(x86Instruction):
+class outsb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x6E],             'modrm':None}
   
-class outsd(x86Instruction):
+class outsd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x6F],             'modrm':None}
   
-class outsw(x86Instruction):
+class outsw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x6F],       'modrm':None}
   
-class pause(x86Instruction):
+class pause(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xF3, 0x90],       'modrm':None}
   
-class pop(x86DispatchInstruction):
+class pop(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0x58],             'modrm':None}),
     (mem64,               {'opcode':[0x8F],             'modrm':0x00}),
     (reg16,               {'opcode':[0x58],             'modrm':None}),
     (mem16,               {'opcode':[0x66, 0x8F],       'modrm':0x00}))
     
-class popcnt(x86DispatchInstruction):
+class popcnt(DispatchInstruction):
   dispatch = (
     (reg64_reg64,       {'opcode':[0x0F, 0xB8], 'modrm':None, 'prefix':[0xF3]}),
     (reg64_mem64,       {'opcode':[0x0F, 0xB8], 'modrm':None, 'prefix':[0xF3]}),
@@ -1410,39 +1297,39 @@ class popcnt(x86DispatchInstruction):
     (reg16_reg16,       {'opcode':[0x0F, 0xB8], 'modrm':None, 'prefix':[0xF3]}),
     (reg16_mem16,       {'opcode':[0x0F, 0xB8], 'modrm':None, 'prefix':[0xF3]}))
   
-class popf(x86Instruction):
+class popf(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x9D],       'modrm':None}
   
-class popfq(x86Instruction):
+class popfq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9D],             'modrm':None}
   
-class prefetch(x86Instruction):
+class prefetch(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x0D],       'modrm':0x00}
   
-class prefetchnta(x86Instruction):
+class prefetchnta(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x18],       'modrm':0x00}
   
-class prefetcht0(x86Instruction):
+class prefetcht0(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x18],       'modrm':0x08}
   
-class prefetcht1(x86Instruction):
+class prefetcht1(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x18],       'modrm':0x10}
   
-class prefetcht2(x86Instruction):
+class prefetcht2(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x18],       'modrm':0x18}
   
-class prefetchw(x86Instruction):
+class prefetchw(Instruction):
   machine_inst = mem8
   params = {'opcode':[0x0F, 0x0D],       'modrm':0x08}
   
-class push(x86DispatchInstruction):
+class push(DispatchInstruction):
   dispatch = (
     (reg64,               {'opcode':[0x50],             'modrm':None}),
     (mem64,               {'opcode':[0xFF],             'modrm':0x30}),
@@ -1453,15 +1340,15 @@ class push(x86DispatchInstruction):
     (reg16,               {'opcode':[0x50],             'modrm':None}),
     (mem16,               {'opcode':[0x66, 0xFF],       'modrm':0x30}))
     
-class pushf(x86Instruction):
+class pushf(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0x9C],       'modrm':None}
   
-class pushfq(x86Instruction):
+class pushfq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9C],             'modrm':None}
   
-class rcl(x86DispatchInstruction):
+class rcl(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x10}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x10}),
@@ -1488,7 +1375,7 @@ class rcl(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x10}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x10}))
     
-class rcr(x86DispatchInstruction):
+class rcr(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x18}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x18}),
@@ -1515,20 +1402,20 @@ class rcr(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x18}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x18}))
     
-class rdtsc(x86Instruction):
+class rdtsc(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x31],       'modrm':None}
   
-class rdtscp(x86Instruction):
+class rdtscp(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x01, 0xF9], 'modrm':None}
   
-class ret(x86DispatchInstruction):
+class ret(DispatchInstruction):
   dispatch = (
     (no_op,               {'opcode':[0xC3],             'modrm':None}),
     (imm16,               {'opcode':[0xC2],             'modrm':None}))
     
-class rol(x86DispatchInstruction):
+class rol(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x00}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x00}),
@@ -1555,7 +1442,7 @@ class rol(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x00}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x00}))
     
-class ror(x86DispatchInstruction):
+class ror(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x08}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x08}),
@@ -1582,11 +1469,11 @@ class ror(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x08}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x08}))
     
-class sahf(x86Instruction):
+class sahf(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9E],             'modrm':None}
   
-class sal(x86DispatchInstruction):
+class sal(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x20}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x20}),
@@ -1613,7 +1500,7 @@ class sal(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x20}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x20}))
     
-class sar(x86DispatchInstruction):
+class sar(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x38}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x38}),
@@ -1640,7 +1527,7 @@ class sar(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x38}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x38}))
     
-class sbb(x86DispatchInstruction):
+class sbb(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x18}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x18}),
@@ -1673,177 +1560,177 @@ class sbb(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x18],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x1A],             'modrm':None}))
     
-class scasb(x86Instruction):
+class scasb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAE],             'modrm':None}
   
-class scasd(x86Instruction):
+class scasd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAF],             'modrm':None}
   
-class scasq(x86Instruction):
+class scasq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xAF],       'modrm':None}
   
-class scasw(x86Instruction):
+class scasw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0xAF],       'modrm':None}
   
-class seta(x86DispatchInstruction):
+class seta(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x97],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x97],       'modrm':0x00}))
   
-class setae(x86DispatchInstruction):
+class setae(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}))
   
-class setb(x86DispatchInstruction):
+class setb(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}))
   
-class setbe(x86DispatchInstruction):
+class setbe(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x96],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x96],       'modrm':0x00}))
   
-class setc(x86DispatchInstruction):
+class setc(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}))
   
-class sete(x86DispatchInstruction):
+class sete(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x94],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x94],       'modrm':0x00}))
   
-class setg(x86DispatchInstruction):
+class setg(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9F],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9F],       'modrm':0x00}))
   
-class setge(x86DispatchInstruction):
+class setge(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9D],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9D],       'modrm':0x00}))
   
-class setl(x86DispatchInstruction):
+class setl(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9C],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9C],       'modrm':0x00}))
   
-class setle(x86DispatchInstruction):
+class setle(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9E],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9E],       'modrm':0x00}))
   
-class setna(x86DispatchInstruction):
+class setna(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x96],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x96],       'modrm':0x00}))
   
-class setnae(x86DispatchInstruction):
+class setnae(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x92],       'modrm':0x00}))
   
-class setnb(x86DispatchInstruction):
+class setnb(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}))
   
-class setnbe(x86DispatchInstruction):
+class setnbe(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x97],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x97],       'modrm':0x00}))
   
-class setnc(x86DispatchInstruction):
+class setnc(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x93],       'modrm':0x00}))
   
-class setne(x86DispatchInstruction):
+class setne(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x95],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x95],       'modrm':0x00}))
   
-class setng(x86DispatchInstruction):
+class setng(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9E],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9E],       'modrm':0x00}))
   
-class setnge(x86DispatchInstruction):
+class setnge(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9C],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9C],       'modrm':0x00}))
   
-class setnl(x86DispatchInstruction):
+class setnl(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9D],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9D],       'modrm':0x00}))
   
-class setnle(x86DispatchInstruction):
+class setnle(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9F],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9F],       'modrm':0x00}))
   
-class setno(x86DispatchInstruction):
+class setno(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x91],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x91],       'modrm':0x00}))
   
-class setnp(x86DispatchInstruction):
+class setnp(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9B],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9B],       'modrm':0x00}))
   
-class setns(x86DispatchInstruction):
+class setns(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x99],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x99],       'modrm':0x00}))
   
-class setnz(x86DispatchInstruction):
+class setnz(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x95],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x95],       'modrm':0x00}))
   
-class seto(x86DispatchInstruction):
+class seto(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x90],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x90],       'modrm':0x00}))
   
-class setp(x86DispatchInstruction):
+class setp(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9A],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9A],       'modrm':0x00}))
   
-class setpe(x86DispatchInstruction):
+class setpe(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9A],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9A],       'modrm':0x00}))
   
-class setpo(x86DispatchInstruction):
+class setpo(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x9B],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x9B],       'modrm':0x00}))
   
-class sets(x86DispatchInstruction):
+class sets(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x98],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x98],       'modrm':0x00}))
   
-class setz(x86DispatchInstruction):
+class setz(DispatchInstruction):
   dispatch = (
     (reg8,                {'opcode':[0x0F, 0x94],       'modrm':0x00}),
     (mem8,                {'opcode':[0x0F, 0x94],       'modrm':0x00}))
   
-class sfence(x86Instruction):
+class sfence(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0xAE, 0xF8], 'modrm':None}
   
-class shl(x86DispatchInstruction):
+class shl(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x20}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x20}),
@@ -1870,7 +1757,7 @@ class shl(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x20}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x20}))
     
-class shld(x86DispatchInstruction):
+class shld(DispatchInstruction):
   dispatch = (
     (reg64_reg64_imm8,    {'opcode':[0x0F, 0xA4],       'modrm':None}),
     (mem64_reg64_imm8,    {'opcode':[0x0F, 0xA4],       'modrm':None}),
@@ -1885,7 +1772,7 @@ class shld(x86DispatchInstruction):
     (reg16_reg16_cl,      {'opcode':[0x0F, 0xA5],       'modrm':None}),
     (mem16_reg16_cl,      {'opcode':[0x0F, 0xA5],       'modrm':None}))
     
-class shr(x86DispatchInstruction):
+class shr(DispatchInstruction):
   dispatch = (
     (reg64_1,             {'opcode':[0xD1],             'modrm':0x28}),
     (mem64_1,             {'opcode':[0xD1],             'modrm':0x28}),
@@ -1912,7 +1799,7 @@ class shr(x86DispatchInstruction):
     (reg8_imm8,           {'opcode':[0xC0],             'modrm':0x28}),
     (mem8_imm8,           {'opcode':[0xC0],             'modrm':0x28}))
     
-class shrd(x86DispatchInstruction):
+class shrd(DispatchInstruction):
   dispatch = (
     (reg64_reg64_imm8,    {'opcode':[0x0F, 0xAC],       'modrm':None}),
     (mem64_reg64_imm8,    {'opcode':[0x0F, 0xAC],       'modrm':None}),
@@ -1927,31 +1814,31 @@ class shrd(x86DispatchInstruction):
     (reg16_reg16_cl,      {'opcode':[0x0F, 0xAD],       'modrm':None}),
     (mem16_reg16_cl,      {'opcode':[0x0F, 0xAD],       'modrm':None}))
   
-class stc(x86Instruction):
+class stc(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xF9],             'modrm':None}
   
-class std(x86Instruction):
+class std(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xFD],             'modrm':None}
   
-class stosb(x86Instruction):
+class stosb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAA],             'modrm':None}
   
-class stosd(x86Instruction):
+class stosd(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xAB],             'modrm':None}
   
-class stosq(x86Instruction):
+class stosq(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x48, 0xAB],       'modrm':None}
   
-class stosw(x86Instruction):
+class stosw(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x66, 0xAB],       'modrm':None}
   
-class sub(x86DispatchInstruction):
+class sub(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x28}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x28}),
@@ -1984,7 +1871,7 @@ class sub(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x28],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x2A],             'modrm':None}))
     
-class test(x86DispatchInstruction):
+class test(DispatchInstruction):
   dispatch = (
     (rax_imm32,           {'opcode':[0xA9],             'modrm':None}),
     (reg64_imm32,         {'opcode':[0xF7],             'modrm':0x00}),
@@ -2007,11 +1894,11 @@ class test(x86DispatchInstruction):
     (reg8_reg8,           {'opcode':[0x84],             'modrm':None}),
     (mem8_reg8,           {'opcode':[0x84],             'modrm':None}))
     
-class ud2(x86Instruction):
+class ud2(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x0B],       'modrm':None}
   
-class xadd(x86DispatchInstruction):
+class xadd(DispatchInstruction):
   dispatch = (
     (reg64_reg64,         {'opcode':[0x0F, 0xC1],       'modrm':None}),
     (mem64_reg64,         {'opcode':[0x0F, 0xC1],       'modrm':None}),
@@ -2022,7 +1909,7 @@ class xadd(x86DispatchInstruction):
     (reg8_reg8,           {'opcode':[0x0F, 0xC0],       'modrm':None}),
     (mem8_reg8,           {'opcode':[0x0F, 0xC0],       'modrm':None}))
     
-class xchg(x86DispatchInstruction):
+class xchg(DispatchInstruction):
   dispatch = (
     (rax_reg64,           {'opcode':[0x90],             'modrm':None}),
     (reg64_rax,           {'opcode':[0x90],             'modrm':None}),
@@ -2043,11 +1930,11 @@ class xchg(x86DispatchInstruction):
     (mem8_reg8,           {'opcode':[0x86],             'modrm':None}),
     (reg8_mem8,           {'opcode':[0x86],             'modrm':None}))
     
-class xlatb(x86Instruction):
+class xlatb(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD7],             'modrm':None}
   
-class xor(x86DispatchInstruction):
+class xor(DispatchInstruction):
   dispatch = (
     (reg64_simm8,         {'opcode':[0x83],             'modrm':0x30}),
     (mem64_simm8,         {'opcode':[0x83],             'modrm':0x30}),
@@ -2082,805 +1969,805 @@ class xor(x86DispatchInstruction):
 
 
 # X87_ISA = (
-class f2xm1(x86Instruction):
+class f2xm1(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF0],       'modrm':None}
     
-class fabs(x86Instruction):
+class fabs(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE1],       'modrm':None}
   
-class fadd(x86DispatchInstruction):
+class fadd(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xC0],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xC0],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x00}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x00}))
       
-class faddp(x86DispatchInstruction):
+class faddp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xC1],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xC0],       'modrm':None}))
     
-class fiadd(x86DispatchInstruction):
+class fiadd(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x00}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x00}))
     
-class fchs(x86Instruction):
+class fchs(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE0],       'modrm':None}
   
-class fcmovb(x86Instruction):
+class fcmovb(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDA, 0xC0],       'modrm':None}
   
-class fcmovbe(x86Instruction):
+class fcmovbe(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDA, 0xD0],       'modrm':None}
   
-class fcmove(x86Instruction):
+class fcmove(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDA, 0xC8],       'modrm':None}
   
-class fcmovnb(x86Instruction):
+class fcmovnb(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xC0],       'modrm':None}
   
-class fcmovnbe(x86Instruction):
+class fcmovnbe(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xD0],       'modrm':None}
   
-class fcmovne(x86Instruction):
+class fcmovne(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xC8],       'modrm':None}
   
-class fcmovnu(x86Instruction):
+class fcmovnu(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xD8],       'modrm':None}
   
-class fcmovu(x86Instruction):
+class fcmovu(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDA, 0xD8],       'modrm':None}
   
-class fcom(x86DispatchInstruction):
+class fcom(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xD8, 0xD1],       'modrm':None}),
     (sti,        {'opcode':[0xD8, 0xD0],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x10}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x10}))
     
-class fcomp(x86DispatchInstruction):
+class fcomp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xD8, 0xD9],       'modrm':None}),
     (sti,        {'opcode':[0xD8, 0xD8],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x18}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x18}))
     
-class fcompp(x86Instruction):
+class fcompp(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xDE, 0xD9],       'modrm':None}
   
-class fcomi(x86Instruction):
+class fcomi(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xF0],       'modrm':None}
   
-class fcomip(x86Instruction):
+class fcomip(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDF, 0xF0],       'modrm':None}
   
-class fcos(x86Instruction):
+class fcos(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFF],       'modrm':None}
   
-class fdecstp(x86Instruction):
+class fdecstp(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF6],       'modrm':None}
   
-class fdiv(x86DispatchInstruction):
+class fdiv(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xF0],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xF8],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x30}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x30}))
     
-class fdivp(x86DispatchInstruction):
+class fdivp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xF9],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xF8],       'modrm':None}))
   
-class fidiv(x86DispatchInstruction):
+class fidiv(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x30}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x30}))
     
-class fdivr(x86DispatchInstruction):
+class fdivr(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xF8],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xF0],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x38}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x38}))
     
-class fdivrp(x86DispatchInstruction):
+class fdivrp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xF1],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xF0],       'modrm':None}))
   
-class fidivr(x86DispatchInstruction):
+class fidivr(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x38}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x38}))
   
-class ffree(x86Instruction):
+class ffree(Instruction):
   machine_inst = sti
   params = {'opcode':[0xDD, 0xC0],       'modrm':None}
   
-class ficom(x86DispatchInstruction):
+class ficom(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x10}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x10}))
     
-class ficomp(x86DispatchInstruction):
+class ficomp(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x18}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x18}))
     
-class fild(x86DispatchInstruction):
+class fild(DispatchInstruction):
   dispatch = (
     (mem64,      {'opcode':[0xDF],             'modrm':0x28}),
     (mem32,      {'opcode':[0xDB],             'modrm':0x00}),
     (mem16,      {'opcode':[0xDF],             'modrm':0x00}))
     
-class fincstp(x86Instruction):
+class fincstp(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF7],       'modrm':None}
   
-class finit(x86Instruction):
+class finit(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9B, 0xDB, 0xE3], 'modrm':None}
   
-class fninit(x86Instruction):
+class fninit(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xDB, 0xE3],       'modrm':None}
   
-class fist(x86DispatchInstruction):
+class fist(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDB],             'modrm':0x10}),
     (mem16,      {'opcode':[0xDF],             'modrm':0x10}))
     
-class fistp(x86DispatchInstruction):
+class fistp(DispatchInstruction):
   dispatch = (
     (mem64,      {'opcode':[0xDF],             'modrm':0x38}),
     (mem32,      {'opcode':[0xDB],             'modrm':0x18}),
     (mem16,      {'opcode':[0xDF],             'modrm':0x18}))
     
-class fisttp(x86DispatchInstruction):
+class fisttp(DispatchInstruction):
   dispatch = (
     (mem64,      {'opcode':[0xDD],             'modrm':0x08}),
     (mem32,      {'opcode':[0xDB],             'modrm':0x08}),
     (mem16,      {'opcode':[0xDF],             'modrm':0x08}))
   
-class fld(x86DispatchInstruction):
+class fld(DispatchInstruction):
   dispatch = (
     (sti,        {'opcode':[0xD9, 0xC0],       'modrm':None}),
     (mem80,      {'opcode':[0xDB],             'modrm':0x28}),
     (mem64,      {'opcode':[0xDD],             'modrm':0x00}),
     (mem32,      {'opcode':[0xD9],             'modrm':0x00}))
     
-class fld1(x86Instruction):
+class fld1(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE8],       'modrm':None}
   
-class fldcw(x86Instruction):
+class fldcw(Instruction):
   machine_inst = mem16
   params = {'opcode':[0xD9],             'modrm':0x28}
   
-class fldenv(x86Instruction):
+class fldenv(Instruction):
   machine_inst = mem228
   params = {'opcode':[0xD9],             'modrm':0x20}
   
-class fldl2e(x86Instruction):
+class fldl2e(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xEA],       'modrm':None}
   
-class fldl2t(x86Instruction):
+class fldl2t(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE9],       'modrm':None}
   
-class fldlg2(x86Instruction):
+class fldlg2(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xEC],       'modrm':None}
   
-class fldln2(x86Instruction):
+class fldln2(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xED],       'modrm':None}
   
-class fldpi(x86Instruction):
+class fldpi(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xEB],       'modrm':None}
   
-class fldz(x86Instruction):
+class fldz(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xEE],       'modrm':None}
   
-class fmul(x86DispatchInstruction):
+class fmul(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xC8],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xC8],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x08}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x08}))
     
-class fmulp(x86DispatchInstruction):
+class fmulp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xC9],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xC8],       'modrm':None}))
     
-class fimul(x86DispatchInstruction):
+class fimul(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x08}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x08}))
     
-class fnop(x86Instruction):
+class fnop(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xD0],       'modrm':None}
   
-class fpatan(x86Instruction):
+class fpatan(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF3],       'modrm':None}
   
-class fprem(x86Instruction):
+class fprem(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF8],       'modrm':None}
   
-class fprem1(x86Instruction):
+class fprem1(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF5],       'modrm':None}
   
-class fptan(x86Instruction):
+class fptan(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF2],       'modrm':None}
   
-class frndint(x86Instruction):
+class frndint(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFC],       'modrm':None}
   
-class frstor(x86Instruction):
+class frstor(Instruction):
   machine_inst = mem752
   params = {'opcode':[0xDD],             'modrm':0x20}
   
-class fsave(x86Instruction):
+class fsave(Instruction):
   machine_inst = mem752
   params = {'opcode':[0x9B, 0xDD],       'modrm':0x30}
   
-class fnsave(x86Instruction):
+class fnsave(Instruction):
   machine_inst = mem752
   params = {'opcode':[0xDD],             'modrm':0x30}
   
-class fscale(x86Instruction):
+class fscale(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFD],       'modrm':None}
   
-class fsin(x86Instruction):
+class fsin(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFE],       'modrm':None}
   
-class fsincos(x86Instruction):
+class fsincos(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFB],       'modrm':None}
   
-class fsqrt(x86Instruction):
+class fsqrt(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xFA],       'modrm':None}
   
-class fst(x86DispatchInstruction):
+class fst(DispatchInstruction):
   dispatch = (
     (sti,        {'opcode':[0xDD, 0xD0],       'modrm':None}),
     (mem64,      {'opcode':[0xDD],             'modrm':0x10}),
     (mem32,      {'opcode':[0xD9],             'modrm':0x10}))
     
-class fstp(x86DispatchInstruction):
+class fstp(DispatchInstruction):
   dispatch = (
     (sti,        {'opcode':[0xDD, 0xD8],       'modrm':None}),
     (mem80,      {'opcode':[0xDB],             'modrm':0x38}),
     (mem64,      {'opcode':[0xDD],             'modrm':0x18}),
     (mem32,      {'opcode':[0xD9],             'modrm':0x18}))
     
-class fstcw(x86Instruction):
+class fstcw(Instruction):
   machine_inst = mem16
   params = {'opcode':[0x9B, 0xD9],       'modrm':0x38}
   
-class fnstcw(x86Instruction):
+class fnstcw(Instruction):
   machine_inst = mem16
   params = {'opcode':[0xD9],             'modrm':0x38}
   
-class fstenv(x86Instruction):
+class fstenv(Instruction):
   machine_inst = mem228
   params = {'opcode':[0x9B, 0xD9],       'modrm':0x30}
   
-class fnstenv(x86Instruction):
+class fnstenv(Instruction):
   machine_inst = mem228
   params = {'opcode':[0xD9],             'modrm':0x30}
   
-class fstsw(x86DispatchInstruction):
+class fstsw(DispatchInstruction):
   dispatch = (
     (ax,         {'opcode':[0x9B, 0xDF, 0xE0], 'modrm':None}),
     (mem16,      {'opcode':[0x9B, 0xDD],       'modrm':0x38}))
     
-class fnstsw(x86DispatchInstruction):
+class fnstsw(DispatchInstruction):
   dispatch = (
     (ax,         {'opcode':[0xDF, 0xE0],       'modrm':None}),
     (mem16,      {'opcode':[0xDD],             'modrm':0x38}))
     
-class fsub(x86DispatchInstruction):
+class fsub(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xE0],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xE8],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x20}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x20}))
     
-class fsubp(x86DispatchInstruction):
+class fsubp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xE9],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xE8],       'modrm':None}))
   
-class fisub(x86DispatchInstruction):
+class fisub(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x20}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x20}))
   
-class fsubr(x86DispatchInstruction):
+class fsubr(DispatchInstruction):
   dispatch = (
     (st0_sti,    {'opcode':[0xD8, 0xE8],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDC, 0xE0],       'modrm':None}),
     (mem32,      {'opcode':[0xD8],             'modrm':0x28}),
     (mem64,      {'opcode':[0xDC],             'modrm':0x28}))
     
-class fsubrp(x86DispatchInstruction):
+class fsubrp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDE, 0xE1],       'modrm':None}),
     (sti_st0,    {'opcode':[0xDE, 0xE0],       'modrm':None}))
     
-class fisubr(x86DispatchInstruction):
+class fisubr(DispatchInstruction):
   dispatch = (
     (mem32,      {'opcode':[0xDA],             'modrm':0x28}),
     (mem16,      {'opcode':[0xDE],             'modrm':0x28}))
   
-class ftst(x86Instruction):
+class ftst(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE4],       'modrm':None}
   
-class fucom(x86DispatchInstruction):
+class fucom(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDD, 0xE1],       'modrm':None}),
     (sti,        {'opcode':[0xDD, 0xE0],       'modrm':None}))
   
-class fucomp(x86DispatchInstruction):
+class fucomp(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xDD, 0xE9],       'modrm':None}),
     (sti,        {'opcode':[0xDD, 0xE8],       'modrm':None}))
   
-class fucompp(x86Instruction):
+class fucompp(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xDA, 0xE9],       'modrm':None}
   
-class fucomi(x86Instruction):
+class fucomi(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDB, 0xE8],       'modrm':None}
   
-class fucomip(x86Instruction):
+class fucomip(Instruction):
   machine_inst = st0_sti
   params = {'opcode':[0xDF, 0xE8],       'modrm':None}
   
-class fwait(x86Instruction):
+class fwait(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x9B],             'modrm':None}
   
-class fxam(x86Instruction):
+class fxam(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xE5],       'modrm':None}
   
-class fxch(x86DispatchInstruction):
+class fxch(DispatchInstruction):
   dispatch = (
     (no_op,      {'opcode':[0xD9, 0xC9],       'modrm':None}),
     (sti,        {'opcode':[0xD9, 0xC8],       'modrm':None}))
     
-class fxrstor(x86Instruction):
+class fxrstor(Instruction):
   machine_inst = mem512
   params = {'opcode':[0x0F, 0xAE],       'modrm':0x08}
  #sse?
 
-class fxsave(x86Instruction):
+class fxsave(Instruction):
   machine_inst = mem512
   params = {'opcode':[0x0F, 0xAE],       'modrm':0x00}
  #sse?
 
-class fxtract(x86Instruction):
+class fxtract(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF4],       'modrm':None}
   
-class fyl2x(x86Instruction):
+class fyl2x(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF1],       'modrm':None}
   
-class fyl2xp1(x86Instruction):
+class fyl2xp1(Instruction):
   machine_inst = no_op
   params = {'opcode':[0xD9, 0xF9],       'modrm':None}
   
 
 #SSE_ISA = (
-class addpd(x86DispatchInstruction):
+class addpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class addps(x86DispatchInstruction):
+class addps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class addsd(x86DispatchInstruction):
+class addsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class addss(x86DispatchInstruction):
+class addss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,   {'opcode':[0x0F, 0x58], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class addsubpd(x86DispatchInstruction):
+class addsubpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0xD0], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0xD0], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 3
 
-class addsubps(x86DispatchInstruction):
+class addsubps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0xD0], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem128,   {'opcode':[0x0F, 0xD0], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 3
 
-class andnpd(x86DispatchInstruction):
+class andnpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x55], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x55], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class andnps(x86DispatchInstruction):
+class andnps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x55], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x55], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class andpd(x86DispatchInstruction):
+class andpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x54], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x54], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class andps(x86DispatchInstruction):
+class andps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x54], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x54], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class blendpd(x86DispatchInstruction):
+class blendpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x0D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class blendps(x86DispatchInstruction):
+class blendps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x0C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class blendvpd(x86DispatchInstruction):
+class blendvpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x15], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x15], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class blendvps(x86DispatchInstruction):
+class blendvps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x14], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x14], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class cmpeqpd(x86DispatchInstruction):
+class cmpeqpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpeqps(x86DispatchInstruction):
+class cmpeqps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[]}))
   arch_ext = 1
 
-class cmpeqsd(x86DispatchInstruction):
+class cmpeqsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpeqss(x86DispatchInstruction):
+class cmpeqss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':0, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmplepd(x86DispatchInstruction):
+class cmplepd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpleps(x86DispatchInstruction):
+class cmpleps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[]}))
   arch_ext = 1
 
-class cmplesd(x86DispatchInstruction):
+class cmplesd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpless(x86DispatchInstruction):
+class cmpless(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':2, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpltpd(x86DispatchInstruction):
+class cmpltpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpltps(x86DispatchInstruction):
+class cmpltps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[]}))
   arch_ext = 1
 
-class cmpltsd(x86DispatchInstruction):
+class cmpltsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpltss(x86DispatchInstruction):
+class cmpltss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':1, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpneqpd(x86DispatchInstruction):
+class cmpneqpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpneqps(x86DispatchInstruction):
+class cmpneqps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[]}))
   arch_ext = 1
 
-class cmpneqsd(x86DispatchInstruction):
+class cmpneqsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpneqss(x86DispatchInstruction):
+class cmpneqss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':4, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpnlepd(x86DispatchInstruction):
+class cmpnlepd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpnleps(x86DispatchInstruction):
+class cmpnleps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[]}))
   arch_ext = 1
 
-class cmpnlesd(x86DispatchInstruction):
+class cmpnlesd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpnless(x86DispatchInstruction):
+class cmpnless(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':6, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpnltpd(x86DispatchInstruction):
+class cmpnltpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpnltps(x86DispatchInstruction):
+class cmpnltps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[]}))
   arch_ext = 1
 
-class cmpnltsd(x86DispatchInstruction):
+class cmpnltsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpnltss(x86DispatchInstruction):
+class cmpnltss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':5, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpordpd(x86DispatchInstruction):
+class cmpordpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpordps(x86DispatchInstruction):
+class cmpordps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[]}))
   arch_ext = 1
 
-class cmpordsd(x86DispatchInstruction):
+class cmpordsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpordss(x86DispatchInstruction):
+class cmpordss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':7, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmpunordpd(x86DispatchInstruction):
+class cmpunordpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0x66]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpunordps(x86DispatchInstruction):
+class cmpunordps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[]}),
     (xmm_mem128_imm,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[]}))
   arch_ext = 1
 
-class cmpunordsd(x86DispatchInstruction):
+class cmpunordsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0xF2]}),
     (xmm_mem64_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpunordss(x86DispatchInstruction):
+class cmpunordss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm,     {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0xF3]}),
     (xmm_mem32_imm,   {'opcode':[0x0F, 0xC2], 'modrm':None, 'imm':3, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cmppd(x86DispatchInstruction):
+class cmppd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cmpps(x86DispatchInstruction):
+class cmpps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class cmpsd(x86DispatchInstruction):
+class cmpsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64_imm8,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cmpss(x86DispatchInstruction):
+class cmpss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32_imm8,  {'opcode':[0x0F, 0xC2], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class comisd(x86DispatchInstruction):
+class comisd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x2F], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x2F], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class comiss(x86DispatchInstruction):
+class comiss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x2F], 'modrm':None, 'prefix':[]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x2F], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class cvtdq2pd(x86DispatchInstruction):
+class cvtdq2pd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem64,    {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class cvtdq2ps(x86DispatchInstruction):
+class cvtdq2ps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[]}))
   arch_ext = 2
 
-class cvtpd2dq(x86DispatchInstruction):
+class cvtpd2dq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem128,   {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvtpd2pi(x86DispatchInstruction):
+class cvtpd2pi(DispatchInstruction):
   dispatch = (
     (mmx_xmm,      {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0x66]}),
     (mmx_mem128,   {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvtpd2ps(x86DispatchInstruction):
+class cvtpd2ps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvtpi2pd(x86DispatchInstruction):
+class cvtpi2pd(DispatchInstruction):
   dispatch = (
     (xmm_mmx,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvtpi2ps(x86DispatchInstruction):
+class cvtpi2ps(DispatchInstruction):
   dispatch = (
     (xmm_mmx,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[]}))
   arch_ext = 2
 
-class cvtps2dq(x86DispatchInstruction):
+class cvtps2dq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,   {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvtps2pd(x86DispatchInstruction):
+class cvtps2pd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[]}))
   arch_ext = 2
 
-class cvtps2pi(x86DispatchInstruction):
+class cvtps2pi(DispatchInstruction):
   dispatch = (
     (mmx_xmm,      {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[]}),
     (mmx_mem64,    {'opcode':[0x0F, 0x2D], 'modrm':None}))
   arch_ext = 2
 
-class cvtsd2si(x86DispatchInstruction):
+class cvtsd2si(DispatchInstruction):
   dispatch = (
     # TODO - reg64 version defined by intel manuals but not AMD
     #(reg64_xmm,      {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0xF2]}),
@@ -2889,13 +2776,13 @@ class cvtsd2si(x86DispatchInstruction):
     (reg32_mem64,    {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvtsd2ss(x86DispatchInstruction):
+class cvtsd2ss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,      {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,    {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvtsi2sd(x86DispatchInstruction):
+class cvtsi2sd(DispatchInstruction):
   dispatch = (
     (xmm_reg64,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0xF2]}),
@@ -2903,7 +2790,7 @@ class cvtsi2sd(x86DispatchInstruction):
     (xmm_mem32,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvtsi2sd(x86DispatchInstruction):
+class cvtsi2sd(DispatchInstruction):
   dispatch = (
     # TODO - reg64 version defined by intel manuals but not AMD
     #(xmm_reg64,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0xF2]}),
@@ -2912,13 +2799,13 @@ class cvtsi2sd(x86DispatchInstruction):
     (xmm_mem32,      {'opcode':[0x0F, 0x2A], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvtss2sd(x86DispatchInstruction):
+class cvtss2sd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x5A], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class cvtss2si(x86DispatchInstruction):
+class cvtss2si(DispatchInstruction):
   dispatch = (
     # TODO - reg64 version defined by intel manuals but not AMD
     #(reg64_xmm,        {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0xF3]}),
@@ -2927,31 +2814,31 @@ class cvtss2si(x86DispatchInstruction):
     (reg32_mem32,      {'opcode':[0x0F, 0x2D], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class cvttpd2dq(x86DispatchInstruction):
+class cvttpd2dq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE6], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvttpd2pi(x86DispatchInstruction):
+class cvttpd2pi(DispatchInstruction):
   dispatch = (
     (mmx_xmm,        {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0x66]}),
     (mmx_mem128,     {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class cvttps2dq(x86DispatchInstruction):
+class cvttps2dq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5B], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class cvttps2pi(x86DispatchInstruction):
+class cvttps2pi(DispatchInstruction):
   dispatch = (
     (mmx_xmm,        {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[]}),
     (mmx_mem64,      {'opcode':[0x0F, 0x2C], 'modrm':None}))
   arch_ext = 2
 
-class cvttsd2si(x86DispatchInstruction):
+class cvttsd2si(DispatchInstruction):
   dispatch = (
     # TODO - reg64 version defined by intel manuals but not AMD
     #(reg64_xmm,        {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0xF2]}),
@@ -2960,7 +2847,7 @@ class cvttsd2si(x86DispatchInstruction):
     (reg32_mem64,      {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class cvttss2si(x86DispatchInstruction):
+class cvttss2si(DispatchInstruction):
   dispatch = (
     # TODO - reg64 version defined by intel manuals but not AMD
     #(reg64_xmm,        {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0xF3]}),
@@ -2969,48 +2856,48 @@ class cvttss2si(x86DispatchInstruction):
     (reg32_mem32,      {'opcode':[0x0F, 0x2C], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class divpd(x86DispatchInstruction):
+class divpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class divps(x86DispatchInstruction):
+class divps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class divsd(x86DispatchInstruction):
+class divsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class divss(x86DispatchInstruction):
+class divss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x5E], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class dppd(x86DispatchInstruction):
+class dppd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x41], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x41], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class dpps(x86DispatchInstruction):
+class dpps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x40], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x40], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class emms(x86Instruction):
+class emms(Instruction):
   machine_inst = no_op
   params = {'opcode':[0x0F, 0x77],'modrm':None}
   arch_ext = 0
 
-class extractps(x86DispatchInstruction):
+class extractps(DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}),
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x17], 'modrm':None, 'prefix':[0x66]}),
@@ -3018,131 +2905,131 @@ class extractps(x86DispatchInstruction):
  # TODO - ugh, this make the printer not emit 'dword' for the mem32 case
  #arch_ext = 4
 
-class extrq(x86DispatchInstruction):
+class extrq(DispatchInstruction):
   dispatch = (
     (xmm_imm8_imm8, {'opcode':[0x0F, 0x78], 'modrm':0x00, 'prefix':[0x66]}),
     (xmm_xmm,       {'opcode':[0x0F, 0x79], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class haddpd(x86DispatchInstruction):
+class haddpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x7C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x7C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 3
 
-class haddps(x86DispatchInstruction):
+class haddps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x7C], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x7C], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 3
 
-class hsubpd(x86DispatchInstruction):
+class hsubpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x7D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x7D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 3
 
-class hsubps(x86DispatchInstruction):
+class hsubps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x7D], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x7D], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 3
 
-class insertps(x86DispatchInstruction):
+class insertps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x21], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32_imm8,  {'opcode':[0x0F, 0x3A, 0x21], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class insertq(x86DispatchInstruction):
+class insertq(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8_imm8, {'opcode':[0x0F, 0x78], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_xmm,           {'opcode':[0x0F, 0x79], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 4
 
-class lddqu(x86Instruction):
+class lddqu(Instruction):
   machine_inst = xmm_mem128
   params = {'opcode':[0x0F, 0xF0],'modrm':None, 'prefix':[0xF2]}
   arch_ext = 3
 
-class ldmxcsr(x86Instruction):
+class ldmxcsr(Instruction):
   machine_inst = mem32
   params = {'opcode':[0x0F, 0xAE],'modrm':0x10}
   arch_ext = 1
 
-class maskmovdqu(x86Instruction):
+class maskmovdqu(Instruction):
   machine_inst = xmm_xmm
   params = {'opcode':[0x0F, 0xF7],'modrm':None, 'prefix':[0x66]}
   arch_ext = 2
 
-class maskmovq(x86Instruction):
+class maskmovq(Instruction):
   machine_inst = mmx_mmx
   params = {'opcode':[0x0F, 0xF7],'modrm':None}
   arch_ext = 1
 
-class maxpd(x86DispatchInstruction):
+class maxpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class maxps(x86DispatchInstruction):
+class maxps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class maxsd(x86DispatchInstruction):
+class maxsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class maxss(x86DispatchInstruction):
+class maxss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x5F], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class minpd(x86DispatchInstruction):
+class minpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class minps(x86DispatchInstruction):
+class minps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class minsd(x86DispatchInstruction):
+class minsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class minss(x86DispatchInstruction):
+class minss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x5D], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class movapd(x86DispatchInstruction):
+class movapd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x28], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x28], 'modrm':None, 'prefix':[0x66]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x29], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class movaps(x86DispatchInstruction):
+class movaps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x28], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x28], 'modrm':None, 'prefix':[]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x29], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class movd(x86DispatchInstruction):
+class movd(DispatchInstruction):
   dispatch = (
     # TODO - these are valid according to AMD64, but not according to Intel 64
     #(xmm_reg64,        {'opcode':[0x0F, 0x6E], 'modrm':None, 'prefix':[0x66]}),
@@ -3163,111 +3050,111 @@ class movd(x86DispatchInstruction):
     (reg32_mmx_rev,    {'opcode':[0x0F, 0x7E], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class movddup(x86DispatchInstruction):
+class movddup(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 3
 
-class movdq2q(x86Instruction):
+class movdq2q(Instruction):
   machine_inst = mmx_xmm
   params = {'opcode':[0x0F, 0xD6],'modrm':None, 'prefix':[0xF2]}
   arch_ext = 2
 
-class movdqa(x86DispatchInstruction):
+class movdqa(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6F], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6F], 'modrm':None, 'prefix':[0x66]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x7F], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class movdqu(x86DispatchInstruction):
+class movdqu(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6F], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6F], 'modrm':None, 'prefix':[0xF3]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x7F], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class movhlps(x86Instruction):
+class movhlps(Instruction):
   machine_inst = xmm_xmm
   params = {'opcode':[0x0F, 0x12],'modrm':None, 'prefix':[]}
   arch_ext = 1
 
-class movhpd(x86DispatchInstruction):
+class movhpd(DispatchInstruction):
   dispatch = (
     (xmm_mem64,      {'opcode':[0x0F, 0x16], 'modrm':None, 'prefix':[0x66]}),
     (mem64_xmm,      {'opcode':[0x0F, 0x17], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class movhps(x86DispatchInstruction):
+class movhps(DispatchInstruction):
   dispatch = (
     (xmm_mem64,      {'opcode':[0x0F, 0x16], 'modrm':None, 'prefix':[]}),
     (mem64_xmm,      {'opcode':[0x0F, 0x17], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class movlhps(x86Instruction):
+class movlhps(Instruction):
   machine_inst = xmm_xmm
   params = {'opcode':[0x0F, 0x16], 'modrm':None, 'prefix':[]}
   arch_ext = 1
 
-class movlpd(x86DispatchInstruction):
+class movlpd(DispatchInstruction):
   dispatch = (
     (xmm_mem64,      {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[0x66]}),
     (mem64_xmm,      {'opcode':[0x0F, 0x13], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class movlps(x86DispatchInstruction):
+class movlps(DispatchInstruction):
   dispatch = (
     (xmm_mem64,      {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[]}),
     (mem64_xmm,      {'opcode':[0x0F, 0x13], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class movmskpd(x86Instruction):
+class movmskpd(Instruction):
   machine_inst = reg32_xmm
   params = {'opcode':[0x0F, 0x50], 'modrm':None, 'prefix':[0x66]}
   arch_ext = 2
 
-class movmskps(x86Instruction):
+class movmskps(Instruction):
   machine_inst = reg32_xmm
   params = {'opcode':[0x0F, 0x50], 'modrm':None, 'prefix':[]}
   arch_ext = 2
 
-class movntdq(x86Instruction):
+class movntdq(Instruction):
   machine_inst = mem128_xmm
   params = {'opcode':[0x0F, 0xE7], 'modrm':None, 'prefix':[0x66]}
   arch_ext = 2
 
-class movntdqa(x86Instruction):
+class movntdqa(Instruction):
   machine_inst = xmm_mem128
   params = {'opcode':[0x0F, 0x38, 0x2A], 'modrm':None, 'prefix':[0x66]}
   arch_ext = 4
 
-class movntpd(x86Instruction):
+class movntpd(Instruction):
   machine_inst = mem128_xmm
   params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[0x66]}
   arch_ext = 2
 
-class movntps(x86Instruction):
+class movntps(Instruction):
   machine_inst = mem128_xmm
   params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[]}
   arch_ext = 2
 
-class movntq(x86Instruction):
+class movntq(Instruction):
   machine_inst = mem64_mmx
   params = {'opcode':[0x0F, 0xE7], 'modrm':None, 'prefix':[]}
   arch_ext = 1
 
-class movntsd(x86Instruction):
+class movntsd(Instruction):
   machine_inst = mem64_xmm
   params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[0xF2]}
   arch_ext = 4
 
-class movntss(x86Instruction):
+class movntss(Instruction):
   machine_inst = mem32_xmm
   params = {'opcode':[0x0F, 0x2B], 'modrm':None, 'prefix':[0xF3]}
   arch_ext = 4
 
-class movq(x86DispatchInstruction):
+class movq(DispatchInstruction):
   dispatch = (
     # TODO - first 4 are defined by Intel 64 but not AMD64
     (xmm_reg64,        {'opcode':[0x0F, 0x6E], 'modrm':None, 'prefix':[0x66]}),
@@ -3283,94 +3170,94 @@ class movq(x86DispatchInstruction):
     (mem64_mmx,        {'opcode':[0x0F, 0x7F], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class movq2dq(x86Instruction):
+class movq2dq(Instruction):
   machine_inst = xmm_mmx
   params = {'opcode':[0x0F, 0xD6], 'modrm':None, 'prefix':[0xF3]}
   arch_ext = 2
 
-class movsd(x86DispatchInstruction):
+class movsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0xF2]}),
     (mem64_xmm,      {'opcode':[0x0F, 0x11], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class movshdup(x86DispatchInstruction):
+class movshdup(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x16], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x16], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 3
 
-class movsldup(x86DispatchInstruction):
+class movsldup(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x12], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 3
 
-class movss(x86DispatchInstruction):
+class movss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0xF3]}),
     (mem32_xmm,      {'opcode':[0x0F, 0x11], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class movupd(x86DispatchInstruction):
+class movupd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[0x66]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x11], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class movups(x86DispatchInstruction):
+class movups(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x10], 'modrm':None, 'prefix':[]}),
     (mem128_xmm,     {'opcode':[0x0F, 0x11], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class mpsadbw(x86DispatchInstruction):
+class mpsadbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x42], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x42], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class mulpd(x86DispatchInstruction):
+class mulpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class mulps(x86DispatchInstruction):
+class mulps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class mulsd(x86DispatchInstruction):
+class mulsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,      {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class mulss(x86DispatchInstruction):
+class mulss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x59], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class orpd(x86DispatchInstruction):
+class orpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x56], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x56], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class orps(x86DispatchInstruction):
+class orps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x56], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x56], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class pabsb(x86DispatchInstruction):
+class pabsb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x1C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x1C], 'modrm':None, 'prefix':[0x66]}),
@@ -3378,7 +3265,7 @@ class pabsb(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x1C], 'modrm':None}))
   arch_ext = 3
 
-class pabsd(x86DispatchInstruction):
+class pabsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x1E], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x1E], 'modrm':None, 'prefix':[0x66]}),
@@ -3386,7 +3273,7 @@ class pabsd(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x1E], 'modrm':None}))
   arch_ext = 3
 
-class pabsw(x86DispatchInstruction):
+class pabsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x38, 0x1D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x38, 0x1D], 'modrm':None, 'prefix':[0x66]}),
@@ -3394,7 +3281,7 @@ class pabsw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x38, 0x1D], 'modrm':None}))
   arch_ext = 3
 
-class packssdw(x86DispatchInstruction):
+class packssdw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6B], 'modrm':None, 'prefix':[0x66]}),
@@ -3402,7 +3289,7 @@ class packssdw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x6B], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class packsswb(x86DispatchInstruction):
+class packsswb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x63], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x63], 'modrm':None, 'prefix':[0x66]}),
@@ -3410,13 +3297,13 @@ class packsswb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x63], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class packusdw(x86DispatchInstruction):
+class packusdw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x2B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x2B], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class packuswb(x86DispatchInstruction):
+class packuswb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x67], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x67], 'modrm':None, 'prefix':[0x66]}),
@@ -3424,7 +3311,7 @@ class packuswb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x67], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddb(x86DispatchInstruction):
+class paddb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xFC], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xFC], 'modrm':None, 'prefix':[0x66]}),
@@ -3432,7 +3319,7 @@ class paddb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFC], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddd(x86DispatchInstruction):
+class paddd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xFE], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xFE], 'modrm':None, 'prefix':[0x66]}),
@@ -3440,7 +3327,7 @@ class paddd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFE], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddq(x86DispatchInstruction):
+class paddq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xD4], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xD4], 'modrm':None, 'prefix':[0x66]}),
@@ -3448,7 +3335,7 @@ class paddq(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xD4], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddsb(x86DispatchInstruction):
+class paddsb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xEC], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xEC], 'modrm':None, 'prefix':[0x66]}),
@@ -3456,7 +3343,7 @@ class paddsb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xEC], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddsw(x86DispatchInstruction):
+class paddsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xED], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xED], 'modrm':None, 'prefix':[0x66]}),
@@ -3464,7 +3351,7 @@ class paddsw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xED], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class paddusb(x86DispatchInstruction):
+class paddusb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDC], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDC], 'modrm':None, 'prefix':[0x66]}),
@@ -3472,7 +3359,7 @@ class paddusb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDC], 'modrm':None}))
   arch_ext = 0
 
-class paddusw(x86DispatchInstruction):
+class paddusw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDD], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDD], 'modrm':None, 'prefix':[0x66]}),
@@ -3480,7 +3367,7 @@ class paddusw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDD], 'modrm':None}))
   arch_ext = 0
 
-class paddw(x86DispatchInstruction):
+class paddw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xFD], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xFD], 'modrm':None, 'prefix':[0x66]}),
@@ -3488,7 +3375,7 @@ class paddw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFD], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class palignr(x86DispatchInstruction):
+class palignr(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,   {'opcode':[0x0F, 0x3A, 0x0F], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8,{'opcode':[0x0F, 0x3A, 0x0F], 'modrm':None, 'prefix':[0x66]}),
@@ -3496,7 +3383,7 @@ class palignr(x86DispatchInstruction):
     (mmx_mem64_imm8, {'opcode':[0x0F, 0x3A, 0x0F], 'modrm':None}))
   arch_ext = 3
 
-class pand(x86DispatchInstruction):
+class pand(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDB], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDB], 'modrm':None, 'prefix':[0x66]}),
@@ -3504,7 +3391,7 @@ class pand(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDB], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pandn(x86DispatchInstruction):
+class pandn(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDF], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDF], 'modrm':None, 'prefix':[0x66]}),
@@ -3512,7 +3399,7 @@ class pandn(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDF], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pavgb(x86DispatchInstruction):
+class pavgb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE0], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE0], 'modrm':None, 'prefix':[0x66]}),
@@ -3520,7 +3407,7 @@ class pavgb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE0], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pavgw(x86DispatchInstruction):
+class pavgw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE3], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE3], 'modrm':None, 'prefix':[0x66]}),
@@ -3528,19 +3415,19 @@ class pavgw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE3], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pblendvb(x86DispatchInstruction):
+class pblendvb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x10], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x10], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pblendw(x86DispatchInstruction):
+class pblendw(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0E], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x0E], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpeqb(x86DispatchInstruction):
+class pcmpeqb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x74], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x74], 'modrm':None, 'prefix':[0x66]}),
@@ -3548,7 +3435,7 @@ class pcmpeqb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x74], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpeqd(x86DispatchInstruction):
+class pcmpeqd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x76], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x76], 'modrm':None, 'prefix':[0x66]}),
@@ -3556,13 +3443,13 @@ class pcmpeqd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x76], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpeqq(x86DispatchInstruction):
+class pcmpeqq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x29], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x29], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpeqw(x86DispatchInstruction):
+class pcmpeqw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x75], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x75], 'modrm':None, 'prefix':[0x66]}),
@@ -3570,19 +3457,19 @@ class pcmpeqw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x75], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpestri(x86DispatchInstruction):
+class pcmpestri(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x61], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x61], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpestrm(x86DispatchInstruction):
+class pcmpestrm(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x60], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x60], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpgtb(x86DispatchInstruction):
+class pcmpgtb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x64], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x64], 'modrm':None, 'prefix':[0x66]}),
@@ -3590,7 +3477,7 @@ class pcmpgtb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x64], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpgtd(x86DispatchInstruction):
+class pcmpgtd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x66], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x66], 'modrm':None, 'prefix':[0x66]}),
@@ -3598,7 +3485,7 @@ class pcmpgtd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x66], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpgtw(x86DispatchInstruction):
+class pcmpgtw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x65], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x65], 'modrm':None, 'prefix':[0x66]}),
@@ -3606,44 +3493,44 @@ class pcmpgtw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x65], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pcmpgtq(x86DispatchInstruction):
+class pcmpgtq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x37], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x37], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpistri(x86DispatchInstruction):
+class pcmpistri(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x63], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x63], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pcmpistrm(x86DispatchInstruction):
+class pcmpistrm(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x62], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x62], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pextrb(x86DispatchInstruction):
+class pextrb(DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}),
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}),
     (mem8_xmm_imm8,      {'opcode':[0x0F, 0x3A, 0x14], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pextrd(x86DispatchInstruction):
+class pextrd(DispatchInstruction):
   dispatch = (
     (reg32_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}),
     (mem32_xmm_imm8,     {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pextrq(x86DispatchInstruction):
+class pextrq(DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8_rev, {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}),
     (mem64_xmm_imm8,     {'opcode':[0x0F, 0x3A, 0x16], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pextrw(x86DispatchInstruction):
+class pextrw(DispatchInstruction):
   dispatch = (
     (reg64_xmm_imm8, {'opcode':[0x0F, 0xC5], 'modrm':None, 'prefix':[0x66]}),
     (reg32_xmm_imm8, {'opcode':[0x0F, 0xC5], 'modrm':None, 'prefix':[0x66]}),
@@ -3652,7 +3539,7 @@ class pextrw(x86DispatchInstruction):
     (reg32_mmx_imm8, {'opcode':[0x0F, 0xC5], 'modrm':None}))
   arch_ext = 1
 
-class phaddsw(x86DispatchInstruction):
+class phaddsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x03], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x03], 'modrm':None, 'prefix':[0x66]}),
@@ -3660,7 +3547,7 @@ class phaddsw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x03], 'modrm':None}))
   arch_ext = 3
 
-class phaddw(x86DispatchInstruction):
+class phaddw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x01], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x01], 'modrm':None, 'prefix':[0x66]}),
@@ -3668,7 +3555,7 @@ class phaddw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x01], 'modrm':None}))
   arch_ext = 3
 
-class phaddd(x86DispatchInstruction):
+class phaddd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x02], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x02], 'modrm':None, 'prefix':[0x66]}),
@@ -3676,13 +3563,13 @@ class phaddd(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x02], 'modrm':None}))
   arch_ext = 3
 
-class phminposuw(x86DispatchInstruction):
+class phminposuw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x41], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x41], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class phsubsw(x86DispatchInstruction):
+class phsubsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x07], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x07], 'modrm':None, 'prefix':[0x66]}),
@@ -3690,7 +3577,7 @@ class phsubsw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x07], 'modrm':None}))
   arch_ext = 3
 
-class phsubw(x86DispatchInstruction):
+class phsubw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x05], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x05], 'modrm':None, 'prefix':[0x66]}),
@@ -3698,7 +3585,7 @@ class phsubw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x05], 'modrm':None}))
   arch_ext = 3
 
-class phsubd(x86DispatchInstruction):
+class phsubd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x06], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x06], 'modrm':None, 'prefix':[0x66]}),
@@ -3706,25 +3593,25 @@ class phsubd(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x06], 'modrm':None}))
   arch_ext = 3
 
-class pinsrb(x86DispatchInstruction):
+class pinsrb(DispatchInstruction):
   dispatch = (
     (xmm_reg32_imm8, {'opcode':[0x0F, 0x3A, 0x20], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem8_imm8,  {'opcode':[0x0F, 0x3A, 0x20], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pinsrd(x86DispatchInstruction):
+class pinsrd(DispatchInstruction):
   dispatch = (
     (xmm_reg32_imm8, {'opcode':[0x0F, 0x3A, 0x22], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32_imm8, {'opcode':[0x0F, 0x3A, 0x22], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pinsrq(x86DispatchInstruction):
+class pinsrq(DispatchInstruction):
   dispatch = (
     (xmm_reg64_imm8, {'opcode':[0x0F, 0x3A, 0x22], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64_imm8, {'opcode':[0x0F, 0x3A, 0x22], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pinsrw(x86DispatchInstruction):
+class pinsrw(DispatchInstruction):
   dispatch = (
     (xmm_reg32_imm8, {'opcode':[0x0F, 0xC4], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem16_imm8, {'opcode':[0x0F, 0xC4], 'modrm':None, 'prefix':[0x66]}),
@@ -3732,7 +3619,7 @@ class pinsrw(x86DispatchInstruction):
     (mmx_mem16_imm8, {'opcode':[0x0F, 0xC4], 'modrm':None}))
   arch_ext = 1
 
-class pmaddubsw(x86DispatchInstruction):
+class pmaddubsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x04], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x04], 'modrm':None, 'prefix':[0x66]}),
@@ -3740,7 +3627,7 @@ class pmaddubsw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x04], 'modrm':None}))
   arch_ext = 3
 
-class pmaddwd(x86DispatchInstruction):
+class pmaddwd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xF5], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xF5], 'modrm':None, 'prefix':[0x66]}),
@@ -3748,19 +3635,19 @@ class pmaddwd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xF5], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pmaxsb(x86DispatchInstruction):
+class pmaxsb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmaxsd(x86DispatchInstruction):
+class pmaxsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmaxsw(x86DispatchInstruction):
+class pmaxsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xEE], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xEE], 'modrm':None, 'prefix':[0x66]}),
@@ -3768,7 +3655,7 @@ class pmaxsw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xEE], 'modrm':None}))
   arch_ext = 1
 
-class pmaxub(x86DispatchInstruction):
+class pmaxub(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDE], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDE], 'modrm':None, 'prefix':[0x66]}),
@@ -3776,31 +3663,31 @@ class pmaxub(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDE], 'modrm':None}))
   arch_ext = 1
 
-class pmaxud(x86DispatchInstruction):
+class pmaxud(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3F], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3F], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmaxuw(x86DispatchInstruction):
+class pmaxuw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3E], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3E], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pminsb(x86DispatchInstruction):
+class pminsb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x38], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x38], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pminsd(x86DispatchInstruction):
+class pminsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x39], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x39], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pminsw(x86DispatchInstruction):
+class pminsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xEA], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xEA], 'modrm':None, 'prefix':[0x66]}),
@@ -3808,7 +3695,7 @@ class pminsw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xEA], 'modrm':None}))
   arch_ext = 1
 
-class pminub(x86DispatchInstruction):
+class pminub(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xDA], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xDA], 'modrm':None, 'prefix':[0x66]}),
@@ -3816,19 +3703,19 @@ class pminub(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xDA], 'modrm':None}))
   arch_ext = 1
 
-class pminud(x86DispatchInstruction):
+class pminud(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3B], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pminuw(x86DispatchInstruction):
+class pminuw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x3A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x3A], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovmskb(x86DispatchInstruction):
+class pmovmskb(DispatchInstruction):
   dispatch = (
     # TODO - undocumented reg64 forms?
     #(reg64_xmm,     {'opcode':[0x0F, 0xD7], 'modrm':None, 'prefix':[0x66]}),
@@ -3837,85 +3724,85 @@ class pmovmskb(x86DispatchInstruction):
     (reg32_mmx,     {'opcode':[0x0F, 0xD7], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 1
 
-class pmovsxbw(x86DispatchInstruction):
+class pmovsxbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x20], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x20], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovsxbd(x86DispatchInstruction):
+class pmovsxbd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x21], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32, {'opcode':[0x0F, 0x38, 0x21], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovsxbq(x86DispatchInstruction):
+class pmovsxbq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x22], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem16, {'opcode':[0x0F, 0x38, 0x22], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovsxwd(x86DispatchInstruction):
+class pmovsxwd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x23], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x23], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovsxwq(x86DispatchInstruction):
+class pmovsxwq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x24], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32, {'opcode':[0x0F, 0x38, 0x24], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovsxdq(x86DispatchInstruction):
+class pmovsxdq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x25], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x25], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxbw(x86DispatchInstruction):
+class pmovzxbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x30], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x30], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxbd(x86DispatchInstruction):
+class pmovzxbd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x31], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32, {'opcode':[0x0F, 0x38, 0x31], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxbq(x86DispatchInstruction):
+class pmovzxbq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x32], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem16, {'opcode':[0x0F, 0x38, 0x32], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxwd(x86DispatchInstruction):
+class pmovzxwd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x33], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x33], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxwq(x86DispatchInstruction):
+class pmovzxwq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x34], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem32, {'opcode':[0x0F, 0x38, 0x34], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmovzxdq(x86DispatchInstruction):
+class pmovzxdq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,   {'opcode':[0x0F, 0x38, 0x35], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64, {'opcode':[0x0F, 0x38, 0x35], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmuldq(x86DispatchInstruction):
+class pmuldq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x28], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x28], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmulhrsw(x86DispatchInstruction):
+class pmulhrsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x0B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x0B], 'modrm':None, 'prefix':[0x66]}),
@@ -3923,7 +3810,7 @@ class pmulhrsw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x0B], 'modrm':None}))
   arch_ext = 3
 
-class pmulhuw(x86DispatchInstruction):
+class pmulhuw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE4], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE4], 'modrm':None, 'prefix':[0x66]}),
@@ -3931,7 +3818,7 @@ class pmulhuw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE4], 'modrm':None}))
   arch_ext = 1
 
-class pmulhw(x86DispatchInstruction):
+class pmulhw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE5], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE5], 'modrm':None, 'prefix':[0x66]}),
@@ -3939,13 +3826,13 @@ class pmulhw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE5], 'modrm':None}))
   arch_ext = 1
 
-class pmulld(x86DispatchInstruction):
+class pmulld(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x40], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x40], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class pmullw(x86DispatchInstruction):
+class pmullw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xD5], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xD5], 'modrm':None, 'prefix':[0x66]}),
@@ -3953,7 +3840,7 @@ class pmullw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xD5], 'modrm':None}))
   arch_ext = 2 # and 0
 
-class pmuludq(x86DispatchInstruction):
+class pmuludq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xF4], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xF4], 'modrm':None, 'prefix':[0x66]}),
@@ -3961,7 +3848,7 @@ class pmuludq(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xF4], 'modrm':None}))
   arch_ext = 2
 
-class por(x86DispatchInstruction):
+class por(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xEB], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xEB], 'modrm':None, 'prefix':[0x66]}),
@@ -3969,7 +3856,7 @@ class por(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xEB], 'modrm':None}))
   arch_ext = 2 # and 0
 
-class psadbw(x86DispatchInstruction):
+class psadbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xF6], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xF6], 'modrm':None, 'prefix':[0x66]}),
@@ -3977,7 +3864,7 @@ class psadbw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xF6], 'modrm':None}))
   arch_ext = 1
 
-class pshufb(x86DispatchInstruction):
+class pshufb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x00], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x00], 'modrm':None, 'prefix':[0x66]}),
@@ -3985,31 +3872,31 @@ class pshufb(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x00], 'modrm':None}))
   arch_ext = 3
 
-class pshufd(x86DispatchInstruction):
+class pshufd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class pshufhw(x86DispatchInstruction):
+class pshufhw(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class pshuflw(x86DispatchInstruction):
+class pshuflw(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x70], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class pshufw(x86DispatchInstruction):
+class pshufw(DispatchInstruction):
   dispatch = (
     (mmx_mmx_imm8,    {'opcode':[0x0F, 0x70], 'modrm':None}),
     (mmx_mem64_imm8,  {'opcode':[0x0F, 0x70], 'modrm':None}))
   arch_ext = 1
 
-class psignb(x86DispatchInstruction):
+class psignb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x08], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x08], 'modrm':None, 'prefix':[0x66]}),
@@ -4017,7 +3904,7 @@ class psignb(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x08], 'modrm':None}))
   arch_ext = 3
 
-class psignd(x86DispatchInstruction):
+class psignd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x0A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x0A], 'modrm':None, 'prefix':[0x66]}),
@@ -4025,7 +3912,7 @@ class psignd(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x0A], 'modrm':None}))
   arch_ext = 3
 
-class psignw(x86DispatchInstruction):
+class psignw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x09], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x09], 'modrm':None, 'prefix':[0x66]}),
@@ -4033,7 +3920,7 @@ class psignw(x86DispatchInstruction):
     (mmx_mem64,  {'opcode':[0x0F, 0x38, 0x09], 'modrm':None}))
   arch_ext = 3
 
-class pslld(x86DispatchInstruction):
+class pslld(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x72], 'modrm':0x30, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xF2], 'modrm':None, 'prefix':[0x66]}),
@@ -4043,12 +3930,12 @@ class pslld(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xF2], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class pslldq(x86Instruction):
+class pslldq(Instruction):
   machine_inst = xmm_imm8
   params = {'opcode':[0x0F, 0x73], 'modrm':0x38, 'prefix':[0x66]}
   arch_ext = 1
 
-class psllq(x86DispatchInstruction):
+class psllq(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x73], 'modrm':0x30, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xF3], 'modrm':None, 'prefix':[0x66]}),
@@ -4058,7 +3945,7 @@ class psllq(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xF3], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psllw(x86DispatchInstruction):
+class psllw(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x71], 'modrm':0x30, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xF1], 'modrm':None, 'prefix':[0x66]}),
@@ -4068,7 +3955,7 @@ class psllw(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xF1], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psrad(x86DispatchInstruction):
+class psrad(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x72], 'modrm':0x20, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xE2], 'modrm':None, 'prefix':[0x66]}),
@@ -4078,7 +3965,7 @@ class psrad(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xE2], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psraw(x86DispatchInstruction):
+class psraw(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x71], 'modrm':0x20, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xE1], 'modrm':None, 'prefix':[0x66]}),
@@ -4088,7 +3975,7 @@ class psraw(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xE1], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psrld(x86DispatchInstruction):
+class psrld(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x72], 'modrm':0x10, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xD2], 'modrm':None, 'prefix':[0x66]}),
@@ -4098,12 +3985,12 @@ class psrld(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xD2], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psrldq(x86Instruction):
+class psrldq(Instruction):
   machine_inst = xmm_imm8
   params = {'opcode':[0x0F, 0x73], 'modrm':0x18, 'prefix':[0x66]}
   arch_ext = 1
 
-class psrlq(x86DispatchInstruction):
+class psrlq(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x73], 'modrm':0x10, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xD3], 'modrm':None, 'prefix':[0x66]}),
@@ -4113,7 +4000,7 @@ class psrlq(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xD3], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psrlw(x86DispatchInstruction):
+class psrlw(DispatchInstruction):
   dispatch = (
     (xmm_imm8,   {'opcode':[0x0F, 0x71], 'modrm':0x10, 'prefix':[0x66]}),
     (xmm_xmm,    {'opcode':[0x0F, 0xD1], 'modrm':None, 'prefix':[0x66]}),
@@ -4123,7 +4010,7 @@ class psrlw(x86DispatchInstruction):
     (mmx_mem128, {'opcode':[0x0F, 0xD1], 'modrm':None}))
   arch_ext = 2 # and 0 and 1
 
-class psubb(x86DispatchInstruction):
+class psubb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xF8], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xF8], 'modrm':None, 'prefix':[0x66]}),
@@ -4131,7 +4018,7 @@ class psubb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xF8], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class psubd(x86DispatchInstruction):
+class psubd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xFA], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xFA], 'modrm':None, 'prefix':[0x66]}),
@@ -4139,7 +4026,7 @@ class psubd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFA], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class psubq(x86DispatchInstruction):
+class psubq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xFB], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xFB], 'modrm':None, 'prefix':[0x66]}),
@@ -4147,7 +4034,7 @@ class psubq(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xFB], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class psubsb(x86DispatchInstruction):
+class psubsb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE8], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE8], 'modrm':None, 'prefix':[0x66]}),
@@ -4155,7 +4042,7 @@ class psubsb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE8], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class psubsw(x86DispatchInstruction):
+class psubsw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xE9], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xE9], 'modrm':None, 'prefix':[0x66]}),
@@ -4163,7 +4050,7 @@ class psubsw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xE9], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class psubusb(x86DispatchInstruction):
+class psubusb(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xD8], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xD8], 'modrm':None, 'prefix':[0x66]}),
@@ -4171,7 +4058,7 @@ class psubusb(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xD8], 'modrm':None}))
   arch_ext = 0
 
-class psubusw(x86DispatchInstruction):
+class psubusw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xD9], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xD9], 'modrm':None, 'prefix':[0x66]}),
@@ -4179,7 +4066,7 @@ class psubusw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xD9], 'modrm':None}))
   arch_ext = 0
 
-class psubw(x86DispatchInstruction):
+class psubw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xF9], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xF9], 'modrm':None, 'prefix':[0x66]}),
@@ -4187,13 +4074,13 @@ class psubw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xF9], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class ptest(x86DispatchInstruction):
+class ptest(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x38, 0x17], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x38, 0x17], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class punpckhbw(x86DispatchInstruction):
+class punpckhbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x68], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x68], 'modrm':None, 'prefix':[0x66]}),
@@ -4201,7 +4088,7 @@ class punpckhbw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x68], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class punpckhdq(x86DispatchInstruction):
+class punpckhdq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6A], 'modrm':None, 'prefix':[0x66]}),
@@ -4209,13 +4096,13 @@ class punpckhdq(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x6A], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class punpckhqdq(x86DispatchInstruction):
+class punpckhqdq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6D], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6D], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class punpckhwd(x86DispatchInstruction):
+class punpckhwd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x69], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x69], 'modrm':None, 'prefix':[0x66]}),
@@ -4223,7 +4110,7 @@ class punpckhwd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x69], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class punpcklbw(x86DispatchInstruction):
+class punpcklbw(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x60], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x60], 'modrm':None, 'prefix':[0x66]}),
@@ -4231,7 +4118,7 @@ class punpcklbw(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x60], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class punpckldq(x86DispatchInstruction):
+class punpckldq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x62], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x62], 'modrm':None, 'prefix':[0x66]}),
@@ -4239,13 +4126,13 @@ class punpckldq(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x62], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class punpcklqdq(x86DispatchInstruction):
+class punpcklqdq(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x6C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x6C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class punpcklwd(x86DispatchInstruction):
+class punpcklwd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x61], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x61], 'modrm':None, 'prefix':[0x66]}),
@@ -4253,7 +4140,7 @@ class punpcklwd(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0x61], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class pxor(x86DispatchInstruction):
+class pxor(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0xEF], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128,     {'opcode':[0x0F, 0xEF], 'modrm':None, 'prefix':[0x66]}),
@@ -4261,177 +4148,164 @@ class pxor(x86DispatchInstruction):
     (mmx_mem64,      {'opcode':[0x0F, 0xEF], 'modrm':None}))
   arch_ext = 2 # TODO - err, some are 2, some are 0
 
-class rcpps(x86DispatchInstruction):
+class rcpps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x53], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x53], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class rcpss(x86DispatchInstruction):
+class rcpss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x53], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x53], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class roundpd(x86DispatchInstruction):
+class roundpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x09], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x09], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class roundps(x86DispatchInstruction):
+class roundps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x08], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x08], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class roundsd(x86DispatchInstruction):
+class roundsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0B], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64_imm8,  {'opcode':[0x0F, 0x3A, 0x0B], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class roundss(x86DispatchInstruction):
+class roundss(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0x3A, 0x0A], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0x3A, 0x0A], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 4
 
-class rsqrtps(x86DispatchInstruction):
+class rsqrtps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x52], 'modrm':None, 'prefix':[]}),
     (xmm_mem128,     {'opcode':[0x0F, 0x52], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class rsqrtss(x86DispatchInstruction):
+class rsqrtss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,        {'opcode':[0x0F, 0x52], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,      {'opcode':[0x0F, 0x52], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 2
 
-class shufpd(x86DispatchInstruction):
+class shufpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC6], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0xC6], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class shufps(x86DispatchInstruction):
+class shufps(DispatchInstruction):
   dispatch = (
     (xmm_xmm_imm8,    {'opcode':[0x0F, 0xC6], 'modrm':None, 'prefix':[]}),
     (xmm_mem128_imm8, {'opcode':[0x0F, 0xC6], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class sqrtpd(x86DispatchInstruction):
+class sqrtpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class sqrtps(x86DispatchInstruction):
+class sqrtps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[]}),
     (xmm_mem128, {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class sqrtsd(x86DispatchInstruction):
+class sqrtsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,  {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class sqrtss(x86DispatchInstruction):
+class sqrtss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32 , {'opcode':[0x0F, 0x51], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class stmxcsr(x86Instruction):
+class stmxcsr(Instruction):
   machine_inst = mem32
   params = {'opcode':[0x0F, 0xAE], 'modrm':0x18}
   arch_ext = 1
 
-class subpd(x86DispatchInstruction):
+class subpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class subps(x86DispatchInstruction):
+class subps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[]}),
     (xmm_mem128, {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class subsd(x86DispatchInstruction):
+class subsd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF2]}),
     (xmm_mem64,  {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF2]}))
   arch_ext = 2
 
-class subss(x86DispatchInstruction):
+class subss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF3]}),
     (xmm_mem32,  {'opcode':[0x0F, 0x5C], 'modrm':None, 'prefix':[0xF3]}))
   arch_ext = 1
 
-class ucomisd(x86DispatchInstruction):
+class ucomisd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x2E], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem64,  {'opcode':[0x0F, 0x2E], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class ucomiss(x86DispatchInstruction):
+class ucomiss(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x2E], 'modrm':None, 'prefix':[]}),
     (xmm_mem32,  {'opcode':[0x0F, 0x2E], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class unpckhpd(x86DispatchInstruction):
+class unpckhpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x15], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x15], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 1
 
-class unpckhps(x86DispatchInstruction):
+class unpckhps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x15], 'modrm':None, 'prefix':[]}),
     (xmm_mem128, {'opcode':[0x0F, 0x15], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class unpcklpd(x86DispatchInstruction):
+class unpcklpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x14], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x14], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 1
 
-class unpcklps(x86DispatchInstruction):
+class unpcklps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x14], 'modrm':None, 'prefix':[]}),
     (xmm_mem128, {'opcode':[0x0F, 0x14], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-class xorpd(x86DispatchInstruction):
+class xorpd(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x57], 'modrm':None, 'prefix':[0x66]}),
     (xmm_mem128, {'opcode':[0x0F, 0x57], 'modrm':None, 'prefix':[0x66]}))
   arch_ext = 2
 
-class xorps(x86DispatchInstruction):
+class xorps(DispatchInstruction):
   dispatch = (
     (xmm_xmm,    {'opcode':[0x0F, 0x57], 'modrm':None, 'prefix':[]}),
     (xmm_mem128, {'opcode':[0x0F, 0x57], 'modrm':None, 'prefix':[]}))
   arch_ext = 1
 
-
-if __name__=='__main__':
-  r1 = GPRegister32(0)
-  r2 = GPRegister32(9)
-
-  a1 = add(r1, 9)
-  a2 = add(r1, 70000)
-
-  a3 = add(r2, 9)
-  a4 = add(r2, 70000)
-
-  for a in [a1, a2, a3, a4]:
-    print a.render()

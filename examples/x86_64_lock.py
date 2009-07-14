@@ -21,13 +21,16 @@ x86.set_active_code(code)
 
 x86.mov(rax, 1)
 x86.mov(rcx, ITERS)
+x86.mov(rdi, dbi[0])
 
 lbl_loop = code.get_unique_label("loop")
 code.add(lbl_loop)
 
-x86.add(MemRef(dbi[0]), rax)
+x86.add(MemRef(rdi), rax)
 x86.dec(rcx)
 x86.jnz(lbl_loop)
+
+code.print_code(hex = True)
 
 proc = env.Processor()
 t1 = time.time()
@@ -48,11 +51,12 @@ x86.set_active_code(code)
 
 x86.mov(rax, 1)
 x86.mov(rcx, ITERS)
+x86.mov(rdi, dbi[0])
 
 lbl_loop = code.get_unique_label("loop")
 code.add(lbl_loop)
 
-x86.add(MemRef(dbi[0]), rax, lock = True)
+x86.add(MemRef(rdi), rax, lock = True)
 x86.dec(rcx)
 x86.jnz(lbl_loop)
 
@@ -76,6 +80,7 @@ code = env.InstructionStream()
 x86.set_active_code(code)
 
 x86.mov(rcx, ITERS)
+x86.mov(rdi, dbi[0])
 
 lbl_loop = code.get_unique_label("loop")
 code.add(lbl_loop)
@@ -86,14 +91,14 @@ code.add(lbl_loop)
 #   cmpxchg rbx, data
 #   jz cmploop
 
-x86.mov(rax, MemRef(dbi[0]))
+x86.mov(rax, MemRef(rdi))
 
 lbl_cmpxchg = code.get_unique_label("cmpxchg")
 code.add(lbl_cmpxchg)
 
 x86.mov(rbx, rax)
 x86.add(rbx, 1)
-x86.cmpxchg(MemRef(dbi[0]), rbx, lock = True)
+x86.cmpxchg(MemRef(rdi), rbx, lock = True)
 x86.jnz(lbl_cmpxchg)
 
 x86.dec(rcx)
@@ -135,7 +140,7 @@ code.add(lbl_loop)
 #   cmpxchg rbx, data
 #   jz cmploop
 
-x86.mov(eax, MemRef(dbi[0], data_size = 32))
+x86.mov(eax, MemRef(rdi, data_size = 32))
 
 lbl_cmpxchg = code.get_unique_label("cmpxchg")
 code.add(lbl_cmpxchg)
@@ -143,7 +148,7 @@ code.add(lbl_cmpxchg)
 x86.movd(xmm1, eax)
 x86.addss(xmm1, xmm0)
 x86.movd(ebx, xmm1)
-x86.cmpxchg(MemRef(dbi[0], data_size = 32), ebx, lock = True)
+x86.cmpxchg(MemRef(rdi, data_size = 32), ebx, lock = True)
 x86.jnz(lbl_cmpxchg)
 
 x86.dec(rcx)
