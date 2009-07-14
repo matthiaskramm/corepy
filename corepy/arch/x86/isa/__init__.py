@@ -69,7 +69,7 @@ def get_active_code():
 
 for l in locals().values():
   if isinstance(l, type):
-    if issubclass(l, x86Instruction) or issubclass(l, x86DispatchInstruction):
+    if issubclass(l, Instruction) or issubclass(l, DispatchInstruction):
       l.active_code = property(__get_active_code)
 
                                                        
