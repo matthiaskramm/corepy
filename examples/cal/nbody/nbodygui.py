@@ -22,7 +22,7 @@ glrender.render2.restype = None
 glrender.render3.argtypes = (ctypes.c_ulong, ctypes.c_int)
 glrender.render3.restype = None
 
-SQRT_BODIES = 256
+SQRT_BODIES = 64
 N_BODIES = SQRT_BODIES ** 2
 print "total bodies", N_BODIES
 
@@ -78,8 +78,8 @@ def ProcessStep():
   for i in xrange(0, 4):
     inp = step % 2
     out = (step + 1) % 2
-    code.set_remote_binding('i0', pos[inp])
-    code.set_remote_binding('i1', vel[inp])
+    code.set_remote_binding('i0', pos[inp], copy_local = False)
+    code.set_remote_binding('i1', vel[inp], copy_local = False)
     code.set_remote_binding('o0', pos[out])
     code.set_remote_binding('o1', vel[out])
     proc.execute(code, (0, 0, SQRT_BODIES, SQRT_BODIES))
@@ -173,7 +173,7 @@ def cal_nbody():
   pos[0][ind * 4 + 2] = 0.0
   pos[0][ind * 4 + 3] = 1e16
 
-  code = nbody.cal_nb_generate_2d(SQRT_BODIES, 0.00001)
+  code = nbody.cal_nb_generate_2d(SQRT_BODIES, 0.000002)
   code.cache_code()
   return
 

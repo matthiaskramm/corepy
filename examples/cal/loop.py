@@ -54,7 +54,7 @@ if __name__ == '__main__':
   proc = env.Processor(1)
 
   out = proc.alloc_remote('f', 4, SIZE, SIZE)
-  code.set_remote_binding(reg.o0, out)
+  code.set_binding(reg.o0, out)
 
   proc.execute(code, (0, 0, SIZE, SIZE))
 

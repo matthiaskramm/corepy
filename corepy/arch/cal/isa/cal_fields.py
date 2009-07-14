@@ -26,8 +26,8 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-from corepy.spre.spe import Register, InstructionOperand, Variable, Label
-import cal_isa
+from corepy.spre.spe import Register, InstructionOperand#, Variable, Label
+
 
 class CALField(InstructionOperand):
   def __init__(self, name, default = None):
@@ -37,8 +37,8 @@ class CALField(InstructionOperand):
   def render(self, value):
     return value
 
-  def __eq__(self, other):
-    return type(self) == type(other)
+#  def __eq__(self, other):
+#    return type(self) == type(other)
 
 class CALFlagField(CALField):
   def __init__(self, name, ilstr, default = None):
@@ -54,8 +54,8 @@ class CALFlagField(CALField):
       return self.ilstr
     return ''
 
-  def __eq__(self, other):
-    return type(self) == type(other) and self.name == other.name
+#  def __eq__(self, other):
+#    return type(self) == type(other) and self.name == other.name
 
 class RegisterField(CALField):
   def check(self, value):

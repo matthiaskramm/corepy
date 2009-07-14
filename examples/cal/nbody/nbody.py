@@ -182,23 +182,24 @@ def cal_nb_generate_2d(n_bodies, dt):
   cal.sub(r_diff, r_lpos.xyz0, r_rpos.xyz0)   # local pos - remote pos
 
   # dist_tmp
-  cal.mul(r_dist_vec, r_diff.xxxx, r_diff.xxxx)
-  cal.mad(r_dist_vec, r_diff.yyyy, r_diff.yyyy, r_dist_vec)
-  cal.mad(r_dist_vec, r_diff.zzzz, r_diff.zzzz, r_dist_vec)
+  #cal.mul(r_dist_vec, r_diff.xxxx, r_diff.xxxx)
+  #cal.mad(r_dist_vec, r_diff.yyyy, r_diff.yyyy, r_dist_vec)
+  #cal.mad(r_dist_vec, r_diff.zzzz, r_diff.zzzz, r_dist_vec)
+  cal.dp3(r_dist_vec, r_diff, r_diff, IEEE = False)
   
   # distance
   # TODO - skip rest of force computation if distance is 0
   cal.sqrt_vec(r_dist, r_dist_vec)
 
   # force G * ((m[i] * m[j]) / dist_tmp)
-  cal.mul(r_force_tmp, r_lpos.wwww, r_rpos.wwww)
+  cal.mul(r_force_tmp, r_lpos.wwww, r_rpos.wwww, IEEE = False)
   cal.div(r_force_tmp, r_force_tmp, r_dist_vec, ZEROOP = cal.zeroop.zero)
-  cal.mul(r_force_tmp, r_force_tmp, r_G)
+  cal.mul(r_force_tmp, r_force_tmp, r_G, IEEE = False)
 
   # f_xyz
   # TODO - whats going on, is this right?
   cal.div(r_force_vec, r_diff.xyz0, r_dist.xyz1, ZEROOP = cal.zeroop.zero)
-  cal.mul(r_force_vec, r_force_vec.xyz0, r_force_tmp.xyz0)
+  cal.mul(r_force_vec, r_force_vec.xyz0, r_force_tmp.xyz0, IEEE = False)
 
   cal.sub(r_force, r_force.xyz0, r_force_vec.xyz0)
 
@@ -224,11 +225,11 @@ def cal_nb_generate_2d(n_bodies, dt):
 
   # Velocity
   cal.sample(1, 1, r_vel, reg.v0.xy)    # Load velocity
-  cal.mad(r_vel, r_force, r_dt, r_vel)
+  cal.mad(r_vel, r_force, r_dt, r_vel, IEEE = False)
   cal.mov(reg.o1, r_vel)
 
   # Position
-  cal.mad(reg.o0, r_vel.xyz0, r_dt.xyz0, r_lpos.xyzw)
+  cal.mad(reg.o0, r_vel.xyz0, r_dt.xyz0, r_lpos.xyzw, IEEE = False)
 
   #cal.mov(reg.g[0], r_vel)
 
@@ -375,10 +376,10 @@ if __name__ == '__main__':
   proc = env.Processor(GPUNUM)
   #code = env.InstructionStream()
   #proc = env.Processor()
-  SQRT_NBODIES = 256
+  SQRT_NBODIES = 64
   N_BODIES = SQRT_NBODIES * SQRT_NBODIES
-  DT = 0.1
-  STEPS = 12
+  DT = 0.25
+  STEPS = 100
   random.seed(0)
 
   #init_x = (3.0e11, 5.79e10, 1.082e11, 1.496e11, 2.279e11)
@@ -404,9 +405,11 @@ if __name__ == '__main__':
 
   #print "py_nb_step3 time", t2 - t1
 
-  debug = proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES)
+  #debug = proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES)
   pos = [proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
   vel = [proc.alloc_remote('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
+  localpos = [proc.alloc_local('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
+  localvel = [proc.alloc_local('f', 4, SQRT_NBODIES, SQRT_NBODIES) for i in xrange(0, 2)]
 
   if pos[0].gpu_pitch != SQRT_NBODIES:
     print "WARNING pitch is not the same as the width!", pos[0].gpu_pitch, SQRT_NBODIES
@@ -416,56 +419,73 @@ if __name__ == '__main__':
   pos[1].clear()
   vel[1].clear()
   for i in xrange(0, N_BODIES):
-    pos[0][i * 4] = x[i]
-    pos[0][i * 4 + 1] = y[i]
+    #pos[0][i * 4] = x[i]
+    #pos[0][i * 4 + 1] = y[i]
+    pos[0][i * 4] = float(i - (N_BODIES / 2))
+    pos[0][i * 4 + 1] = 0.0
     pos[0][i * 4 + 2] = 0.0
-    pos[0][i * 4 + 3] = m[i] # mass is here
-    vel[0][i * 4] = vx[i]
-    vel[0][i * 4 + 1] = vy[i]
+    pos[0][i * 4 + 3] = 100000.0
+    #pos[0][i * 4 + 3] = m[i] # mass is here
+    #vel[0][i * 4] = vx[i]
+    #vel[0][i * 4 + 1] = vy[i]
+    vel[0][i * 4 + 0] = 0.0
+    vel[0][i * 4 + 1] = 0.0
     vel[0][i * 4 + 2] = 0.0
     vel[0][i * 4 + 3] = 0.0
 
-  code = cal_nb_generate_local(SQRT_NBODIES, DT, 2)
+  code = cal_nb_generate_2d(SQRT_NBODIES, DT)
   code.cache_code()
-  print code.render_string
+  #print code.render_string
 
-  code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES * 2, env.cal_exec.FMT_FLOAT32_4))
-
-  #assert(False)
+  #code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES * 2, env.cal_exec.FMT_FLOAT32_4))
 
   t1 = time.time()
-  for i in xrange(0, STEPS, 2):
-    print "STEPS", i
+  proc.copy(localpos[0], pos[0])
+  proc.copy(localvel[0], vel[0])
+
+  for i in xrange(0, STEPS, 1):
+    #print "STEPS", i
     inp = i % 2
     out = (i + 1) % 2
     #cal_nb_exec(proc, code, pos[inp], vel[inp], pos[out], vel[out])
     #glrender.c_nb_step(pos[0].buffer_info()[0], vel[0].buffer_info()[0], DT, N_BODIES)
-    code.set_remote_binding(reg.i0, pos[inp])
-    code.set_remote_binding(reg.i1, vel[inp])
-    code.set_remote_binding(reg.o0, pos[out])
-    code.set_remote_binding(reg.o1, vel[out])
-    code.set_remote_binding(reg.o2, debug)
+    code.set_binding(reg.i0, localpos[inp])
+    code.set_binding(reg.i1, localvel[inp])
+    code.set_binding(reg.o0, localpos[out])
+    code.set_binding(reg.o1, localvel[out])
 
     domain = (0, 0, SQRT_NBODIES, SQRT_NBODIES)
 
-    #debug.clear()
-
+    #t3 = time.time()
     proc.execute(code, domain)
+    #t4 = time.time()
+    #print "step %d time %f" % (i, t4 - t3)
 
-    #print debug
 
+  cpy1 = proc.copy(pos[out], localpos[out], async = True)
+  cpy2 = proc.copy(vel[out], localvel[out], async = True)
+
+  proc.join(cpy1)
+  proc.join(cpy2)
   t2 = time.time()
+
   print "cal_nb_exec time", t2 - t1
 
   total = 0.0
   for i in xrange(0, N_BODIES):
-    diff = abs(pos[0][i * 4] - bx[i])
-    diff += abs(pos[0][i * 4 + 1] - by[i])
+    diff = abs(pos[out][i * 4] - bx[i])
+    diff += abs(pos[out][i * 4 + 1] - by[i])
     #print "y py %f cal %f diff %f" % (by[i], pos[0][i * 4 + 1], diff)
     total += diff
   print "total diff", total
 
+  for i in xrange(0, 16):
+    print "%d %10.8f %10.8f" % (i, pos[out][i * 4], vel[out][i * 4])
+  print
+  for i in xrange(N_BODIES - 16, N_BODIES):
+    print "%d %10.8f %10.8f" % (i, pos[out][i * 4], vel[out][i * 4])
+
   for i in xrange(0, 2):
-    proc.free_remote(pos[i])
-    proc.free_remote(vel[i])
+    proc.free(pos[i])
+    proc.free(vel[i])
 

@@ -28,7 +28,7 @@
 
 # CAL Il instructions
 
-from corepy.spre.spe import Instruction, DispatchInstruction, Register
+from corepy.spre.spe import Instruction, DispatchInstruction
 from cal_insts import *
 
 __doc__="""
@@ -329,249 +329,245 @@ IL_OP_D_LDEXP = 'dldexp'
 IL_OP_D_FRAC = 'dfrac'
 IL_OP_D_MULADD = 'dmad'
 
-class CALILInstruction(Instruction): pass
-class CALILDispatchInstruction(DispatchInstruction):
-  #type_id = [cal_type]
-  pass
 
-class break_(CALILInstruction):
+class break_(Instruction):
   name = 'break'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_BREAK}
 
-class breakc(CALILInstruction):
+class breakc(Instruction):
   name = 'breakc'
   machine_inst = OPCD_RELOP_2_0
   params = {'OPCD':IL_OP_BREAKC}
 
-class break_logicalz(CALILInstruction):
+class break_logicalz(Instruction):
   name = 'break_logicalz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_BREAK_LOGICALZ}
 
-class break_logicalnz(CALILInstruction):
+class break_logicalnz(Instruction):
   name = 'break_logicalnz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_BREAK_LOGICALNZ}
 
-class call(CALILInstruction):
+class call(Instruction):
   name = 'call'
   machine_inst = OPCD_0_0_LBL
   params = {'OPCD':IL_OP_CALL}
 
-class callnz(CALILInstruction):
+class callnz(Instruction):
   name = 'callnz'
   machine_inst = OPCD_1_0_LBL
   params = {'OPCD':IL_OP_CALLNZ}
 
-class call_logicalz(CALILInstruction):
+class call_logicalz(Instruction):
   name = 'call_logicalz'
   machine_inst = OPCD_1_0_LBL
   params = {'OPCD':IL_OP_CALL_LOGICALZ}
 
-class call_logicalnz(CALILInstruction):
+class call_logicalnz(Instruction):
   name = 'call_logicalnz'
   machine_inst = OPCD_1_0_LBL
   params = {'OPCD':IL_OP_CALL_LOGICALNZ}
 
-class case(CALILInstruction):
+class case(Instruction):
   name = 'case'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_CASE}
 
-class continue_(CALILInstruction):
+class continue_(Instruction):
   name = 'continue'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_CONTINUE}
 
-class continuec(CALILInstruction):
+class continuec(Instruction):
   name = 'continuec'
   machine_inst = OPCD_RELOP_2_0
   params = {'OPCD':IL_OP_CONTINUEC}
 
-class continue_logicalz(CALILInstruction):
+class continue_logicalz(Instruction):
   name = 'continue_logicalz'
   machine_inst = OPCD_LOGICOP_1_0
   params = {'OPCD':IL_OP_CONTINUE_LOGICALZ}
 
-class continue_logicalnz(CALILInstruction):
+class continue_logicalnz(Instruction):
   name = 'continue_logicalnz'
   machine_inst = OPCD_LOGICOP_1_0
   params = {'OPCD':IL_OP_CONTINUE_LOGICALNZ}
 
-class default(CALILInstruction):
+class default(Instruction):
   name = 'default'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_DEFAULT}
 
-class else_(CALILInstruction):
+class else_(Instruction):
   name = 'else'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ELSE}
 
-class endswitch(CALILInstruction):
+class endswitch(Instruction):
   name = 'endswitch'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ENDSWITCH}
 
-class endmain(CALILInstruction):
+class endmain(Instruction):
   name = 'endmain'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ENDMAIN}
 
-class end(CALILInstruction):
+class end(Instruction):
   name = 'end'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_END}
 
-class endfunc(CALILInstruction):
+class endfunc(Instruction):
   name = 'endfunc'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ENDFUNC}
 
-class endif(CALILInstruction):
+class endif(Instruction):
   name = 'endif'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ENDIF}
 
-class endloop(CALILInstruction):
+class endloop(Instruction):
   name = 'endloop'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_ENDLOOP}
 
-class func(CALILInstruction):
+class func(Instruction):
   name = 'func'
   machine_inst = OPCD_0_0_LBL
   params = {'OPCD':IL_OP_FUNC}
 
-class ifc(CALILInstruction):
+class ifc(Instruction):
   name = 'ifc'
   machine_inst = OPCD_RELOP_2_0
   params = {'OPCD':IL_OP_IFC}
 
-class ifnz(CALILInstruction):
+class ifnz(Instruction):
   name = 'ifnz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_IFNZ}
 
-class if_logicalnz(CALILInstruction):
+class if_logicalnz(Instruction):
   name = 'iflogicalnz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_IF_LOGICALNZ}
 
-class if_logicalz(CALILInstruction):
+class if_logicalz(Instruction):
   name = 'iflogicalz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_IF_LOGICALZ}
 
-class loop(CALILInstruction):
+class loop(Instruction):
   name = 'loop'
   machine_inst = OPCD_1_0_REPEAT
   params = {'OPCD':IL_OP_LOOP}
 
-class whileloop(CALILInstruction):
+class whileloop(Instruction):
   name = 'whileloop'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_WHILE}
 
-class switch(CALILInstruction):
+class switch(Instruction):
   name = 'switch'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_SWITCH}
 
-class ret(CALILInstruction):
+class ret(Instruction):
   name = 'ret'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_RET}
 
-class ret_dyn(CALILInstruction):
+class ret_dyn(Instruction):
   name = 'ret_dyn'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_RET_DYN}
 
-class ret_logicalnz(CALILInstruction):
+class ret_logicalnz(Instruction):
   name = 'ret_logicalnz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_RET_LOGICALNZ}
 
-class ret_logicalz(CALILInstruction):
+class ret_logicalz(Instruction):
   name = 'ret_logicalz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_RET_LOGICALZ}
 
 # 6.4
 
-class dclarray(CALILInstruction):
+class dclarray(Instruction):
   name = 'dclarray'
   machine_inst = OPCD_2_0
   params = {'OPCD':IL_OP_DCLARRAY}
 
-class dcl_cb(CALILInstruction):
+class dcl_cb(Instruction):
   name = 'dcl_cb'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_DCL_CONST_BUFFER}
 
-class dcldef(CALILInstruction):
+class dcldef(Instruction):
   name = 'dcldef'
   machine_inst = OPCD_XYZWDefault_0_1
   params = {'OPCD':IL_OP_DCLDEF}
 
-class def_(CALILInstruction):
+class def_(Instruction):
   name = 'def'
   machine_inst = OPCD_0_1_L4
   params = {'OPCD':IL_OP_DEF}
 
-class defb(CALILInstruction):
+class defb(Instruction):
   name = 'defb'
   machine_inst = OPCD_0_1_BOOL
   params = {'OPCD':IL_OP_DEFB}
 
-class dcl_indexed_temp_array(CALILInstruction):
+class dcl_indexed_temp_array(Instruction):
   name = 'dcl_indexed_temp_array'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_DCL_INDEXED_TEMP_ARRAY}
 
-class dcl_input(CALILInstruction):
+class dcl_input(Instruction):
   name = 'dcl_input'
   machine_inst = OPCD_USAGE_INTERP_0_1
   params = {'OPCD':IL_DCL_INPUT}
 
-class dcl_input_primitive(CALILInstruction):
+class dcl_input_primitive(Instruction):
   name = 'dcl_input_primitive'
   machine_inst = OPCD_0_0_TOPOLOGY
   params = {'OPCD':IL_DCL_INPUTPRIMITIVE}
 
-class dcl_literal(CALILInstruction):
+class dcl_literal(Instruction):
   name = 'dcl_literal'
   machine_inst = OPCD_1_0_L4
   params = {'OPCD':IL_DCL_LITERAL}
 
-class dcl_max_output_vertex_count(CALILInstruction):
+class dcl_max_output_vertex_count(Instruction):
   name = 'dcl_max_output_vertex_count'
   machine_inst = OPCD_0_0_IL
   params = {'OPCD':IL_DCL_LITERAL}
 
-class dcl_odepth(CALILInstruction):
+class dcl_odepth(Instruction):
   name = 'dcl_odepth'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_DCL_ODEPTH}
 
-class dcl_output_topology(CALILInstruction):
+class dcl_output_topology(Instruction):
   name = 'dcl_output_topology'
   machine_inst = OPCD_0_0_OUTPUTTOPOLOGY
   params = {'OPCD':IL_DCL_OUTPUT_TOPOLOGY}
 
-class dcl_output(CALILInstruction):
+class dcl_output(Instruction):
   name = 'dcl_output'
   machine_inst = OPCD_USAGE_0_1
   params = {'OPCD':IL_DCL_OUTPUT}
 
-class dcl_vprim(CALILInstruction):
+class dcl_vprim(Instruction):
   name = 'dcl_vprim'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_DCL_VPRIM}
 
-class dcl_shared_temp(CALILInstruction):
+class dcl_shared_temp(Instruction):
   name = 'dcl_shared_temp'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_DCL_SHARED_TEMP}
@@ -580,152 +576,152 @@ class dcl_shared_temp(CALILInstruction):
 # TODO: dcl_lds_sharing_mode
 # TODO: dcl_num_thread_per_group
 
-class dclpi(CALILInstruction):
+class dclpi(Instruction):
   name = 'dclpi'
   machine_inst = OPCD_XYZWImport_CENTER_BIAS_INVERT_CENTERED_0_1
   params = {'OPCD':IL_OP_DCLPI}
 
-class dclpin(CALILInstruction):
+class dclpin(Instruction):
   name = 'dclpin'
   machine_inst = OPCD_USAGE_XYZWImport_CENTROID_0_1
   params = {'OPCD':IL_OP_DCLPIN}
 
-class dclpp(CALILInstruction):
+class dclpp(Instruction):
   name = 'dclpp'
   machine_inst = OPCD_PARAM_0_1
   params = {'OPCD':IL_OP_DCLPP}
 
-class dclpt(CALILInstruction):
+class dclpt(Instruction):
   name = 'dclpt'
   machine_inst = OPCD_STAGE_TYPE_COORDMODE_0_0
   params = {'OPCD':IL_OP_DCLPT}
 
-class dcl_resource(CALILInstruction):
+class dcl_resource(Instruction):
   name = 'dcl_resource'
   machine_inst = OPCD_RESOURCE_TYPE_UNNORM_FMT_0_0
   params = {'OPCD':IL_OP_DCL_RESOURCE}
 
-class dclv(CALILInstruction):
+class dclv(Instruction):
   name = 'dclv'
   machine_inst = OPCD_VELEM_XYZWImport_0_1
   params = {'OPCD':IL_OP_DCLV}
 
-class dclvout(CALILInstruction):
+class dclvout(Instruction):
   name = 'dclvout'
   machine_inst = OPCD_USAGE_USAGEINDEX_XYZWImport_0_1
   params = {'OPCD':IL_OP_DCLVOUT}
 
 # 6.5
-class cut(CALILInstruction):
+class cut(Instruction):
   name = 'cut'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_CUT}
 
-class kill(CALILInstruction):
+class kill(Instruction):
   name = 'kill'
   machine_inst = OPCD_STAGE_SAMPLE_1_0
   params = {'OPCD':IL_OP_CUT}
 
-class discard_logicalnz(CALILInstruction):
+class discard_logicalnz(Instruction):
   name = 'discard_logicalnz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_DISCARD_LOGICALNZ}
 
-class discard_logicalz(CALILInstruction):
+class discard_logicalz(Instruction):
   name = 'discard_logicalz'
   machine_inst = OPCD_1_0
   params = {'OPCD':IL_OP_DISCARD_LOGICALZ}
 
-class emit(CALILInstruction):
+class emit(Instruction):
   name = 'emit'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_EMIT}
 
-class emitcut(CALILInstruction):
+class emitcut(Instruction):
   name = 'emitcut'
   machine_inst = OPCD_0_0
   params = {'OPCD':IL_OP_EMIT_THEN_CUT}
 
-class load(CALILInstruction):
+class load(Instruction):
   name = 'load'
   machine_inst = OPCD_RESOURCE_AOFFIMMI_1_1
   params = {'OPCD':IL_OP_LOAD}
 
-class lod(CALILInstruction):
+class lod(Instruction):
   name = 'lod'
   machine_inst = OPCD_STAGE_1_1
   params = {'OPCD':IL_OP_LOD}
 
-class memexport(CALILInstruction):
+class memexport(Instruction):
   name = 'memexport'
   machine_inst = OPCD_STREAM_OFFSET_2_0
   params = {'OPCD':IL_OP_MEMEXPORT}
 
-class memimport(CALILInstruction):
+class memimport(Instruction):
   name = 'memimport'
   machine_inst = OPCD_ELEM_1_1
   params = {'OPCD':IL_OP_MEMIMPORT}
 
-class resinfo(CALILInstruction):
+class resinfo(Instruction):
   name = 'resinfo'
   machine_inst = OPCD_RESOURCE_UINT_1_1
   params = {'OPCD':IL_OP_RESINFO}
 
-class sampleinfo(CALILInstruction):
+class sampleinfo(Instruction):
   name = 'sampleinfo'
   machine_inst = OPCD_RESOURCE_UINT_1_1
   params = {'OPCD':IL_OP_SAMPLEINFO}
 
-class samplepos(CALILInstruction):
+class samplepos(Instruction):
   name = 'samplepos'
   machine_inst = OPCD_RESOURCE_UINT_1_1
   params = {'OPCD':IL_OP_SAMPLEPOS}
 
 # TODO: Figure out how to handle 3 operand case for sample
-class sample(CALILInstruction):
+class sample(Instruction):
   name = 'sample'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_1_1
   params = {'OPCD':IL_OP_SAMPLE}
 
 # TODO: Figure out how to handle 4 operand case for sample_b
-class sample_b(CALILInstruction):
+class sample_b(Instruction):
   name = 'sample_b'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_2_1
   params = {'OPCD':IL_OP_SAMPLE_B}
 
 # is the aoffimmi legitimate? BDM
-class sample_g(CALILInstruction):
+class sample_g(Instruction):
   name = 'sample_g'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_3_1
   params = {'OPCD':IL_OP_SAMPLE_G}
 
-class sample_l(CALILInstruction):
+class sample_l(Instruction):
   name = 'sample_l'
   machine_inst = OPCD_RESOURCE_SAMPLER_2_1
   params = {'OPCD':IL_OP_SAMPLE_L}
 
 # TODO: Figure out how to handle 4 operand case for sample_c_lz
 # is the aoffimmi legitimate? BDM
-class sample_c_lz(CALILInstruction):
+class sample_c_lz(Instruction):
   name = 'sample_c_lz'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_2_1
   params = {'OPCD':IL_OP_SAMPLE_C_LZ}
 
 # TODO: Figure out how to handle 4 operand case for sample_c
 # is the aoffimmi legitimate? BDM
-class sample_c(CALILInstruction):
+class sample_c(Instruction):
   name = 'sample_c'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_2_1
   params = {'OPCD':IL_OP_SAMPLE_C}
 
 # is the aoffimmi legitimate? BDM
-class sample_c_g(CALILInstruction):
+class sample_c_g(Instruction):
   name = 'sample_c_g'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_4_1
   params = {'OPCD':IL_OP_SAMPLE_C_G}
 
 # is the aoffimmi legitimate? BDM
-class sample_c_l(CALILInstruction):
+class sample_c_l(Instruction):
   name = 'sample_c_l'
   machine_inst = OPCD_RESOURCE_SAMPLER_AOFFIMMI_3_1
   params = {'OPCD':IL_OP_SAMPLE_C_L}
@@ -735,638 +731,638 @@ class sample_c_l(CALILInstruction):
 # TODO: TEXLDD
 # TODO: TEXLDMS
 
-class texweight(CALILInstruction):
+class texweight(Instruction):
   name = 'texweight'
   machine_inst = OPCD_STAGE_1_1
   params = {'OPCD':IL_OP_TEXWEIGHT}
 
-class lds_read_vec(CALILInstruction):
+class lds_read_vec(Instruction):
   name = 'lds_read_vec'
   machine_inst = OPCD_NEIGHBOREXCH_SHARINGMODE_1_1
   params = {'OPCD':IL_OP_LDS_READ_VEC}
 
-class lds_write_vec(CALILInstruction):
+class lds_write_vec(Instruction):
   name = 'lds_write_vec'
   machine_inst = OPCD_LOFFSET_SHARINGMODE_1_1
   params = {'OPCD':IL_OP_LDS_WRITE_VEC}
 
-class fence(CALILInstruction):
+class fence(Instruction):
   name = 'fence'
   machine_inst = OPCD_THREADS_LDS_MEMORY_SR_0_0
   params = {'OPCD':IL_OP_FENCE}
 
 # 6.6
-class iand(CALILInstruction):
+class iand(Instruction):
   name = 'iand'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_IAND}
 
-class inot(CALILInstruction):
+class inot(Instruction):
   name = 'inot'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_I_NOT}
 
-class ior(CALILInstruction):
+class ior(Instruction):
   name = 'ior'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_OR}
 
-class ixor(CALILInstruction):
+class ixor(Instruction):
   name = 'ixor'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_XOR}
 
-class iadd(CALILInstruction):
+class iadd(Instruction):
   name = 'iadd'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_ADD}
 
-class imad(CALILInstruction):
+class imad(Instruction):
   name = 'imad'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_I_MAD}
 
-class imax(CALILInstruction):
+class imax(Instruction):
   name = 'imax'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_MAX}
 
-class imin(CALILInstruction):
+class imin(Instruction):
   name = 'imin'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_MIN}
 
-class imul(CALILInstruction):
+class imul(Instruction):
   name = 'imul'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_I_MUL}
 
-class imul_high(CALILInstruction):
+class imul_high(Instruction):
   name = 'imul_high'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_MUL_HIGH}
 
-class ieq(CALILInstruction):
+class ieq(Instruction):
   name = 'ieq'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_EQ}
 
-class ige(CALILInstruction):
+class ige(Instruction):
   name = 'ige'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_GE}
 
-class ilt(CALILInstruction):
+class ilt(Instruction):
   name = 'ilt'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_LT}
 
-class ine(CALILInstruction):
+class ine(Instruction):
   name = 'ine'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_NE}
 
-class inegate(CALILInstruction):
+class inegate(Instruction):
   name = 'inegate'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_I_NEGATE}
 
-class ishl(CALILInstruction):
+class ishl(Instruction):
   name = 'ishl'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_SHL}
 
-class ishr(CALILInstruction):
+class ishr(Instruction):
   name = 'ishr'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_I_SHR}
 
 # 6.7
-class ushr(CALILInstruction):
+class ushr(Instruction):
   name = 'ushr'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_SHR}
 
-class udiv(CALILInstruction):
+class udiv(Instruction):
   name = 'udiv'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_DIV}
 
 
-class umod(CALILInstruction):
+class umod(Instruction):
   name = 'umod'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_MOD}
 
-class umad(CALILInstruction):
+class umad(Instruction):
   name = 'umad'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_U_MAD}
 
-class umax(CALILInstruction):
+class umax(Instruction):
   name = 'iuax'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_MAX}
 
-class umin(CALILInstruction):
+class umin(Instruction):
   name = 'umin'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_MIN}
 
-class uge(CALILInstruction):
+class uge(Instruction):
   name = 'uge'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_GE}
 
-class ult(CALILInstruction):
+class ult(Instruction):
   name = 'ult'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_LT}
 
-class umul(CALILInstruction):
+class umul(Instruction):
   name = 'umul'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_MUL}
 
-class umul_high(CALILInstruction):
+class umul_high(Instruction):
   name = 'umul_high'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_U_MUL_HIGH}
 
 # 6.8
 
-class ftoi(CALILInstruction):
+class ftoi(Instruction):
   name = 'ftoi'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_FTOI}
 
-class ftou(CALILInstruction):
+class ftou(Instruction):
   name = 'ftou'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_FTOU}
 
-class itof(CALILInstruction):
+class itof(Instruction):
   name = 'itof'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ITOF}
 
-class utof(CALILInstruction):
+class utof(Instruction):
   name = 'utof'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_UTOF}
 
-class d2f(CALILInstruction):
+class d2f(Instruction):
   name = 'd2f'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_D_2_F}
 
-class f2d(CALILInstruction):
+class f2d(Instruction):
   name = 'f2d'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_F_2_D}
 
 # 6.9
 
-class abs(CALILInstruction):
+class abs(Instruction):
   name = 'abs'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ABS}
 
-class add(CALILInstruction):
+class add(Instruction):
   name = 'add'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_ADD}
 
-class acos(CALILInstruction):
+class acos(Instruction):
   name = 'acos'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ACOS}
 
-class and_(CALILInstruction):
+class and_(Instruction):
   name = 'and'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_AND}
 
-class asin(CALILInstruction):
+class asin(Instruction):
   name = 'asin'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ASIN}
 
-class atan(CALILInstruction):
+class atan(Instruction):
   name = 'atan'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ATAN}
 
-class clamp(CALILInstruction):
+class clamp(Instruction):
   name = 'clamp'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_CLAMP}
 
-class clg(CALILInstruction):
+class clg(Instruction):
   name = 'clg'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_CLG}
 
-class cmov(CALILInstruction):
+class cmov(Instruction):
   name = 'cmov'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_CMOV}
 
-class cmov_logical(CALILInstruction):
+class cmov_logical(Instruction):
   name = 'cmov_logical'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_CMOV_LOGICAL}
 
-class cmp(CALILInstruction):
+class cmp(Instruction):
   name = 'cmp'
   machine_inst = OPCD_RELOP_CMPVAL_3_1
   params = {'OPCD':IL_OP_CMP}
 
-class colorclamp(CALILInstruction):
+class colorclamp(Instruction):
   name = 'colorclamp'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_COLORCLAMP}
 
-class cos(CALILInstruction):
+class cos(Instruction):
   name = 'cos'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_COS}
 
-class crs(CALILInstruction):
+class crs(Instruction):
   name = 'crs'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_CRS}
 
-class dist(CALILInstruction):
+class dist(Instruction):
   name = 'dist'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_DIST}
  
-class div(CALILInstruction):
+class div(Instruction):
   name = 'div'
   machine_inst = OPCD_ZEROOP_2_1
   params = {'OPCD':IL_OP_DIV}
 
-class dp2add(CALILInstruction):
+class dp2add(Instruction):
   name = 'dp2add'
   machine_inst = OPCD_IEEE_3_1
   params = {'OPCD':IL_OP_DP2ADD}
 
-class dp2(CALILInstruction):
+class dp2(Instruction):
   name = 'dp2'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_DP2}
 
-class dp3(CALILInstruction):
+class dp3(Instruction):
   name = 'dp3'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_DP3}
 
-class dp4(CALILInstruction):
+class dp4(Instruction):
   name = 'dp4'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_DP4}
 
-class dst(CALILInstruction):
+class dst(Instruction):
   name = 'dst'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_DST}
 
-class dsx(CALILInstruction):
+class dsx(Instruction):
   name = 'dsx'
   machine_inst = OPCD_CENTROID_1_1
   params = {'OPCD':IL_OP_DSX}
 
-class dsy(CALILInstruction):
+class dsy(Instruction):
   name = 'dsy'
   machine_inst = OPCD_CENTROID_1_1
   params = {'OPCD':IL_OP_DSY}
 
-class dxsincos(CALILInstruction):
+class dxsincos(Instruction):
   name = 'dxsincos'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_DXSINCOS}
 
-class eq(CALILInstruction):
+class eq(Instruction):
   name = 'eq'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_EQ}
 
-class exn(CALILInstruction):
+class exn(Instruction):
   name = 'exn'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_EXN}
 
-class exp(CALILInstruction):
+class exp(Instruction):
   name = 'exp'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_EXP}
 
-class exp_vec(CALILInstruction):
+class exp_vec(Instruction):
   name = 'exp_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_EXP_VEC}
 
-class expp(CALILInstruction):
+class expp(Instruction):
   name = 'expp'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_EXPP}
 
-class faceforward(CALILInstruction):
+class faceforward(Instruction):
   name = 'faceforward'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_FACEFORWARD}
 
-class flr(CALILInstruction):
+class flr(Instruction):
   name = 'flr'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_FLR}
 
-class frc(CALILInstruction):
+class frc(Instruction):
   name = 'frc'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_FRC}
 
-class fwidth(CALILInstruction):
+class fwidth(Instruction):
   name = 'fwidth'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_FWIDTH}
 
-class ge(CALILInstruction):
+class ge(Instruction):
   name = 'ge'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_GE}
 
-class len(CALILInstruction):
+class len(Instruction):
   name = 'len'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_LEN}
 
-class lit(CALILInstruction):
+class lit(Instruction):
   name = 'lit'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_LIT}
 
-class ln(CALILInstruction):
+class ln(Instruction):
   name = 'ln'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_LN}
 
-class log(CALILInstruction):
+class log(Instruction):
   name = 'log'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_LOG}
 
-class log_vec(CALILInstruction):
+class log_vec(Instruction):
   name = 'log_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_LOG_VEC}
 
-class logp(CALILInstruction):
+class logp(Instruction):
   name = 'logp'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_LOGP}
 
-class lrp(CALILInstruction):
+class lrp(Instruction):
   name = 'lrp'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_LRP}
 
-class lt(CALILInstruction):
+class lt(Instruction):
   name = 'lt'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_LT}
 
-class mad(CALILInstruction):
+class mad(Instruction):
   name = 'mad'
   machine_inst = OPCD_IEEE_3_1
   params = {'OPCD':IL_OP_MAD}
 
-class max(CALILInstruction):
+class max(Instruction):
   name = 'max'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_MAX}
 
-class min(CALILInstruction):
+class min(Instruction):
   name = 'min'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_MIN}
 
-class mmul(CALILInstruction):
+class mmul(Instruction):
   name = 'mmul'
   machine_inst = OPCD_MATRIX_2_1
   params = {'OPCD':IL_OP_MMUL}
 
-class mod(CALILInstruction):
+class mod(Instruction):
   name = 'mod'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_MOD}
 
-class invariant_move(CALILInstruction):
+class invariant_move(Instruction):
   name = 'invariant_move'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_INVARIANT_MOV}
 
-class mov(CALILInstruction):
+class mov(Instruction):
   name = 'mov'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_MOV}
 
-class mova(CALILInstruction):
+class mova(Instruction):
   name = 'mova'
   machine_inst = OPCD_ROUND_1_1
   params = {'OPCD':IL_OP_MOVA}
 
-class mul(CALILInstruction):
+class mul(Instruction):
   name = 'mul'
   machine_inst = OPCD_IEEE_2_1
   params = {'OPCD':IL_OP_MUL}
 
-class ne(CALILInstruction):
+class ne(Instruction):
   name = 'ne'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_NE}
 
-class noise(CALILInstruction):
+class noise(Instruction):
   name = 'noise'
   machine_inst = OPCD_NOISETYPE_1_1
   params = {'OPCD':IL_OP_NOISE}
 
 
-class nrm(CALILInstruction):
+class nrm(Instruction):
   name = 'nrm'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_NRM}
 
 
-class pireduce(CALILInstruction):
+class pireduce(Instruction):
   name = 'pireduce'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_PIREDUCE}
 
-class pow(CALILInstruction):
+class pow(Instruction):
   name = 'pow'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_POW}
 
-class rcp(CALILInstruction):
+class rcp(Instruction):
   name = 'rcp'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_RCP}
 
-class reflect(CALILInstruction):
+class reflect(Instruction):
   name = 'reflect'
   machine_inst = OPCD_NORMALIZE_2_1
   params = {'OPCD':IL_OP_REFLECT}
 
-class rnd(CALILInstruction):
+class rnd(Instruction):
   name = 'rnd'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_RND}
 
-class round_nearest(CALILInstruction):
+class round_nearest(Instruction):
   name = 'round_nearest'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ROUND_NEAR}
 
-class round_neginf(CALILInstruction):
+class round_neginf(Instruction):
   name = 'round_neginf'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ROUND_NEG_INF}
 
-class round_posinf(CALILInstruction):
+class round_posinf(Instruction):
   name = 'round_posinf'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ROUND_POS_INF}
 
-class round_z(CALILInstruction):
+class round_z(Instruction):
   name = 'round_z'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_ROUND_ZERO}
 
-class rsq_vec(CALILInstruction):
+class rsq_vec(Instruction):
   name = 'rsq_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_RSQ_VEC}
 
-class rsq(CALILInstruction):
+class rsq(Instruction):
   name = 'rsq'
   machine_inst = OPCD_ZEROOP_1_1
   params = {'OPCD':IL_OP_RSQ}
 
-class set(CALILInstruction):
+class set(Instruction):
   name = 'set'
   machine_inst = OPCD_RELOP_2_1
   params = {'OPCD':IL_OP_SET}
 
-class sgn(CALILInstruction):
+class sgn(Instruction):
   name = 'sgn'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SGN}
 
-class sin(CALILInstruction):
+class sin(Instruction):
   name = 'sin'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SIN}
 
-class sincos(CALILInstruction):
+class sincos(Instruction):
   name = 'sincos'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SINCOS}
 
-class sin_vec(CALILInstruction):
+class sin_vec(Instruction):
   name = 'sin_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SIN_VEC}
 
-class cos_vec(CALILInstruction):
+class cos_vec(Instruction):
   name = 'cos_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_COS_VEC}
 
-class sqrt(CALILInstruction):
+class sqrt(Instruction):
   name = 'sqrt'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SQRT}
 
-class sqrt_vec(CALILInstruction):
+class sqrt_vec(Instruction):
   name = 'sqrt_vec'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_SQRT_VEC}
 
-class sub(CALILInstruction):
+class sub(Instruction):
   name = 'sub'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_SUB}
 
-class tan(CALILInstruction):
+class tan(Instruction):
   name = 'tan'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_TAN}
 
-class transpose(CALILInstruction):
+class transpose(Instruction):
   name = 'transpose'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_TRANSPOSE}
 
-class trc(CALILInstruction):
+class trc(Instruction):
   name = 'trc'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_TRC}
 
 # 6.10
 
-class dne(CALILInstruction):
+class dne(Instruction):
   name = 'dne'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_NE}
 
-class deq(CALILInstruction):
+class deq(Instruction):
   name = 'deq'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_EQ}
 
-class dge(CALILInstruction):
+class dge(Instruction):
   name = 'dge'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_GE}
 
-class dlt(CALILInstruction):
+class dlt(Instruction):
   name = 'dlt'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_LT}
 
-class dfrexp(CALILInstruction):
+class dfrexp(Instruction):
   name = 'dfrexp'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_D_FREXP}
 
-class dadd(CALILInstruction):
+class dadd(Instruction):
   name = 'dadd'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_ADD}
 
-class dmul(CALILInstruction):
+class dmul(Instruction):
   name = 'dmul'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_MUL}
 
-class ddiv(CALILInstruction):
+class ddiv(Instruction):
   name = 'ddiv'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_DIV}
 
-class dldexp(CALILInstruction):
+class dldexp(Instruction):
   name = 'dldexp'
   machine_inst = OPCD_2_1
   params = {'OPCD':IL_OP_D_LDEXP}
 
-class dfrac(CALILInstruction):
+class dfrac(Instruction):
   name = 'dfrac'
   machine_inst = OPCD_1_1
   params = {'OPCD':IL_OP_D_FRAC}
 
-class dmad(CALILInstruction):
+class dmad(Instruction):
   name = 'dmad'
   machine_inst = OPCD_3_1
   params = {'OPCD':IL_OP_D_MULADD}

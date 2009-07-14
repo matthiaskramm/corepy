@@ -56,6 +56,6 @@ def get_active_code():
 
 for l in locals().values():
   if isinstance(l, type):
-    if issubclass(l, CALILInstruction) or issubclass(l, CALILDispatchInstruction):
+    if issubclass(l, Instruction) or issubclass(l, DispatchInstruction):
       l.active_code = property(__get_active_code) 
 
