@@ -47,6 +47,7 @@ class divcomp:
   z = 'z'
   w = 'w'
 
+
 class Address(object):
   def __init__(self, base, offset):
     if not isinstance(base, QualifiedCALRegister) and not isinstance(CALRegister):
@@ -62,9 +63,11 @@ class Address(object):
   def __str__(self):
     return self.render()
 
+
 class CALRegister(spe.Register):
   def __init__(self, reg, name = None):
-    spe.Register.__init__(self, reg, name = name)
+    spe.Register.__init__(self, name)
+    self.reg = reg
     return
 
   def __add__(self, other):
@@ -80,7 +83,8 @@ class CALRegister(spe.Register):
       raise "Can't do that with a CALRegister."
 
   def __eq__(self, other):
-    return type(self) == type(other) and self.reg == other.reg and self.name == other.name
+    # TODO - AWF - allow string names like "i0" to be equal?
+    return type(self) == type(other) and self.name == other.name
 
   def __call__(self, swizzle_str = '', abs = False, bias = False, bx2 = False, invert = False, sign = False, x2 = False, neg = '', divcomp = None):
     """
@@ -106,6 +110,7 @@ class CALRegister(spe.Register):
 
   def render(self):
     return self.name
+
     
 # This is the register type that will be seen by the ISA WHENEVER any source modifiers or swizzles 
 # are present. It's job is basically to generate a string based on all of the modifiers.
@@ -233,6 +238,7 @@ class QualifiedCALRegister(CALRegister):
   def GetBaseRegister(self):
     return self.cal_reg
 
+
 class CALBuffer:
   def __init__(self, buffer, name, rel_addressable=False):
     # right now, buffer and name should match
@@ -260,6 +266,7 @@ class CALBuffer:
     if name not in globals():
       globals()[name] = CALRegister(name, name=name)
     return globals()[name]
+
 
 class TempRegister(CALRegister): pass
 class LiteralRegister(CALRegister): pass
@@ -313,8 +320,9 @@ def TestRelativeAddressing():
   for i in range(16*1*4):
     for j in range(4):
       input_mem[i*4 + j] = i
-    
-  code = env.InstructionStream()
+
+  prgm = env.Program()  
+  code = prgm.get_stream()
   cal.set_active_code(code)
     
   cal.dcl_output(o0, USAGE=cal.usage.generic)
@@ -332,11 +340,14 @@ def TestRelativeAddressing():
 
   cal.mov(o0, r1)
   
-  code.set_remote_binding('g[]', input_mem)
-  code.set_remote_binding('o0', output_mem)
-  
+  prgm.set_binding('g[]', input_mem)
+  prgm.set_binding('o0', output_mem)
+
+  prgm.add(code)
   domain = (0, 0, 128, 128)
-  proc.execute(code, domain)
+
+  prgm.print_code()
+  proc.execute(prgm, domain)
   
   # code.cache_code()
   # print code.render_string
@@ -346,8 +357,8 @@ def TestRelativeAddressing():
   else:
     print "Failed relative addressing test"
 
-  proc.free_remote(input_mem)
-  proc.free_remote(output_mem)
+  proc.free(input_mem)
+  proc.free(output_mem)
 
 
 def TestRelativeAddressing2():
@@ -362,8 +373,9 @@ def TestRelativeAddressing2():
   for i in range(17*1*4):
     for j in range(4):
       input_mem[i*4 + j] = i
-    
-  code = env.InstructionStream()
+
+  prgm = env.Program() 
+  code = prgm.get_stream()
   cal.set_active_code(code)
     
   cal.dcl_output(o0, USAGE=cal.usage.generic)
@@ -384,11 +396,12 @@ def TestRelativeAddressing2():
   #code.cache_code()
   #print code.render_string
   
-  code.set_remote_binding('g[]', input_mem)
-  code.set_remote_binding('o0', output_mem)
+  prgm.set_binding('g[]', input_mem)
+  prgm.set_binding('o0', output_mem)
   
   domain = (0, 0, 128, 128)
-  proc.execute(code, domain)
+  prgm.add(code)
+  proc.execute(prgm, domain)
    
   if output_mem[0] == 136:
     print "Passed relative addressing with offset test"
@@ -396,8 +409,8 @@ def TestRelativeAddressing2():
     print "Failed relative addressing with offset test"
   # print output_mem
  
-  proc.free_remote(input_mem)
-  proc.free_remote(output_mem)
+  proc.free(input_mem)
+  proc.free(output_mem)
 
 
 if __name__ == '__main__':

@@ -35,7 +35,8 @@ from corepy.arch.spu.lib.util import load_word
 if __name__ == '__main__':
   a = extarray.extarray('i', range(0, 32))
   b = extarray.extarray('i', [0 for i in range(0, 32)])
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   proc = env.Processor()
 
   spu.set_active_code(code)
@@ -50,8 +51,9 @@ if __name__ == '__main__':
   dma.mem_put(code, 0x1000, bbi[0], bbi[1] * b.itemsize, 2)
   dma.mem_complete(code, 2)
 
-  code.print_code()
-  proc.execute(code)
+  prgm.add(code)
+  prgm.print_code()
+  proc.execute(prgm)
  
   for i in range(0, 32):
     if b[i] != i:

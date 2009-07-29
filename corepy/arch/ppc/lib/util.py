@@ -42,13 +42,22 @@ def load_word(code, r_target, word):
   
   This can be used for any value greater than 2^16.
   """
-  # Put the lower 16 bits into r-temp
+
+  # Put the lower 16 bits into r_target
   start = code.add(ppc.addi(r_target, 0, word & 0xFFFF))
-  
-  # Addis r-temp with the upper 16 bits (shifted add immediate) and
-  # put the result in r-target
-  if (word & 0xFFFF) != word:
-    code.add(ppc.addis(r_target, r_target, ((word + 32768) >> 16) & 0xFFFF))
+
+  uw = (word >> 16) & 0xFFFF
+  msb = word & 0x8000
+
+  if msb != 0:
+    # lower 16-bit MSB is set, upper 16 bits are 1, adjust uw
+    # If all upper 16 bits are 1, that is the value -1, so add 1 back in.
+    uw = (uw + 1) & 0xFFFF
+
+  # Only issue addis if the value added (uw) is not zero.
+  if uw != 0:
+    code.add(ppc.addis(r_target, r_target, uw))
+
   return start
 
 
@@ -56,11 +65,11 @@ def load_vector(code, v_target, addr):
   """
   Generate the code to load a vector into a vector register.
   """
-  r_temp = code.acquire_register()
+  r_temp = code.prgm.acquire_register()
 
   load_word(code, r_temp, addr)
   code.add(vmx.lvx(v_target, 0, r_temp))
-  code.release_register(r_temp)
+  code.prgm.release_register(r_temp)
   
   return
 
@@ -82,10 +91,10 @@ def RunTest(test, *ops):
 
 
 def return_var(var):
-  if isinstance(var.reg, type(var.code.gp_return)):
-    var.code.add(ppc.addi(var.code.gp_return, var, 0))
-  elif isinstance(var.reg, type(var.code.fp_return)):
-    var.code.add(ppc.fmrx(var.code.fp_return, var))
+  if isinstance(var.reg, type(var.code.prgm.gp_return)):
+    var.code.add(ppc.addi(var.code.prgm.gp_return, var, 0))
+  elif isinstance(var.reg, type(var.code.prgm.fp_return)):
+    var.code.add(ppc.fmrx(var.code.prgm.fp_return, var))
   else:
     raise Exception('Return not supported for %s registers' % (str(type(var.reg))))
   return

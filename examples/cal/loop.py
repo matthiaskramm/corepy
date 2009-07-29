@@ -6,16 +6,16 @@ import corepy.arch.cal.platform as env
 import math
 import ctypes
 
-def generate():
-  code = env.InstructionStream()
+def generate(prgm):
+  code = prgm.get_stream()
   cal.set_active_code(code)
 
-  r_count = code.acquire_register()
-  #r_cx = code.acquire_register()
-  #r_cy = code.acquire_register()
-  r_sum = code.acquire_register()
-  r_limit = code.acquire_register((64.0,) * 4)
-  r_cmp = code.acquire_register()
+  r_count = prgm.acquire_register()
+  #r_cx = prgm.acquire_register()
+  #r_cy = prgm.acquire_register()
+  r_sum = prgm.acquire_register()
+  r_limit = prgm.acquire_register((64.0,) * 4)
+  r_cmp = prgm.acquire_register()
 
   cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
 
@@ -50,14 +50,17 @@ def generate():
 
 if __name__ == '__main__':
   SIZE = 64
-  code = generate()
-  proc = env.Processor(1)
+
+  prgm = env.Program()
+  prgm.add(generate(prgm))
+
+  proc = env.Processor(0)
 
   out = proc.alloc_remote('f', 4, SIZE, SIZE)
-  code.set_binding(reg.o0, out)
+  prgm.set_binding(reg.o0, out)
 
-  proc.execute(code, (0, 0, SIZE, SIZE))
+  proc.execute(prgm, (0, 0, SIZE, SIZE))
 
   print out
-  print code.render_string
+  prgm.print_code()
 

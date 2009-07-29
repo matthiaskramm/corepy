@@ -61,11 +61,12 @@ def vector_from_array(code, r_target, a):
   Generate the instructions to fill a vector register with the values
   from an array.
   """
+  prgm = code.prgm
   r0 = r_target
 
-  r1 = code.acquire_register()
-  r2 = code.acquire_register()
-  r3 = code.acquire_register()
+  r1 = prgm.acquire_register()
+  r2 = prgm.acquire_register()
+  r3 = prgm.acquire_register()
 
   load_word(code, r0, a[0], True)
   load_word(code, r1, a[1], True)
@@ -81,9 +82,9 @@ def vector_from_array(code, r_target, a):
   code.add(spu.a(r0, r0, r2))
   code.add(spu.a(r0, r0, r3))
 
-  code.release_register(r1)
-  code.release_register(r2)
-  code.release_register(r3)
+  prgm.release_register(r1)
+  prgm.release_register(r2)
+  prgm.release_register(r3)
 
   return
 
@@ -95,14 +96,16 @@ def set_slot_value(code, reg, slot, value):
   constant, load it into reg[slot], preserving the values in the other
   slots.
   """
+  prgm = code.prgm
+
   if slot not in [0,1,2,3]:
     raise Exception("Invalid SIMD slot: " + slot)
 
-  mask = code.acquire_register()
+  mask = prgm.acquire_register()
   vector_from_array(code, mask, [0xFFFFFFFF, 0, 0, 0])
 
   if not issubclass(type(value), (spe.Register, spe.Variable)):
-    r_value = code.acquire_register()
+    r_value = prgm.acquire_register()
     load_word(code, r_value, value)
   else:
     r_value = value
@@ -111,9 +114,9 @@ def set_slot_value(code, reg, slot, value):
   code.add(spu.selb(reg, reg, r_value, mask))
   code.add(spu.rotqbyi(reg, reg, (4 - slot) * 4))
 
-  code.release_register(mask)
+  prgm.release_register(mask)
   if not issubclass(type(value), (spe.Register, spe.Variable)):
-    code.release_register(r_value)
+    prgm.release_register(r_value)
   return
 
 
@@ -137,14 +140,14 @@ def get_param_reg(code, param, dict, copy = True):
   if isinstance(param, (spe.Register, spe.Variable)):
     if copy == True:
       # TODO - behave differently if at an even/odd spot
-      reg = code.acquire_register()
+      reg = code.prgm.acquire_register()
       code.add(spu.ori(reg, param, 0))
       dict[reg] = True
     else:
       reg = param
       dict[reg] = False
   else: # TODO - check types?
-    reg = code.acquire_register()
+    reg = code.prgm.acquire_register()
     load_word(code, reg, param)
     dict[reg] = True
 
@@ -156,7 +159,7 @@ def put_param_reg(code, reg, dict):
      provided dictionary indicates it was acquired by get_param_reg()/
   """
   if dict[reg] == True:
-    code.release_register(reg)
+    code.prgm.release_register(reg)
 
 
 # ------------------------------------------------------------
@@ -165,11 +168,11 @@ def put_param_reg(code, reg, dict):
 
 def TestSetSlotValue():
   import corepy.arch.spu.platform as synspu
-  import corepy.arch.spu.isa as spu
   import corepy.arch.spu.types.spu_types as var
   import corepy.arch.spu.lib.dma as dma
 
-  code = synspu.InstructionStream()
+  prgm = synspu.Program()
+  code = prgm.get_stream()
   proc = synspu.Processor()
   spu.set_active_code(code)
   a = var.SignedWord(0x11)
@@ -185,7 +188,8 @@ def TestSetSlotValue():
     spu.wrch(r, dma.SPU_WrOutMbox)
     spu.rotqbyi(r, r, 4)
 
-  spe_id = proc.execute(code, mode = 'async')
+  prgm.add(code)
+  spe_id = proc.execute(prgm, async = True)
 
   for i in range(4):
     while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass

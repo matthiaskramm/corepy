@@ -53,21 +53,59 @@ WORD_BITS = WORD_SIZE * 8 # number of bits in a word
 # InstructionStream
 # ------------------------------------------------------------
 
-class InstructionStream(spe.InstructionStream):
-  """
-  x86 Linux ABI 
-  """
+class InstructionStream(spe.InstructionStream): pass
 
+
+class Program(spe.Program):
+  exec_module = x86_exec
   default_register_type = GPRegister32
   instruction_type  = 'B'
-  exec_module = x86_exec
 
   gp_return = eax
   fp_return = st0
- 
+
+  stream_type = InstructionStream
+
+
+  def create_register_files(self):
+    # Certain registers should never be available to be acquired
+    # eax/ecx/edx/esp/ebp are used implicitly, so users always need them
+    # available.  Don't include them in the register pool.
+    self._register_avail_bins = [#(eax, ax", "al"),
+                                 (ebx, bx, bl),
+                                 #(ecx, cx, cl),
+                                 #(edx, dx, dl),
+                                 #(esp, sp, None),
+                                 #(ebp, bp, None),
+                                 (esi, si, None),
+                                 (edi, di, None)]
+
+    # Map GP register types to position in the bin tuples above
+    self._reg_map = {GPRegister32:0, GPRegister16:1, GPRegister8:2}
+
+    # FP/MMX/XMM regs can be treated just like other archs
+    # Skip st0, it's a special register that should always be used explicitly,
+    # not via acquire/release.
+    self._register_files[FPRegister] = ["st%d" % i for i in xrange(1, 8)]
+    self._register_files[MMXRegister] = ["mm%d" % i for i in xrange(0, 8)]
+    self._register_files[XMMRegister] = ["xmm%d" % i for i in xrange(0, 8)]
+
+    RegisterFiles = (('gp8', GPRegister8),   ('gp16', GPRegister16),
+                     ('gp32', GPRegister32), ('st', FPRegister),
+                     ('mm', MMXRegister),    ('xmm', XMMRegister))
+
+    for (reg_type, cls) in RegisterFiles:
+      self._reg_type[reg_type] = cls
+    return
+
+
   # ------------------------------
   # Execute/ABI support
   # ------------------------------
+
+  def make_executable(self):
+    self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
+
 
   def _synthesize_prologue(self):
     """
@@ -76,53 +114,29 @@ class InstructionStream(spe.InstructionStream):
     This manages the register preservation requirements from the ABI.
     """
 
-    # Reset the prologue
-    self._prologue = [self.lbl_prologue]
-
     # Set up the call frame and push callee-save registers
-    self._prologue.append(x86.push(ebp, ignore_active = True))
-    self._prologue.append(x86.mov(ebp, esp, ignore_active = True))
-    self._prologue.append(x86.push(edi, ignore_active = True))
-    self._prologue.append(x86.push(esi, ignore_active = True))
-    self._prologue.append(x86.push(ebx, ignore_active = True))
-
+    self._prologue = [self.lbl_prologue,
+                      x86.push(ebp, ignore_active = True),
+                      x86.mov(ebp, esp, ignore_active = True),
+                      x86.push(edi, ignore_active = True),
+                      x86.push(esi, ignore_active = True),
+                      x86.push(ebx, ignore_active = True)]
     return
+
 
   def _synthesize_epilogue(self):
     """
-    Save the caller-save registers
+    Restore the caller-save registers
     """
 
-    # Reset the epilogue
-    self._epilogue = [self.lbl_epilogue]
-
     # Pop callee-save regs and clean up the stack frame
-    self._epilogue.append(x86.pop(ebx, ignore_active = True))
-    self._epilogue.append(x86.pop(esi, ignore_active = True))
-    self._epilogue.append(x86.pop(edi, ignore_active = True))
-    self._epilogue.append(x86.leave(ignore_active = True))
-    self._epilogue.append(x86.ret(ignore_active = True))
+    self._epilogue = [self.lbl_epilogue,
+                      x86.pop(ebx, ignore_active = True),
+                      x86.pop(esi, ignore_active = True),
+                      x86.pop(edi, ignore_active = True),
+                      x86.leave(ignore_active = True),
+                      x86.ret(ignore_active = True)]
     return
-
-
-  def make_executable(self):
-    self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
-
-
-  def create_register_files(self):
-      self._register_files[GPRegister8] = spe.RegisterFile(gp8_array, "gp8")
-      self._register_files[GPRegister16] = spe.RegisterFile(gp16_array, "gp16")
-      self._register_files[GPRegister32] = spe.RegisterFile(gp32_array, "gp32")
-      self._register_files[FPRegister] = spe.RegisterFile(st_array, "st")
-      self._register_files[MMXRegister] = spe.RegisterFile(mm_array, "mm")
-      self._register_files[XMMRegister] = spe.RegisterFile(xmm_array, "xmm")
-      self._reg_type["gp8"] = GPRegister8
-      self._reg_type["gp16"] = GPRegister16
-      self._reg_type["gp32"] = GPRegister32
-      self._reg_type["st"] = FPRegister
-      self._reg_type["mm"] = MMXRegister
-      self._reg_type["xmm"] = XMMRegister
-
 
 
 class Processor(spe.Processor):

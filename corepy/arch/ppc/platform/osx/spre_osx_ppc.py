@@ -32,11 +32,9 @@ ABI on PowerPC/AltiVec processors - G4/G5 or IBM PPC 7400/7410/970.
 """
 
 import array
-import sys
-
+import corepy.lib.extarray as extarray
 import corepy.spre.spe as spe
 import ppc_exec
-# from synnumeric import array_address
 
 import corepy.arch.ppc.isa as ppc
 import corepy.arch.vmx.isa as vmx
@@ -50,16 +48,60 @@ ExecParams = ppc_exec.ExecParams
 # ------------------------------
 
 class GPRegister(spe.Register):
-  def __init__(self, reg):
-    spe.Register.__init__(self, reg, prefix = 'r')
+  def __init__(self, name):
+    if isinstance(name, int):
+      self.reg = name
+      self.name = "r%d" % name
+    elif isinstance(name, str):
+      self.name = name
+      try:
+        self.reg = int(name[1:])
+      except ValueError:
+        raise Exception("Invalid register name %s" % name)
+
+      if name[0] != 'r':
+        raise Exception("Invalid register name %s" % name)
+    else:
+      raise Exception("Invalid register name %s" % str(name))
+    return
+
 
 class FPRegister(spe.Register):
-  def __init__(self, reg):
-    spe.Register.__init__(self, reg, prefix = 'f')
+  def __init__(self, name):
+    if isinstance(name, int):
+      self.reg = name
+      self.name = "f%d" % name
+    elif isinstance(name, str):
+      self.name = name
+      try:
+        self.reg = int(name[1:])
+      except ValueError:
+        raise Exception("Invalid register name %s" % name)
+
+      if name[0] != 'f':
+        raise Exception("Invalid register name %s" % name)
+    else:
+      raise Exception("Invalid register name %s" % str(name))
+    return
+
 
 class VMXRegister(spe.Register): 
-  def __init__(self, reg):
-    spe.Register.__init__(self, reg, prefix = 'v')
+  def __init__(self, name):
+    if isinstance(name, int):
+      self.reg = name
+      self.name = "v%d" % name
+    elif isinstance(name, str):
+      self.name = name
+      try:
+        self.reg = int(name[1:])
+      except ValueError:
+        raise Exception("Invalid register name %s" % name)
+
+      if name[0] != 'v':
+        raise Exception("Invalid register name %s" % name)
+    else:
+      raise Exception("Invalid register name %s" % str(name))
+    return
 
 
 # ------------------------------
@@ -81,9 +123,9 @@ gp_param_3 = 5
 # gp_return = GPRegister(3)
 
 # Callee save registers
-gp_save = [GPRegister(i) for i in range(14, 32)]
-fp_save = [FPRegister(i) for i in range(14, 32)]
-vx_save = [VMXRegister(i) for i in range(20, 32)]
+gp_save = ["r%d" % i for i in xrange(14, 31)]
+fp_save = ["f%d" % i for i in xrange(14, 32)]
+vx_save = ["v%d" % i for i in xrange(20, 32)]
 
 
 def copy_param(code, target, param):
@@ -92,7 +134,7 @@ def copy_param(code, target, param):
   """
   if param not in (gp_param_1, gp_param_2, gp_param_3):
     raise Exception('Invalid parameter id: ' + str(param))
-  code.add(ppc.addi(target, param, 0))
+  code.add(ppc.addi(target, GPRegister(param), 0))
   return
 
 
@@ -145,19 +187,52 @@ class InstructionStream(spe.InstructionStream):
   # Register file descriptor: ('file id', register class, valid values)
   # These are used during instanciation to create register files for 
   # the InstructionStream instance.
-  RegisterFiles = (('gp', GPRegister, range(2,10) + range(14, 31)),
-                   ('fp', FPRegister, range(0,32)),
-                   ('vector', VMXRegister, range(0,32)))
 
+  #default_register_type = GPRegister
+  #exec_module   = ppc_exec
+  #instruction_type  = WORD_TYPE
+
+  #def __init__(self, enable_vmx=True):
+  #  spe.InstructionStream.__init__(self)
+
+    #self._enable_vmx = enable_vmx
+    
+    # Memory buffers for saved registers
+    #self._saved_gp_registers = None
+    #self._saved_fp_registers = None
+    #if self._enable_vmx:
+    #  self._saved_vx_registers = None
+
+    # Return Register 'Constants'
+    #   *_return can be used with a return register is needed.
+
+    #   Note that these do not reserve the register, but only identify
+    #   the registers.  To reserve a return register, use:
+    #     code.acquire_register(reg = code.gp_return)
+    #self.gp_return = GPRegister(3)
+    #self.fp_return = FPRegister(1)
+    #if self._enable_vmx:
+    #  self.vx_return = VMXRegister(1)
+    #  self._vrsave = GPRegister(31)
+
+  #  return
+
+
+class Program(spe.Program):
   default_register_type = GPRegister
-  exec_module   = ppc_exec
   instruction_type  = WORD_TYPE
+  stream_type = InstructionStream  
 
-  def __init__(self, enable_vmx=True):
-    spe.InstructionStream.__init__(self)
+  def __init__(self, enable_vmx = True, debug = False):
+    spe.Program.__init__(self, debug)
+
+    # Disable the default LRU-style register allocation, and instead use a
+    # stack-based MRU style that minimizes number of registers changed, reducing
+    # the number of registers that are saved/restored in the prolog/epilog.
+    self.lru_reg_allocation = False
 
     self._enable_vmx = enable_vmx
-    
+
     # Memory buffers for saved registers
     self._saved_gp_registers = None
     self._saved_fp_registers = None
@@ -172,24 +247,42 @@ class InstructionStream(spe.InstructionStream):
     #     code.acquire_register(reg = code.gp_return)
     self.gp_return = GPRegister(3)
     self.fp_return = FPRegister(1)
+
     if self._enable_vmx:
       self.vx_return = VMXRegister(1)
       self._vrsave = GPRegister(31)
-
     return
 
 
   def make_executable(self):
-    self.exec_module.make_executable(self.render_code.buffer_info()[0], len(self.render_code))
+    ppc_exec.make_executable(self.render_code.buffer_info()[0],
+        len(self.render_code))
     return 
 
   def create_register_files(self):
     # Each declarative RegisterFiles entry is:
     #   (file_id, register class, valid values)
-    for reg_type, cls, values in self.RegisterFiles:
-      regs = [cls(value) for value in values]
-      self._register_files[cls] = spe.RegisterFile(regs, reg_type)
-      self._reg_type[reg_type] = cls
+    #for reg_type, cls, values in self.RegisterFiles:
+      #regs = [cls(value) for value in values]
+      #self._register_files[cls] = spe.RegisterFile(regs, reg_type)
+    #  self._register_files[cls] = values
+    #  self._reg_type[reg_type] = cls
+
+  #RegisterFiles = (('gp', GPRegister,
+  #                  ["r%d" % i for i in range(2,10) + range(14, 31)]),
+  #                 ('fp', FPRegister, ["f%d" % i for i in xrange(0,32)]),
+  #                 ('vector', VMXRegister, ["v%d" % i for i in xrange(0,32)]))
+
+    # TODO - is this the right set of registers?
+    self._register_files[GPRegister] = [GPRegister(i) for i in range(2,10) + range(14, 31)]
+    self._reg_type['gp'] = GPRegister
+
+    self._register_files[FPRegister] = [FPRegister(i) for i in xrange(0,32)]
+    self._reg_type['fp'] = FPRegister
+
+    self._register_files[VMXRegister] = [VMXRegister(i) for i in xrange(0,32)]
+    self._reg_type['vector'] = VMXRegister
+
     return
   
   # ------------------------------
@@ -201,9 +294,17 @@ class InstructionStream(spe.InstructionStream):
        append the instruction objects to an array.
        Used when synthesizing the prologue/epilogue."""
     array.append(ppc.addi(reg, 0, word & 0xFFFF, ignore_active = True))
-    if (word & 0xFFFF) != word:
-      #array.append(ppc.addis(reg, reg, ((word + 32768) >> 16) & 0xFFFF, ignore_active = True))
-      array.append(ppc.addis(reg, reg, (word >> 16) & 0xFFFF, ignore_active = True))
+
+    uw = (word >> 16) & 0xFFFF
+    msb = word & 0x8000
+
+    if msb != 0:
+      # lower 16-bit MSB is set, upper 16 bits are 1, adjust uw
+      # If all upper 16 bits are 1, that is the value -1, so add 1 back in.
+      uw = (uw + 1) & 0xFFFF
+
+    if uw != 0:
+      array.append(ppc.addis(reg, reg, uw, ignore_active = True))
     return
 
   def _synthesize_prologue(self):
@@ -218,55 +319,67 @@ class InstructionStream(spe.InstructionStream):
     # Reset the prologue
     self._prologue = [self.lbl_prologue]
 
-    # Get the lists of registers to save
-    save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
-    save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
-    
-    self._saved_gp_registers = array.array('I', range(len(save_gp)))
-    self._saved_fp_registers = array.array('d', range(len(save_fp)))
-
-    if self._enable_vmx:
-      save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
-      self._saved_vx_registers = extarray.extarray('I', range(len(save_vx)*4))
-
-
     # Add the instructions to save the registers
 
-    # Store the value in register 2 in the red zone
-    #  r1 is the stackpointer, -4(r1) is in the red zone
-    
     r_addr = GPRegister(13) # Only available volatile register
     r_idx = GPRegister(14)  # Non-volatile; safe to use before restoring
 
-    self._load_word(self._prologue, r_addr, self._saved_gp_registers.buffer_info()[0])
+    # TODO - AWF - don't want to push things on the stack, that changes the
+    # relative location of the passed-in arguments
+    # However, we could just use the stack to save all the registers, and use
+    # a frame pointer to give access to the arguments
 
-    for i, reg in enumerate(save_gp):
-      # print 'saving gp:', reg, 2, i * WORD_SIZE
-      self._prologue.append(ppc.stw(reg, r_addr, i * WORD_SIZE, ignore_active = True))
+    save_gp = [r for r in self._used_registers[GPRegister] if r in gp_save]
 
-    self._load_word(self._prologue, r_addr, self._saved_fp_registers.buffer_info()[0])
-    
-    for i, reg in enumerate(save_fp):
-      # print 'saving fp:', reg, 2, i * WORD_SIZE
-      self._prologue.append(ppc.stfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
+    if len(save_gp) > 0:    
+      # Save GP registers
+      self._saved_gp_registers = array.array('I', xrange(len(save_gp)))
+
+      self._load_word(self._prologue, r_addr,
+          self._saved_gp_registers.buffer_info()[0])
+
+      for i, reg in enumerate(save_gp):
+        self._prologue.append(
+            ppc.stw(reg, r_addr, i * WORD_SIZE, ignore_active = True))
+
+
+    save_fp = [r for r in self._used_registers[FPRegister] if r in fp_save]
+
+    if len(save_fp) > 0:
+      # Save FP registers
+      self._saved_fp_registers = array.array('d', xrange(len(save_fp)))
+
+      self._load_word(self._prologue, r_addr,
+          self._saved_fp_registers.buffer_info()[0])
+
+      for i, reg in enumerate(save_fp):
+        self._prologue.append(
+            ppc.stfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
+
 
     if self._enable_vmx:
-      self._load_word(self._prologue, r_addr, self._saved_vx_registers.buffer_info()[0])
-    
-      for i, reg in enumerate(save_vx):
-        #print 'saving vx:', reg, 2, i * WORD_SIZE
-        self._load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
-        self._prologue.append(vmx.stvx(reg, r_idx, r_addr, ignore_active = True))
-        # print 'TODO: VMX Support'
-      
-      # Set up VRSAVE
-      # Currently, we save the old value of VRSAVE in r31.
-      # On the G4, someone stomps on registers < 20 ... save them all for now.
+      save_vx = [r for r in self._used_registers[VMXRegister] if r in vx_save]
 
-      # Save vrsave and put our value in it
-      self._prologue.append(ppc.mfvrsave(self._vrsave, ignore_active = True))
-      self._load_word(self._prologue, r_addr, 0xFFFFFFFF)
-      self._prologue.append(ppc.mtvrsave(r_addr, ignore_active = True)) 
+      if len(save_vx) > 0:
+        # Save VMX registers
+        self._saved_vx_registers = extarray.extarray('I', range(len(save_vx)*4))
+
+        self._load_word(self._prologue, r_addr,
+            self._saved_vx_registers.buffer_info()[0])
+
+        for i, reg in enumerate(save_vx):
+          self._load_word(self._prologue, r_idx, i * WORD_SIZE * 4)
+          self._prologue.append(
+              vmx.stvx(reg, r_idx, r_addr, ignore_active = True))
+
+        # Set up VRSAVE
+        # Currently, we save the old value of VRSAVE in r31.
+        # On the G4, someone stomps on registers < 20 ... save them all for now.
+
+        # Save vrsave and put our value in it
+        self._prologue.append(ppc.mfvrsave(self._vrsave, ignore_active = True))
+        self._load_word(self._prologue, r_addr, 0xFFFFFFFF)
+        self._prologue.append(ppc.mtvrsave(r_addr, ignore_active = True))    
 
     return
 
@@ -279,38 +392,46 @@ class InstructionStream(spe.InstructionStream):
     # Reset the epilogue
     self._epilogue = [self.lbl_epilogue]
 
-    # Restore vrsave
-    if self._enable_vmx:
-      self._epilogue.append(ppc.mtvrsave(self._vrsave, ignore_active = True))
-
     r_addr = GPRegister(13) # Only available volatile register
     r_idx = GPRegister(14)  # Non-volatile; safe to use before restoring
 
     # Get the list of saved registers
-    save_gp = [reg for reg in self._register_files[GPRegister].get_used() if reg in gp_save]
-    save_fp = [reg for reg in self._register_files[FPRegister].get_used() if reg in fp_save]
+    save_gp = [r for r in self._used_registers[GPRegister] if r in gp_save]
+    save_fp = [r for r in self._used_registers[FPRegister] if r in fp_save]
 
     if self._enable_vmx:
-      save_vx = [reg for reg in self._register_files[VMXRegister].get_used() if reg in vx_save]    
+      save_vx = [r for r in self._used_registers[VMXRegister] if r in vx_save]
 
-      self._load_word(self._epilogue, r_addr, self._saved_vx_registers.buffer_info()[0])
+      if len(save_vx) > 0:
+        # Restore vrsave
+        self._epilogue.append(ppc.mtvrsave(self._vrsave, ignore_active = True))
 
-      for i, reg in enumerate(save_vx):
-        # print 'restoring vx:', reg, r_addr, i * WORD_SIZE
-        self._load_word(self._epilogue, r_dx, i * WORD_SIZE * 4)
-        self._epilogue.add(vmx.lvx(reg, r_idx, r_addr, ignore_active = True))
+        # Restore saved VMX registers
+        self._load_word(self._epilogue, r_addr,
+            self._saved_vx_registers.buffer_info()[0])
 
-    self._load_word(self._epilogue, r_addr, self._saved_fp_registers.buffer_info()[0])
+        for i, reg in enumerate(save_vx):
+          self._load_word(self._epilogue, r_idx, i * WORD_SIZE * 4)
+          self._epilogue.append(
+              vmx.lvx(reg, r_idx, r_addr, ignore_active = True))
 
-    for i, reg in enumerate(save_fp):
-      # print 'restoring fp:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.append(ppc.lfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
+    if len(save_fp) > 0:
+      # Restore saved FP registers
+      self._load_word(self._epilogue, r_addr,
+          self._saved_fp_registers.buffer_info()[0])
 
-    self._load_word(self._epilogue, r_addr, self._saved_gp_registers.buffer_info()[0])
+      for i, reg in enumerate(save_fp):
+        self._epilogue.append(
+            ppc.lfd(reg, r_addr, i * WORD_SIZE * 2, ignore_active = True))
 
-    for i, reg in enumerate(save_gp):
-      # print 'restoring gp:', reg, r_addr, i * WORD_SIZE
-      self._epilogue.append(ppc.lwz(reg, r_addr, i * WORD_SIZE, ignore_active = True))
+    if len(save_gp) > 0:
+      # Restore saved GP registers
+      self._load_word(self._epilogue, r_addr,
+          self._saved_gp_registers.buffer_info()[0])
+
+      for i, reg in enumerate(save_gp):
+        self._epilogue.append(
+            ppc.lwz(reg, r_addr, i * WORD_SIZE, ignore_active = True))
 
     self._epilogue.append(ppc.blr(ignore_active = True))
     return

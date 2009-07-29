@@ -487,7 +487,7 @@ static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
   Py_ssize_t addr;
   Py_ssize_t len;
 
-  if(!PyArg_ParseTuple(arg, "ll", &addr, &len)) {
+  if(!PyArg_ParseTuple(arg, "kl", &addr, &len)) {
     return NULL;
   }
 

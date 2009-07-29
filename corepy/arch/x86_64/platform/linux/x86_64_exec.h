@@ -98,6 +98,7 @@ struct ThreadInfo {
 typedef long (*Stream_func_int)(struct ExecParams);
 typedef long (*Stream_func_int_reg)(unsigned long p1, unsigned long p2, unsigned long p3, unsigned long p4, unsigned long p5, unsigned long p6);
 typedef float (*Stream_func_fp)(struct ExecParams);
+typedef float (*Stream_func_fp_reg)(unsigned long p1, unsigned long p2, unsigned long p3, unsigned long p4, unsigned long p5, unsigned long p6);
 
 
 // ------------------------------------------------------------
@@ -199,7 +200,8 @@ void *run_stream_fp(void *params) {
   struct ThreadParams *p = (struct ThreadParams *)params;
   pthread_cleanup_push(cleanup, params);
 
-  p->ret.d = ((Stream_func_fp)p->addr)(p->params);
+  //p->ret.d = ((Stream_func_fp)p->addr)(p->params);
+  p->ret.d = ((Stream_func_fp_reg)p->addr)(p->params.p1, p->params.p2, p->params.p3, p->params.p4, p->params.p5, p->params.p6);
 
   pthread_cleanup_pop(0);
   return params;
@@ -288,7 +290,8 @@ long execute_int(addr_t addr, struct ExecParams params) {
 
 
 float execute_fp(addr_t addr, struct ExecParams params) {
-  return ((Stream_func_fp)addr)(params);
+  return ((Stream_func_fp_reg)addr)(params.p1, params.p2, params.p3, params.p4, params.p5, params.p6);
+  //return ((Stream_func_fp)addr)(params);
 }
 
 #endif // X86_EXEC_H

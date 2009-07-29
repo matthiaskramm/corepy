@@ -1,4 +1,4 @@
-# Copyright (c) 2006-2009 The Trustees of Indiana University.                   
+# Copyright (c) 2006-2008 The Trustees of Indiana University.                   
 # All rights reserved.                                                          
 #                                                                               
 # Redistribution and use in source and binary forms, with or without            
@@ -26,30 +26,60 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-import corepy.corepy_conf as conf
+import corepy.arch.ppc.isa as ppc
+import corepy.arch.vmx.isa as vmx
+import corepy.arch.ppc.platform as env
 
-platform_imports = [
-  'Processor', 'InstructionStream', 'Program',
-  'WORD_SIZE', 'WORD_TYPE', 'ExecParams',
-  'GPRegister', 'FPRegister', 'VMXRegister']
+prgm = env.Program()
+code = prgm.get_stream()
+proc = env.Processor()
 
-platform_string = '%(os)s.spre_%(os)s_%(arch)s' % {
-  'os': conf.OS, 'arch': conf.ARCH}
-#platform_string = '%(os)s.spre_%(os)s_%(arch)s_%(bits)d' % {
-#  'os': conf.OS, 'arch': conf.ARCH, 'bits': conf.BITS}
+# Generate sub-stream
+# Multiple eax by 2, add 1
+subcode = prgm.get_stream()
+subcode.add(ppc.mulli(prgm.gp_return, prgm.gp_return, 2))
+subcode.add(ppc.addi(prgm.gp_return, prgm.gp_return, 1))
 
-# TODO - what is this?
-#if conf.OS == 'osx':
-#  platform_imports.append('array_address')
+# Initialize a register, insert code
+code.add(ppc.addi(prgm.gp_return, 0, 5))
+code.add(subcode)
 
-if conf.VERBOSE:  
-  print '# Platform:', platform_string
+# Add 3, insert again
+code.add(ppc.addi(prgm.gp_return, prgm.gp_return, 3))
+code.add(subcode)
 
-platform_module = __import__(platform_string, globals(), locals(), platform_imports)
+prgm.add(code)
+prgm.print_code()
+ret = proc.execute(prgm, mode = 'int')
+print "ret", ret
 
-for cls in platform_imports:
-  try:
-    locals()[cls] = getattr(platform_module, cls)
-  except:
-    print 'PPC Platform Warning: Unable to load osx.ppc_exec.%s.  Related features will not be available.' % (str(cls),)
-  
+
+prgm = env.Program()
+code = prgm.get_stream()
+
+# Use a register from the parent code in the subcode directly
+r_add = prgm.acquire_register()
+
+# Generate sub-stream
+# Multiple eax by 2, add 1
+subcode = prgm.get_stream()
+subcode.add(ppc.mulli(prgm.gp_return, prgm.gp_return, 2))
+subcode.add(ppc.add(prgm.gp_return, prgm.gp_return, r_add))
+
+# Initialize a register, insert code
+code.add(ppc.addi(r_add, 0, 1))
+code.add(ppc.addi(prgm.gp_return, 0, 5))
+code.add(subcode)
+
+# Add 3, insert again
+code.add(ppc.addi(r_add, 0, 2))
+code.add(ppc.addi(prgm.gp_return, prgm.gp_return, 3))
+code.add(subcode)
+
+prgm.add(code)
+prgm.print_code()
+ret = proc.execute(prgm, mode = 'int')
+print "ret", ret
+
+
+

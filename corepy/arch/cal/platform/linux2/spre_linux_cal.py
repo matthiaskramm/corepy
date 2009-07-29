@@ -62,27 +62,30 @@ class InstructionStream(spe.InstructionStream):
   CAL Instruction Stream.  
   """
 
-  # Class attributes
+  def add(self, obj):
+    if type(obj) == str:
+      self._objects.append(obj)
+    else:
+      spe.InstructionStream.add(self, obj)
+
+
+class Program(spe.Program):
   default_register_type = reg.TempRegister
-  exec_module   = cal_exec
   instruction_type  = WORD_TYPE
 
+  stream_type = InstructionStream
+
   def __init__(self):
-    spe.InstructionStream.__init__(self)
+    spe.Program.__init__(self, None)
 
-    #self._cached = False
-    self.reset()
-    return
-
-  def __del__(self):
-    if self._cached:
-      cal_exec.free_image(self.render_code)
-      self.render_string = None
+    # Array of literal register declarations
+    # Added to by acquire_register(), rendered by synthesize_prologue()
+    self._literals = []
     return
 
 
   def reset(self):
-    spe.InstructionStream.reset(self)
+    spe.Program.reset(self)
     self._bindings = {}
     self._bindings_data = {}
     #self._declare_registers = {}
@@ -99,101 +102,30 @@ class InstructionStream(spe.InstructionStream):
 
 
   def create_register_files(self):
-    # Each declarative RegisterFiles entry is:
-    #   (file_id, register class, valid values)
-    #for reg_type, cls, values in self.RegisterFiles:
-    #  regs = [cls(value) for value in values]
-    #  self._register_files[cls] = spe.RegisterFile(regs, reg_type)
-    #  self._reg_type[reg_type] = cls
-    self._register_files[reg.TempRegister] = spe.RegisterFile(reg.r, 'r')
-    self._register_files[reg.LiteralRegister] = spe.RegisterFile(reg.l, 'l')
+    self._register_files[reg.TempRegister] = reg.r
+    self._register_files[reg.LiteralRegister] = reg.l
     self._reg_type['r'] = reg.TempRegister
     self._reg_type['l'] = reg.LiteralRegister
     return
 
   
-  def acquire_register(self, type = None, reg = None):
-    if isinstance(type, (list, tuple)):
+  def acquire_register(self, reg_type = None, reg_name = None):
+    if isinstance(reg_type, (list, tuple)):
       # if this is a LiteralRegister, acquire and set the value
-      l = spe.InstructionStream.acquire_register(self, type='l', reg=reg)
-      self.add(isa.dcl_literal(l, type[0], type[1], type[2], type[3]))
+      l = spe.Program.acquire_register(self, reg_type='l', reg_name=reg_name)
+      self._literals.append(isa.dcl_literal(l, reg_type[0], reg_type[1], reg_type[2], reg_type[3], ignore_active = True))
       return l
     else:
-      return spe.InstructionStream.acquire_register(self, type=type, reg=reg)
+      return spe.Program.acquire_register(self,
+          reg_type = reg_type, reg_name = reg_name)
       
   def release_register(self, register):
     if type(register) != reg.LiteralRegister:
-      self._register_files[type(register)].release_register(register)
+      spe.Program.release_register(self, register)
     # print 'release', str(self._register_files[type])
     return 
 
   
-  # ------------------------------
-  # Execute/ABI support
-  # ------------------------------
-
-  def _synthesize_prologue(self):
-    self._prologue = 'il_ps_3_0\n'
-
-    # Add declare instructions for any bindings
-    #for (regname, (arr, kwargs)) in self._remote_bindings_data.items():
-    #  print "synth prolog check binding", regname, kwargs
-    #  # TODO - do this in set_bindings instead?
-    #  if kwargs.has_key('decl') and kwargs['decl'] == False:
-    #    continue;
-
-    #  # Switch on the regname
-    #  if regname[0] == 'o':
-    #    inst = isa.dcl_output(regname, **kwargs)
-    #    print "inserting inst", inst.render()
-    #    self._prologue += inst.render() + '\n'
-      #elif regname[0] == 'i':
-      #  dim = isa.pixtex_type.oned
-      #  #if self._remote_bindings[regname].
-      #  inst = isa.dcl_resource(regname[1:], **kwargs)
-      #  print "inserting inst", inst.render()
-      #  self._prologue += inst.render() + '\n'
-
-    return
-
-  def _synthesize_epilogue(self):
-    self._epilogue = 'end\n'
-    return
-
-
-  def cache_code(self):
-    if self._cached == True:
-      return
-    render_string = ''
-    
-    self._synthesize_prologue()
-    self._synthesize_epilogue()
-
-    #print "PROLOGUE", self._prologue
-    
-    for inst in self._instructions:
-      if type(inst) == str:
-        if inst[-1] != '\n':
-          render_string += inst + '\n'
-        else:
-          render_string += inst
-      else:
-        render_string += inst.render() + '\n'
-    self.render_string = self._prologue + render_string + self._epilogue
-
-    #print self.render_string
-    self.render_code = cal_exec.compile(self.render_string)
-    self._cached = True
-    return
-
-
-  def add(self, inst):
-    if type(inst) == str:
-      self._instructions.append(inst)
-    else:
-      spe.InstructionStream.add(self, inst)
-
-
   # ------------------------------
   # GPU memory binding management
   # ------------------------------
@@ -237,31 +169,73 @@ class InstructionStream(spe.InstructionStream):
 
 
   # ------------------------------
-  # Debugging
+  # Execute/ABI support
   # ------------------------------
 
-  def print_code2(self, pro = False, epi = False):
-    """
-    Print the instruction stream.
-    """
+  def _synthesize_prologue(self):
+    self._prologue = 'il_ps_3_0\n'
 
-    if self._cached == False:
-      self.cache_code()
+    self._prologue += '\n'.join([inst.render() for inst in self._literals]) + '\n'
 
-    if not self._debug:
-      import corepy.lib.printer as printer
+    #print "PRLOG", self._prologue
+    # Add declare instructions for any bindings
+    #for (regname, (arr, kwargs)) in self._remote_bindings_data.items():
+    #  print "synth prolog check binding", regname, kwargs
+    #  # TODO - do this in set_bindings instead?
+    #  if kwargs.has_key('decl') and kwargs['decl'] == False:
+    #    continue;
 
-      module = printer.Default(#show_prologue = pro, show_epilogue = epi,
-                               line_numbers = True)
-      printer.PrintInstructionStream(self, module)
+    #  # Switch on the regname
+    #  if regname[0] == 'o':
+    #    inst = isa.dcl_output(regname, **kwargs)
+    #    print "inserting inst", inst.render()
+    #    self._prologue += inst.render() + '\n'
+      #elif regname[0] == 'i':
+      #  dim = isa.pixtex_type.oned
+      #  #if self._remote_bindings[regname].
+      #  inst = isa.dcl_resource(regname[1:], **kwargs)
+      #  print "inserting inst", inst.render()
+      #  self._prologue += inst.render() + '\n'
 
-    else:
-      # Debugging mode.. fall back to the parent print_code
-      # TODO - this won't work right now...
-      spe.InstructionStream.print_code(self)
+    return
+
+  def _synthesize_epilogue(self):
+    self._epilogue = 'end\n'
     return
 
 
+  def _cache_code_S(self, render_string, stream):
+    for obj in stream:
+      if isinstance(obj, spe.Instruction):
+        render_string += obj.render() + '\n'
+      elif isinstance(obj, str):
+        if obj[-1] == '\n':
+          render_string += obj
+        else:
+          render_string += obj + '\n'
+      elif isinstance(obj, Label):
+        # TODO - AWF - make labels work
+        raise Exception("Are labels supported? don't think so")
+    return render_string
+
+
+  def cache_code(self):
+    if self._cached == True:
+      return
+    
+    self._synthesize_prologue()
+    self._synthesize_epilogue()
+
+    render_string = ''
+    for stream in self._objects:
+      render_string = self._cache_code_S(render_string, stream._objects)
+
+    self.render_string = self._prologue + render_string + self._epilogue
+
+    print self.render_string
+    self.render_code = cal_exec.compile(self.render_string)
+    self._cached = True
+    return
 
 
 # ------------------------------------------------------------
@@ -481,12 +455,15 @@ class Processor(spe.Processor):
     return
 
 
-  def execute(self, code, domain = None, async = False):
-    code.cache_code() 
+  def execute(self, prgm, domain = None, async = False):
+    if not isinstance(prgm, Program):
+      raise Exception("ERROR: Can only execute a Program, not %s" % type(prgm))
+
+    prgm.cache_code() 
 
     if domain is None:
       try:
-        arr = code.get_binding("o0")
+        arr = prgm.get_binding("o0")
       except KeyError:
         raise Exception("No domain specified and no o0 register bound")
 
@@ -500,17 +477,17 @@ class Processor(spe.Processor):
         raise Exception("Invalid o0 binding!")
 
     if async:
-      th = cal_exec.run_stream_async(code.render_code,
-          self.ctx, domain, code._bindings)
-      return (th, code)
+      th = cal_exec.run_stream_async(prgm.render_code,
+          self.ctx, domain, prgm._bindings)
+      return (th, prgm)
     else:
-      cal_exec.run_stream(code.render_code, self.ctx, domain, code._bindings)
+      cal_exec.run_stream(prgm.render_code, self.ctx, domain, prgm._bindings)
 
       # Go through the bindings and re-set all the pointers
       #  When a kernel is executed, remote memory has to be unmapped and
       #  remapped, meaning the memory location can change.
-      for (key, arr) in code._bindings_data.items():
-        binding = code._bindings[key]
+      for (key, arr) in prgm._bindings_data.items():
+        binding = prgm._bindings[key]
         if isinstance(arr, extarray.extarray):
           arr.set_memory(binding[1], arr.data_len * arr.itemsize)
         elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
@@ -522,11 +499,11 @@ class Processor(spe.Processor):
     # TODO - do something better to differentiate
     if len(hdl) == 2:
       # Join a kernel execution
-      (th, code) = hdl
+      (th, prgm) = hdl
       cal_exec.join_stream(th)
 
-      for arr in code._remote_bindings_data.values():
-        binding = code._bindings[key]
+      for arr in prgm._remote_bindings_data.values():
+        binding = prgm._bindings[key]
         if isinstance(arr, extarray.extarray):
           arr.set_memory(bindings[1], arr.data_len * arr.itemsize)
         elif isinstance(arr, numpy.ndarray) and HAS_NUMPY:
@@ -607,21 +584,25 @@ def TestSimpleKernel():
     ext_output[i] = 0.0
 
   # build and run the kernel
-  code = InstructionStream()  
+  prgm = Program()
+  code = prgm.get_stream()  
+
   #code.add(isa.dcl_input('v0', USAGE=isa.usage.pos, INTERP='linear_noperspective'))
   code.add("dcl_input_position_interp(constant) v0.xy__")
   code.add(isa.dcl_output('o0', USAGE=isa.usage.generic))
   code.add(isa.dcl_resource(0, '2d', isa.fmt.float, UNNORM=True))
   code.add(isa.sample(0, 0, 'o0', 'v0.xy'))
   #code.add(isa.load(0, 'o0', 'v0.g'))
-  code.cache_code()
-  print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
-  code.set_binding("o0", ext_output)
-  code.set_binding("i0", ext_input)
+  prgm.set_binding("o0", ext_output)
+  prgm.set_binding("i0", ext_input)
 
-  proc.execute(code, domain)
+  prgm.add(code)
+  prgm.cache_code()
+  prgm.print_code()
+
+  proc.execute(prgm, domain)
 
   # Check the output
   for i in xrange(0, SIZE * SIZE * 4):
@@ -659,21 +640,25 @@ def TestSimpleKernelNPy():
         val += 1.0
 
   # build and run the kernel
-  code = InstructionStream()  
+  prgm = Program()
+  code = prgm.get_stream()  
+
   #code.add(isa.dcl_input('v0', USAGE=isa.usage.pos, INTERP='linear_noperspective'))
   code.add("dcl_input_position_interp(constant) v0.xy__")
   code.add(isa.dcl_output('o0', USAGE=isa.usage.generic))
   code.add(isa.dcl_resource(0, '2d', isa.fmt.float, UNNORM=True))
   code.add(isa.sample(0, 0, 'o0', 'v0.xy'))
   #code.add(isa.load(0, 'o0', 'v0.g'))
-  code.cache_code()
-  print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
-  code.set_binding("o0", arr_output)
-  code.set_binding("i0", arr_input)
+  prgm.set_binding("o0", arr_output)
+  prgm.set_binding("i0", arr_input)
 
-  proc.execute(code, domain)
+  prgm.add(code)
+  prgm.cache_code()
+  prgm.print_code()
+
+  proc.execute(prgm, domain)
 
   # Check the output
   val = 0.0
@@ -803,9 +788,9 @@ if __name__ == '__main__':
   #TestRemoteAlloc()
   TestSimpleKernel()
 
-  TestCopy()
-  TestCopyPerf()
-
   if HAS_NUMPY:
     TestSimpleKernelNPy()
+
+  TestCopy()
+  TestCopyPerf()
 

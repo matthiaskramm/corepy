@@ -35,8 +35,10 @@ import corepy.arch.ppc.platform as env
 import corepy.arch.ppc.types.ppc_types as vars
 from   corepy.arch.ppc.lib.util import load_word
 
-# code is the current Synthetic Programm
-code = env.InstructionStream()
+# prgm is the current Synthetic Program
+# code is the current InstructionStream, where new code is added
+prgm = env.Program()
+code = prgm.get_stream()
 
 # proc is a platform-specific execution environemnt 
 proc = env.Processor()
@@ -51,13 +53,13 @@ proc = env.Processor()
 #   ppc.addi(...)
 ppc.set_active_code(code)
 
-ppc.addi(code.gp_return, 0, 12)
-ppc.b(code.lbl_epilogue)
+ppc.addi(prgm.gp_return, 0, 12)
+ppc.b(prgm.lbl_epilogue)
 
-code.cache_code()
-code.print_code(pro=True, epi=True, binary=True)
+prgm.add(code)
+prgm.print_code(pro=True, epi=True, binary=True)
 
-r = proc.execute(code, debug=True)
+r = proc.execute(prgm, debug=True)
 
 print 'int result:', r
 assert(r == 12)
@@ -66,40 +68,40 @@ code.reset()
 
 a = array.array('d', [3.14])
 
-load_word(code, code.gp_return, a.buffer_info()[0])
-ppc.lfd(code.fp_return, code.gp_return, 0)
+load_word(code, prgm.gp_return, a.buffer_info()[0])
+ppc.lfd(prgm.fp_return, prgm.gp_return, 0)
 
-r = proc.execute(code, mode='fp', debug=True)
+r = proc.execute(prgm, mode='fp', debug=True)
 assert(r == 3.14)
 print 'float result:', r
 
 
 code.reset()
 
-load_word(code, code.gp_return, 0xFFFFFFFF)
+load_word(code, prgm.gp_return, 0xFFFFFFFF)
 
-r = proc.execute(code, mode='int', debug=True)
+r = proc.execute(prgm, mode='int', debug=True)
 print "int result:",r
 assert(r == -1)
 
 
 code.reset()
 
-ppc.addi(code.gp_return, 0, 16)
-ppc.mtctr(code.gp_return)
-ppc.addi(code.gp_return, 0, 0)
+ppc.addi(prgm.gp_return, 0, 16)
+ppc.mtctr(prgm.gp_return)
+ppc.addi(prgm.gp_return, 0, 0)
 
-lbl_loop = code.get_label("LOOP")
+lbl_loop = prgm.get_label("LOOP")
 code.add(lbl_loop)
-ppc.addi(code.gp_return, code.gp_return, 2)
+ppc.addi(prgm.gp_return, prgm.gp_return, 2)
 ppc.bdnz(lbl_loop)
 
-code.print_code(hex = True)
-r = proc.execute(code, mode='int', debug=True)
+#prgm.print_code(hex = True)
+r = proc.execute(prgm, mode='int', debug=True)
 print "int result:",r
 assert(r == 32)
 
-sys.exit(0)
+#sys.exit(0)
 
 # ------------------------------------------------------------
 # Variables/Exprsesions
@@ -110,8 +112,8 @@ ppc.set_active_code(None)
 code.reset()
 
 a = vars.SignedWord(11, code)
-b = vars.SignedWord(31, reg = code.acquire_register())
-c = vars.SignedWord(reg = code.gp_return)
+b = vars.SignedWord(31, code, reg = prgm.acquire_register())
+c = vars.SignedWord(code = code, reg = prgm.gp_return)
 
 byte_mask = vars.Bits(0xFF, code)
 
@@ -119,7 +121,7 @@ byte_mask = vars.Bits(0xFF, code)
 c.v = a + (byte_mask & b) + 12
 
 
-r = proc.execute(code, debug = True)
+r = proc.execute(prgm, debug = True)
 print 'result:', r
 assert(r == (42 + 12))
 
@@ -130,14 +132,14 @@ ppc.set_active_code(code)
 
 a = vars.SignedWord(11)
 b = vars.SignedWord(31)
-c = vars.SignedWord(reg = code.gp_return)
+c = vars.SignedWord(reg = prgm.gp_return)
 
 byte_mask = vars.Bits(0xFF)
 
 c.v = a + (b & byte_mask)
 
 ppc.set_active_code(None)
-r = proc.execute(code)
+r = proc.execute(prgm)
 assert(r == 42)
 
 code.print_code()
@@ -150,10 +152,10 @@ code.reset()
 ppc.set_active_code(code)
 vmx.set_active_code(code)
 
-v_x = code.acquire_register('vector')
+v_x = prgm.acquire_register('vector')
 
 result = array.array('I', [0,0,0,0,0,0])
-r_addr = code.acquire_register()
+r_addr = prgm.acquire_register()
 
 # Minor hack to align the address to a 16-byte boundary.
 # Note that enough space was allocated in the array to
@@ -172,7 +174,7 @@ vmx.stvx(v_x, 0, r_addr)
 
 ppc.set_active_code(None)
 vmx.set_active_code(None)
-r = proc.execute(code) # , debug = True)
+r = proc.execute(prgm) # , debug = True)
 # code.print_code(pro = True, epi = True)
 
 print result

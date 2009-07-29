@@ -29,7 +29,7 @@
 import corepy.corepy_conf as conf
 
 platform_imports = [
-  'Processor', 'InstructionStream', 'cal_exec']
+  'Processor', 'Program', 'InstructionStream', 'cal_exec']
 
 
 #platform_string = '%(os)s.spre_%(os)s_cal' % {'os': conf.OS}

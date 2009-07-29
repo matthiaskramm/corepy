@@ -31,6 +31,7 @@ Base classes for the Synthetic Programming Environment.
 """
 
 import corepy.lib.extarray as extarray
+import collections
 
 from syn_util import *
 #import syn_util as util
@@ -76,117 +77,32 @@ def _first_user_frame(stack_info):
 
 
 # ------------------------------------------------------------
-# Register Management
+# Register
 # ------------------------------------------------------------
 
-class RegisterFile(object):
-  """
-  Manage a set of registers.
-  """
-
-  def __init__(self, registers, name = '<unknown>'):
-    """
-    Create a register file with registers identified by the values in
-    registers.  registers is a sequence.
-    """
-    object.__init__(self)
-    
-    #self._registers = registers[:]
-    self._registers = registers
-    #self._pool = None
-    #self._used = None
-    self._name = name
-    self.reset()
-    return
-
-  def get_used(self): return self._used.keys()
-  
-  def reset(self):
-    self._pool = self._registers[:]
-    self._used = {} # register: None
-    return
-
-  def acquire_register(self, reg = None):
-    """
-    Supply the user with a register or raise an exception if none are
-    available.  If reg is set, return that register if it is available,
-    otherwise raise an exception.
-
-    Add the register to the used list.
-    """
-
-    # See if there are registers available
-    if(len(self._pool) == 0):
-      raise Exception('Out of registers!')
-
-    # Get a register and mark that it's been used
-    if reg is not None:
-      if reg in self._pool:
-        #reg = self._pool[reg] # no! bad
-        #del self._pool[self._pool.index(reg)]
-        reg = self._pool.pop(self._pool.index(reg))
-      else:
-        raise Exception('Register ' + str(reg) + ' is not available!')
-    else:
-      reg = self._pool.pop()
-
-    self._used[reg] = None
-
-    return reg
-
-  def release_register(self, reg):
-    """
-    Return a register to the list of available registers.  If the
-    register is already in the available list, a warning is printed
-    (rather than an exception).
-    """
-    if reg in self._pool:
-      raise Exception('Warning: release_register from %s: %s already exists!' % (self._name, str(reg)))
-    else:
-      self._pool.append(reg)
-    return 
-
-  def __str__(self):
-    s = '[%2d/%2d] ' % (len(self._pool), len(self._registers))
-    for reg in self._registers[:-1]:
-      if reg in self._pool:
-        s += '%s  ' % str(reg)
-      else:
-        s += '%s* ' % str(reg)
-    return s
-  
-
 class Register(object):
-  def __init__(self, reg, name = None, prefix = ''):
-    """
-    Create a new register:
-      reg is the architecture dependent value for the register, usually an int.
-      #code is the InstructionStream that created and owns this register.
-    """
-    #if isinstance(code, str):
-    #  raise Exception("Use the 'name' keyword argument to set the name of a register")
-   
-    self.reg = reg
+  def __init__(self, name):
+    """Create a new register object."""
     self.name = name
-    self.prefix = prefix
     return
 
   def __str__(self): 
     if self.name != None:
       return self.name
     else:
-      return '$%d' % (self.reg)
+      return object.__str__(self)
+      #return '$%d' % (self.reg)
       #return '%s%d' % (self.prefix, self.reg)
 
   def __eq__(self, other):
     if isinstance(other, Register):
-      return other.reg == self.reg
-    elif isinstance(other, int):
+      return self.name == other.name
+    elif isinstance(other, (int, long)):
       return self.reg == other
     elif isinstance(other, str):
       return self.name == other
-    else:
-      raise Exception('Cannot compare Register against %s' % (type(other),))
+    return False
+
 
 class Immediate(object):
   def __init__(self, value, size_type, type_type = None):
@@ -279,7 +195,7 @@ class Variable(object):
       else:
         self.reg = reg
     else:
-      self.reg = code.acquire_register(self.register_type_id)
+      self.reg = code.prgm.acquire_register(self.register_type_id)
       self.acquired_register = True
       
     self.code = code
@@ -294,7 +210,7 @@ class Variable(object):
 
   def release_register(self, force = False):
     if self.reg is not None and (self.acquired_register or force):
-      self.code.release_register(self.reg)
+      self.code.prgm.release_register(self.reg)
       self.reg = None
     else:
       raise Exception('Attempt to release register acquired from elsewhere.  Use force = True keyword to release from here.')
@@ -369,7 +285,7 @@ class Expression(object):
     """
 
     if self._acquired_register is not None:
-      code.release_register(self._acquired_register)
+      code.prgm.release_register(self._acquired_register)
       self._acquired_register = None
 
     for op in self._operands:
@@ -386,7 +302,7 @@ class Expression(object):
     target = reg
 
     if reg is None:
-      target = code.acquire_register(self.register_type_id)
+      target = code.prgm.acquire_register(self.register_type_id)
 
       self._acquired_register = target
       
@@ -470,7 +386,7 @@ class Instruction(object):
     self._supplied_operands = operands
     self._supplied_koperands = koperands    
 
-    self._operands = self.validate_operands(*operands, **koperands)
+    self.validate_operands(*operands, **koperands)
 
     # If active code is present, add ourself to it and remember that
     # we did so.  active_code_used is checked by InstructionStream
@@ -491,7 +407,9 @@ class Instruction(object):
     return
 
   def validate_operands(self, *operands, **koperands):
-    ops = {} # name: value
+    dops = {} # name: value
+    aops = []
+
     if len(operands) != len(self.machine_inst.signature):
       if len(operands) < len(self.machine_inst.signature):
         reason = 'Not enough '
@@ -502,26 +420,38 @@ class Instruction(object):
         ', '.join([op_type.name for op_type in self.machine_inst.signature]),
         ', '.join([str(value) for value in operands])))
 
-    iop = 0
+    #iop = 0
     for op_type, value in zip(self.machine_inst.signature, operands):
-      # TODO - throw the exception in the check, and eliminate this if statement
       if op_type.check(value):
         # Store ops by name and position.
-        ops[op_type.name] = value
-        ops[iop] = value        
-        iop += 1
+        dops[op_type.name] = value
+        aops.append(value)
+        #ops[iop] = value        
+        #iop += 1
+
       else:
         raise Exception("Operand validation failed for " + op_type.name )
-        
+
+    # TODO - include keyword operands in ordered array? 
     for op_type in self.machine_inst.opt_kw:
       kw = op_type.name
       if koperands.has_key(kw):
         if op_type.check(koperands[kw]):
-          ops[kw] = koperands[kw]
+          dops[kw] = koperands[kw]
       elif op_type.default is not None:
-        ops[kw] = op_type.default
+        dops[kw] = op_type.default
 
-    return ops
+    self._operands = dops
+    self._operand_iter = aops
+    return
+
+
+  def __contains__(self, val):
+    return self._operand_iter.__contains__(val)
+
+  def __iter__(self):
+    """Iterate over the non-keyword operands, in order"""
+    return self._operand_iter.__iter__()
 
   
   def __str__(self):
@@ -606,10 +536,12 @@ class DispatchInstruction(Instruction):
 
     # Do what validate_operands does, skipping the checks done already
     self._operands = {}
+    self._operand_iter = []
 
     for i, op_type in enumerate(self.machine_inst.signature):
       # Store ops by name and position.
       self._operands[op_type.name] = self._operands[i] = operands[i]
+      self._operand_iter.append(operands[i])
         
     for op_type in self.machine_inst.opt_kw:
       kw = op_type.name
@@ -711,22 +643,21 @@ class ExtendedInstruction(object):
 # ------------------------------------------------------------
 
 class Label(object):
-  def __init__(self, code, name):
-    object.__init__(self)
-    self.code = code
+  def __init__(self, name):
+    """Create a uniquely named label object.
+       A unique number is prepended to the optionally specified label name.
+    """
+    self.position = None # Needed? not really
     self.name = name
-    self.position = None
-    self.added = False
     return
 
   def __str__(self):
     return "Label(%s)" % (self.name)
     #return "Label(%s, %s)" % (self.name, self.position)
-    #return "Label(%s, %s)" % (str(self.code), self.name)
 
   def set_position(self, pos):
     """Set the byte-offset position of this label in its
-       InstructionStream.  Provided so that cache_code can simple call the
+       InstructionStream.  Provided so that cache_code can simply call
        set_position() without checking whether the object is an instruction or
        a label."""
     self.position = pos
@@ -736,71 +667,28 @@ class AlignStream(object):
   def __init__(self, align):
     self.align = align
     return
-
+  
 
 class InstructionStream(object):
   """
-  InstructionStream mantains ABI compliance and code cache
+  InstructionStream is a container for Instruction & Label objects
   """
 
-  # Class parameters.  Sublasses must provide values for these.
+  def __init__(self, prgm = None, debug = False):
+    if not isinstance(prgm, Program):
+      raise TypeError("A Program must be passed to InstructionStream.  Have you updated your code for the code composition changes?")
 
-  # Register file to pull a register from if no type is provided by the user
-  default_register_type = None
-
-  # Native size of the instruction or instruction components. This
-  # will be 'I' for 32-bit instructions and 'B' for variable length 
-  # instructions.
-  instruction_type  = None
-  
-  def __init__(self, debug = False):
-    object.__init__(self)
-
-    # Make sure subclasses provide property values
-    if self.default_register_type is None:
-      raise Exception("Subclasses must set default_register_type")
-    if self.instruction_type is None:
-      raise Exception("Subclasses must set instruction_type")
-    
-    # Major code sections
-    #self._prologue = []
-    #self._epilogue = []
-    self._instructions = []
-    self._labels = {}
-
-    # Some default labels
-    self.lbl_prologue = self.get_label("PROLOGUE")
-    self.lbl_body = self.get_label("BODY")
-    self.lbl_epilogue = self.get_label("EPILOGUE")
+    self.prgm = prgm
+ 
+    # TODO - set a default label for the body of this IS?
 
     # Debugging information
     self._stack_info = None
     self._debug = debug
     
-    # Register Files
-    # Use RegisterFiles to create a set of register instances for this
-    # instance of InstructionStream.
-    self._register_files = {} # type: RegisterFile
-    self._reg_type = {} # 'string': type, e.g. 'gp': GPRegister
-    self.create_register_files()
-    
-    # Storage holds references to objects created by synthesizers
-    # that may otherwise get garbage collected
-    self._storage_dict = None
-    self._storage_arr = None
-
-    # Counter to use for generating unique labels
-    self.unique_counter = 0
-
     self._active_callback = None
     self.reset()
     return
-
-  def make_executable(self):
-    raise Exception("Required method not implemented by %s" % str(self.__class__))
-
-  def create_register_files(self):
-    raise Exception("Required method not implemented by %s" % str(self.__class__))  
 
   def set_debug(self, debug):
     self._debug = debug
@@ -810,155 +698,68 @@ class InstructionStream(object):
 
   debug = property(get_debug, set_debug)
 
- 
   def set_active_callback(self, cb):
     self._active_callback = cb
   
+  def reset(self):
+    """
+    Reset the instruction stream.
+    """
+    self._objects = []
+    self._labels = []
+    self._stack_info = []
+
+    # This stream belongs to a program, which may have any code previously
+    # added to this stream cached.  So, invalidate the program's cache.
+    self.prgm._cached = False
+
+    if self._debug:
+      import inspect
+      self._stack_info.append(_extract_stack_info(inspect.stack()))
+
+    return
+
+
+  # ------------------------------
+  # Overloaded Operators
+  # ------------------------------
+
   def __setitem__(self, key, inst):
     """
     Allow the user to replace instructions by index.
     """
-    self._instructions[key] = inst
+    self._objects[key] = inst
     self.render_code = None
     self._cached = False
     return
 
   def __getitem__(self, v):
-    return self._instructions[v]
+    return self._objects[v]
 
   def __iter__(self):
-    return self._instructions.__iter__()
+    return self._objects.__iter__()
 
 
-  def has_label(self, name):
-    return self._labels.has_key(name)
+  def size(self): return len(self._objects)
+  def __len__(self): return len(self._objects)
 
-  def get_label(self, name):
-    if self._labels.has_key(name):
-        return self._labels[name]
-    lbl = Label(self, name)
-    self._labels[name] = lbl
-    return lbl
+  # Overload addition to do the equivalent of code.add(other)
+  def __add__(self, other):
+    code = self.prgm.get_stream()
+    code.add(self)
+    code.add(other)
+    return code
 
-  def get_unique_label(self, name = ""):
-    """
-    Generate a unique label name and create/return a label with that name.
-    """
-    nr = self.unique_counter
-    self.unique_counter += 1
-    return self.get_label("%s_%d" % (name, nr))
-  
-  def add_storage(self, key, val = None):
-    """
-    Add a reference to an object used during execution of the
-    instruction stream.  This cache keeps locally allocated objects
-    from being garbage collected once the stream is built.
-    """
-    if val != None:
-      self._storage_dict[key] = val
-    else:
-      self._storage_arr.append(key)
-    return
-
-  def remove_storage(self, key):
-    """
-    Add a reference to an object used during execution of the
-    instruction stream.  This cache keeps locally allocated objects
-    from being garbage collected once the stream is built.
-    """
-    if key in self._storage_arr:
-      self._storage_arr.remove(key)
-    else:
-      try:
-        del self._storage_dict[key]
-      except KeyError:
-        pass
-    return
-
-  def get_storage(self, key):
-    try:
-      return self._storage_dict[key]
-    except KeyError:
-      return None
-    
-
-  def reset_storage(self):
-    """
-    Free the references to cached storage.
-    """
-    self._storage_dict = {}
-    self._storage_arr = []
-    return
-
-
-  def reset_code(self):
-    """
-    Clear the instruction stream.  This has the side effect of
-    invalidating the code cache.
-    """
-    self._instructions = []
-    self._labels = {}
-    self._stack_info = []
-    self.reset_cache()
-
-    if self._debug:
-      import inspect
-      self._stack_info.append(_extract_stack_info(inspect.stack()))
-    return
-
-  def reset_cache(self):
-    self._cached = False
-    self.render_code = None
-    return
-    
-  def reset(self):
-    """
-    Reset the instruction stream and storage and return all the
-    registers to the register pools.
-    """
-    self.reset_code()
-    self.reset_storage()
-
-    for file in self._register_files.values():
-      file.reset()
-      
-    self.reset_cache()
-    return
+  def __iadd__(self, other):
+    self.add(other)
+    return self
 
 
   # ------------------------------
-  # User register management
+  # Instruction Management
   # ------------------------------
 
-  def acquire_register(self, type = None, reg = None):
-
-    if type is None:
-      type = self.default_register_type    
-    elif isinstance(type, str):
-      type = self._reg_type[type]
-
-    # print 'acquire', str(self._register_files[type])
-    return self._register_files[type].acquire_register(reg)
-
-  def release_register(self, reg):
-    self._register_files[type(reg)].release_register(reg)
-    # print 'release', str(self._register_files[type])
-    return 
-  
-  def acquire_registers(self, n, type = None, reg = None):
-    return [self.acquire_register(type, reg) for i in xrange(n)]
-
-  def release_registers(self, regs):
-    for reg in regs:
-      self.release_register(reg)
-    return
-
-    
-  # ------------------------------
-  # Instruction management
-  # ------------------------------
-
-  def add(self, inst):
+  def add(self, obj):
     """
     Add an instruction and return the current size of the instruction
     sequence.  The index of the current instruction is (size - 1).
@@ -967,225 +768,57 @@ class InstructionStream(object):
            these sematnics right now...)
     """
 
-    if isinstance(inst, Instruction):
+    if isinstance(obj, Instruction):
       # Check to see if this instruction has already been added to
       # this InstructionStream via active code.  This is to prevent
       # double adds from:
       #   code.add(inst(a, b, c))
       # when active code is set.
-      if inst.active_code_used is not self:
-        self._instructions.append(inst)
+      if obj.active_code_used is not self:
+        self._objects.append(obj)
 
         if self._debug:
           import inspect
           self._stack_info.append(_extract_stack_info(inspect.stack()))
-    elif isinstance(inst, ExtendedInstruction):
-      if inst.active_code_used is not self:
-        old_active = inst.get_active_code()
-        if old_active is not self:
-          inst.set_active_code(self)
-        # AWF - 'render' here on the extended inst is a misnomer.
-        # What happens is that the extended inst's block method is called,
-        # which then adds instructions to the active instruction stream.
-        inst.render()
-        if old_active is not self:
-          inst.set_active_code(old_active)
-
-    elif isinstance(inst, Label):
-      if inst.added == True:
+    elif isinstance(obj, Label):
+      if obj in self._labels:
         raise Exception('Label has already been added to the instruction stream; labels may only be added once.')
-      inst.added = True
-      self._instructions.append(inst)
+
+      self._objects.append(obj)
+      self._labels.append(obj)
 
       if self._debug:
         import inspect
         self._stack_info.append(_extract_stack_info(inspect.stack()))
+    elif isinstance(obj, ExtendedInstruction):
+      if obj.active_code_used is not self:
+        old_active = obj.get_active_code()
+        if old_active is not self:
+          obj.set_active_code(self)
+        # AWF - 'render' here on the extended inst is a misnomer.
+        # What happens is that the extended inst's block method is called,
+        # which then adds instructions to the active instruction stream.
+        obj.render()
+        if old_active is not self:
+          obj.set_active_code(old_active)
+    elif isinstance(obj, InstructionStream):
+      # Merge in the objects list of the substream.
+      for subobj in obj:
+        if isinstance(subobj, Label):
+          self._labels.append(subobj)
+        self._objects.append(subobj)
     else:
-      raise Exception('Unsupported instruction format: %s.  Instruction or int is required.' % type(inst))
+      raise Exception('Unsupported object: %s' % type(obj))
 
-    # Invalidate the cache
-    self._cached = False
-    self.render_code = None
+    # Clear the program's cache
+    self.prgm._cached = False
 
-    return len(self._instructions)
+    return len(self._objects)
+
 
   def align(self, align):
-    obj = AlignStream(align)
-    self._instructions.append(obj)
-    return
-
-  def size(self): return len(self._instructions)
-  def __len__(self): return self.size()
-
-  # ------------------------------
-  # Execute/ABI support
-  # ------------------------------
-
-  def _synthesize_prologue(self):
-    raise Exception("Required method not implemented by %s" % str(self.__class__))
-
-  def _synthesize_epilogue(self):
-    raise Exception("Required method not implemented by %s" % str(self.__class__))
-
-
-  def inst_addr(self):
-    if self._cached == True:
-      return self.render_code.buffer_info()[0]
-    else:
-      return None
-
-
-  def _adjust_pass(self, inst_list):
-    # Do adjustment passes until the rendered code stops changing
-    change = True
-    while change == True:
-      change = False
-      inst_len = 0
-  
-      for rec in inst_list:
-        # Once a change occurs, lbl/inst positions need to be updated
-        if change == True:
-          rec[2].set_position(inst_len)
-
-        if rec[0] == True:
-          # Re-render the instruction, it has a label ref
-          r = rec[2].render()
-          if r != rec[1]:
-            change = True
-            rec[1] = r
-
-        inst_len += len(rec[1])
-
-    return inst_list
-
-
-  # Note - TRAC ticket #19 has some background info and reference links on
-  # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19
-
-  def _cache_code_I(self):
-    render_code = extarray.extarray('I')
-    fwd_ref_list = []
-
-    # Assumed below that 'I' type is 4 bytes
-    for arr in (self._prologue, self._instructions, self._epilogue):
-      for obj in arr:
-        if isinstance(obj, Instruction):
-          # Does this instruction reference any labels?
-          lbl = None
-          for k in obj._operands.keys():
-            if isinstance(obj._operands[k], Label):
-              lbl = obj._operands[k]
-              break
-
-          if lbl is None: # No label reference, render the inst
-            render_code.append(obj.render())
-          else: # Label reference
-            # Check that the label is in this stream
-            assert(lbl.code == self)
-
-            obj.set_position(len(render_code) * 4)
-
-            if lbl.position != None:  # Back reference, render the inst
-              render_code.append(obj.render())
-            else: # Fill in a dummy instruction and save info to render later
-              fwd_ref_list.append((obj, len(render_code)))
-              render_code.append(0xFFFFFFFF)
-        elif isinstance(obj, Label): # Label, fill in a zero-length slot
-          obj.set_position(len(render_code) * 4)
-        elif isinstance(obj, AlignStream):
-          # Call arch-specific alignment.
-          # give it the desired alignment and current alignment.
-          # should return an array of instructions to render
-          insts = self._align_stream(len(render_code) * 4, obj.align)
-          for i in insts:
-            render_code.append(i.render())
-
-    # Render the instructions with forward label references
-    for rec in fwd_ref_list:
-      render_code[rec[1]] = rec[0].render()
-    return render_code
-
-
-  def _cache_code_B(self):
-    # inst_list is a list of tuples.  Each tuple contains a bool
-    # indicating presence of a label reference, rendered code ([] if label),
-    # and a label or instruction object.
-    render_code = extarray.extarray('B')
-    inst_list = []
-    inst_len = 0
-
-    for arr in (self._prologue, self._instructions, self._epilogue):
-      for obj in arr:
-        if isinstance(obj, Instruction):
-          # Does this instruction reference any labels?
-          lbl = None
-          relref = False
-          sig = obj.machine_inst.signature
-
-          for iop in xrange(0, len(sig)):
-            opsig = sig[iop]
-            if hasattr(opsig, "relative_op") and opsig.relative_op == True:
-              op = obj._operands[iop]
-              if isinstance(op, Label):
-                lbl = op
-              # This is a hack, but it works.  Some instructions can have
-              # a relative offset that is not a label.  These insts need to be
-              # re-rendered if instruction sizes change
-              relref = True
-
-          if lbl is None: # No label references
-            obj.set_position(inst_len)
-            r = obj.render()
-            inst_list.append([relref, r, obj])
-            inst_len += len(r)
-          else: # Instruction referencing a label.
-            assert(lbl.code == self)
-            obj.set_position(inst_len)
-
-            if lbl.position != None: # Back-reference, render the instruction
-              r = obj.render()
-              inst_list.append([True, r, obj])
-              inst_len += len(r)
-            else: # Fill in a dummy instruction, assuming 2-byte best case
-              inst_list.append([True, [-1, -1], obj])
-              inst_len += 2
-        elif isinstance(obj, Label): # Label, fill in a zero-length slot
-          obj.set_position(inst_len)
-          inst_list.append([False, [], obj])
-
-    inst_list = self._adjust_pass(inst_list)
-
-    # Final loop, bring everything together into render_code
-    for rec in inst_list:
-      if isinstance(rec[2], Instruction):
-        render_code.fromlist(rec[1])
-
-    return render_code
-
-
-  def cache_code(self):
-    """
-    Fill in the epilogue and prologue.  This call freezes the code and
-    any subsequent calls to acquire_register() or add() will unfreeze
-    it.  Also perform alignment checks.  Once the checks are
-    preformed, the code should not be modified.
-    """
-
-    if self._cached == True:
-      return
-
-
-    self._synthesize_prologue()
-    self._prologue.append(self.lbl_body)
-    self._synthesize_epilogue()
-
-    if self.instruction_type == 'I':
-      self.render_code = self._cache_code_I()
-    elif self.instruction_type == 'B':
-      self.render_code = self._cache_code_B()
-
-    self.make_executable()
-    self._cached = True
+    """Insert no-op's into the stream to achieve a specified alignment"""
+    self._objects.append(AlignStream(align))
     return
 
 
@@ -1193,31 +826,17 @@ class InstructionStream(object):
   # Debugging
   # ------------------------------
 
-  def print_code(self, pro = False, epi = False, binary = False, hex = False):
-    """
-    Print the user instruction stream.
-    """
-
-    if self._cached == False:
-      self.cache_code()
-
-    if isinstance(self.render_code, extarray.extarray):
-      print 'code addr:', self.render_code.buffer_info()[0],
-      print 'instructions:', len(self.render_code)
-
+  def print_code(self):
     if not self._debug:
       import corepy.lib.printer as printer
 
-      module = printer.Default(show_prologue = pro, show_epilogue = epi,
-                               show_binary = binary, show_hex = hex,
-                               line_numbers = True)
+      module = printer.Default(line_numbers = True)
       printer.PrintInstructionStream(self, module)
-
     else:
       addr = self.render_code.buffer_info()[0]
       last = (None, None)
-      for i in xrange(0, len(self._instructions)):
-        inst = self._instructions[i]
+      for i in xrange(0, len(self._objects)):
+        inst = self._objects[i]
         stack_info = self._stack_info[i]
         
         user_frame, file = _first_user_frame(stack_info)
@@ -1250,6 +869,546 @@ class InstructionStream(object):
     return
 
 
+class Program(object):
+  stream_type = None
+  default_register_type = None
+
+  # Native size of the instruction or instruction components. This
+  # will be 'I' for 32-bit instructions and 'B' for variable length 
+  # instructions.
+  instruction_type = None
+
+  def __init__(self, debug = False):
+    # Make sure subclasses provide property values
+    if self.default_register_type is None:
+      raise Exception("Subclasses must set default_register_type")
+    if self.stream_type is None:
+      raise Exception("Subclasses must set stream_type")
+    if self.instruction_type is None:
+      raise Exception("Subclasses must set instruction_type")
+
+    # Enable LRU-style register allocation by default.  This maximizes the
+    # number of unique registers that get used, which reduces false register
+    # dependences and increases performance.  However on some architectures it
+    # may be better to use a MRU stack-style allocation to reduce the number
+    # of unique registers used -- those arch's can do so by setting this
+    # value to False.
+    self.lru_reg_allocation = True
+
+    # Some default labels
+    self.lbl_prologue = Label("PROLOGUE")
+    self.lbl_body = Label("BODY")
+    self.lbl_epilogue = Label("EPILOGUE")
+    self._builtin_labels = dict([(lbl.name, lbl) for lbl in (self.lbl_prologue, self.lbl_body, self.lbl_epilogue)])
+
+    # Register Files
+    # Use RegisterFiles to create a set of register instances for this
+    # instance of InstructionStream.
+    self._used_registers = {}
+    self._register_avail_bins = []
+    self._register_used_bins = []
+    self._register_files = {} # type: RegisterFile
+    self._register_pools = {}
+    self._reg_type = {} # 'string': type, e.g. 'gp': GPRegister
+    self.create_register_files()
+    
+    # Counter to use for generating unique labels
+    self._label_counter = 0
+
+    self._prologue = None
+    self._epilogue = None
+
+    self.reset()
+    return
+
+  def create_register_files(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))  
+
+
+  def reset(self):
+    """
+    Reset the instruction stream, clear all storage, and return all the
+    registers to the register pools.
+    """
+    self._objects = []
+    self._labels = self._builtin_labels.copy()
+
+    self._cached = False
+    self.render_code = None
+
+    for k in self._register_files.keys():
+      self._register_pools[k] = collections.deque(self._register_files[k])
+      self._used_registers[k] = {}
+
+    self._register_avail_bins.extend(self._register_used_bins)
+    self._register_used_bins = []
+
+    # Free the references to cached storage
+    self._storage_dict = {}
+    self._storage_arr = []
+    return
+
+
+  # ------------------------------
+  # Overloaded Operators
+  # ------------------------------
+
+  def __len__(self): return len(self._objects)
+
+  def __iter__(self):
+    return self._objects.__iter__()
+
+  def __str__(self):
+    import corepy.lib.printer as printer
+    import cStringIO
+
+    strfd = cStringIO.StringIO()
+    module = printer.Default()
+    printer.PrintProgram(self, module, fd = strfd)
+    return strfd.getvalue()
+
+  # Overload addition to do the equivalent of prgm.add(other)
+  def __iadd__(self, other):
+    self.add(other)
+    return self
+
+
+  # ------------------------------
+  # Storage Management
+  # ------------------------------
+
+  def add_storage(self, key, val = None):
+    """
+    Add a reference to an object used during execution of the
+    instruction stream.  This cache keeps locally allocated objects
+    from being garbage collected once the stream is built.
+    """
+    if val is None:
+      self._storage_arr.append(key)
+    else:
+      self._storage_dict[key] = val
+    return
+
+  def remove_storage(self, key):
+    """
+    Remove a storage reference by key.
+    """
+
+    if key in self._storage_arr:
+      self._storage_arr.remove(key)
+    else:
+      try:
+        del self._storage_dict[key]
+      except KeyError:
+        pass
+    return
+
+  def get_storage(self, key):
+    try:
+      return self._storage_dict[key]
+    except KeyError:
+      return None
+
+  def append_storage(self, prgm):
+    """
+    Append all the other Program's storage.
+    """
+
+    self._storage_arr.extend(prgm._storage_arr)
+    self._storage_dict.update(prgm._storage_dict)
+    return
+
+
+  # ------------------------------
+  # InstructionStream Management
+  # ------------------------------
+
+  def get_stream(self):
+    return self.stream_type(self)
+
+
+  # ------------------------------
+  # Label Management
+  # ------------------------------
+
+  def has_label(self, name):
+    return self._labels.has_key(name)
+
+  def get_label(self, name):
+    try:
+      return self._labels[name]
+    except KeyError: pass
+
+    lbl = Label(name)
+    self._labels[name] = lbl
+    return lbl
+
+  def get_unique_label(self, name = ""):
+    """
+    Generate a unique label name and create/return a label with that name.
+    """
+    nr = self._label_counter
+    self._label_counter += 1
+    return self.get_label("_".join((name, str(nr))))
+
+
+  # ------------------------------
+  # Register management
+  # ------------------------------
+
+  # Register allocation now has two different modes, depending on whether a
+  # register type is 'complex' (has the '_complex_reg' attr) or not.
+  # The simple mode is the same mode that has been around for a long time,
+  # and is used exclusively by the SPU, PPC, and CAL architectures.  The x86
+  # architectures use simple mode for ST, MM, and XMM type registers, but use
+  # the complex mode for general purpose registers.
+
+  # Complex mode organizes registers into bins, or sets of registers.
+  # Entire bins of registers are required/released at a time.  The purpose
+  # of complex mode is to deal with x86's overlapping GP registers.  For
+  # example, the lower 32 bits of the rbx register are used for the ebx
+  # register, whose lower 16 bits are used for bx.  Therefore when allocating
+  # registers of mixed sizes, we want to be careful not to allocate eax when
+  # rax has been allocated -- major badness can/will occur.  We do this by
+  # arranging rbx/ebx/bx/bl into a single bin, and acquire/releasing the
+  # entire bin.  Which register from the bin gets returned depends on the
+  # register type/width the user requested (gp8/gp16/gp32/gp64), defaulting to
+  # 64bit on x86_64 and 32bit on x86.
+
+  # Some profiling showed that acquire/release register were taking a
+  # siginificant amount time during code generation.  This code has been
+  # highly tuned/specialized for optimal performance.  For example the high-
+  # speed 'deque' container is used for the register pools, and a dictionary
+  # used to track used registers -- this was faster than using an array.
+
+  def acquire_register(self, reg_type = None, reg_name = None):
+    if reg_type is None:
+      reg_type = self.default_register_type    
+    elif isinstance(reg_type, str):
+      reg_type = self._reg_type[reg_type]
+
+    if hasattr(reg_type, '_complex_reg'):
+      # Do complicated-style register bin allocations
+      if reg_name is None:
+        # Assign a new register name and remove the bin
+        try:
+          bin = self._register_avail_bins.pop()
+        except IndexError:
+          fmtstr = "No more registers of type %s available"
+          raise Exception(fmtstr % str(reg_type))
+
+        self._register_used_bins.append(bin)
+        reg = bin[self._reg_map[reg_type]]
+        # TODO - update used_registers?
+        return reg
+      else:
+        # Register specified, find the bin and remove it
+        def find_bin_reg():
+          for b in self._register_avail_bins:
+            for r in b:
+              if r == reg_name:
+                return (b, r)
+
+        (bin, reg) = find_bin_reg()
+
+        self._register_avail_bins.remove(bin)
+        self._register_used_bins.append(bin)
+        return reg
+    # else: simple register allocation
+
+    pool = self._register_pools[reg_type]
+
+    if reg_name is not None:
+      # TODO - right now, if a user wants to specify a reg that is not the
+      # default type, they also have to specify reg_type.  Is it possible to
+      # just specify the register name?
+      # TODO - for this to be fast, need to quicky convert a str/int to a reg
+      reg = None
+      for r in pool:
+        if r == reg_name:
+          reg = r
+          break
+
+      if reg is None:
+        raise Exception("Requested register %s not available" % str(reg_name))
+
+      pool.remove(reg)
+    else:
+      try:
+        reg = pool.pop()
+      except IndexError:
+        fmtstr = "No more registers of type %s available"
+        raise Exception(fmtstr % str(reg_type))
+
+    self._used_registers[reg_type][reg] = True
+    return reg
+
+  def release_register(self, reg):
+    # TODO - perhaps mark a variable on a register to indicate that it has been
+    #  released?  then we can error if we try to use it after releasing.
+
+    if hasattr(type(reg), '_complex_reg'):
+      # complex register, find the bin this reg belongs to and release it
+      for bin in self._register_used_bins:
+        if reg in bin:
+          self._register_used_bins.remove(bin)
+          self._register_avail_bins.append(bin)
+          return
+
+      raise Exception("Warning: register %s already released" % str(reg))
+    else:
+      #if not reg.acquired:
+      #  raise Exception("Warning: register %s already released" % str(reg))
+      # TODO - need to allow the arch to decide which side to append regs.
+      #  left creates an LRU, minimizing reg reuse, while right creates a
+      #  stack, maximizing reg reuse.
+      pool = self._register_pools[type(reg)]
+
+      if self.lru_reg_allocation:
+        pool.appendleft(reg)
+      else:
+        pool.append(reg)
+    return 
+
+  
+  def acquire_registers(self, n, type = None, reg = None):
+    return [self.acquire_register(type, reg) for i in xrange(n)]
+
+  def release_registers(self, regs):
+    for reg in regs:
+      self.release_register(reg)
+    return
+
+
+  # ------------------------------
+  # Instruction management
+  # ------------------------------
+
+  def add(self, obj):
+    if isinstance(obj, InstructionStream):
+      self._objects.append(obj)
+    else:
+      raise Exception('Unsupported object: %s' % type(obj))
+
+    self._cached = False
+    self.render_code = None
+    return len(self._objects)
+
+
+  # ------------------------------
+  # Execute/ABI support
+  # ------------------------------
+
+  def inst_addr(self):
+    if self._cached:
+      return self.render_code.buffer_info()[0]
+    else:
+      return None
+
+  def make_executable(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
+
+  def _synthesize_prologue(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
+
+  def _synthesize_epilogue(self):
+    raise Exception("Required method not implemented by %s" % str(self.__class__))
+
+
+  # Note - TRAC ticket #19 has some background info and reference links on
+  # the algorithms used here. https://svn.osl.iu.edu/trac/corepy/ticket/19
+
+  def _cache_code_I(self, render_code, fwd_refs, stream):
+    # Assumed below that 'I' type is 4 bytes
+    for obj in stream:
+      if isinstance(obj, Instruction):
+        # Does this instruction reference any labels?
+        lbl = None
+        for op in obj._operand_iter:
+          if isinstance(op, Label):
+            lbl = op
+            break
+
+        if lbl is None: # No label reference, render the inst
+          render_code.append(obj.render())
+        else: # Label reference
+          # Check that the label is in this stream
+          if not lbl.name in self._labels:
+            raise Exception("Label operand '%s' has not beed added to instruction stream" % lbl.name)
+
+          obj.set_position(len(render_code) * 4)
+
+          # TODO - could remove this conditional and always delay render
+          # Could this eliminate the need to initially clear the position?
+          # More beneficial here than in the 'B' case; instruction lengths
+          # won't change so it's no big deal to delay right here.
+          if lbl.position != None:  # Back reference, render the inst
+            render_code.append(obj.render())
+          else: # Fill in a dummy instruction and save info to render later
+            fwd_refs.append((obj, len(render_code)))
+            render_code.append(0xFFFFFFFF)
+      elif isinstance(obj, Label): # Label, fill in a zero-length slot
+        obj.set_position(len(render_code) * 4)
+      elif isinstance(obj, AlignStream):
+        # Call arch-specific alignment.
+        # give it the desired alignment and current alignment.
+        # should return an array of instructions to render
+        insts = self._align_stream(len(render_code) * 4, obj.align)
+        for i in insts:
+          render_code.append(i.render())
+    return
+
+  def _resolve_label_refs_I(self, render_code, fwd_refs):
+    # Render the instructions with forward label references
+    for rec in fwd_refs:
+      render_code[rec[1]] = rec[0].render()
+    return
+
+
+  def _cache_code_B(self, inst_list, inst_len, stream):
+    # inst_list is a list of tuples.  Each tuple contains:
+    # bool indicating presence of a label reference
+    # rendered code ([] if label)
+    # label or instruction object
+
+    for obj in stream:
+      if isinstance(obj, Instruction):
+        # Does this instruction reference any labels?
+        lbl = None
+        relref = False
+        sig = obj.machine_inst.signature
+
+        #for iop in xrange(0, len(sig)):
+        for iop, op in enumerate(obj._operand_iter):
+          opsig = sig[iop]
+          if hasattr(opsig, "relative_op") and opsig.relative_op == True:
+            #op = obj._operands[iop]
+            if isinstance(op, Label):
+              lbl = op
+            # This is a hack, but it works.  Some instructions can have
+            # a relative offset that is not a label.  These insts need to be
+            # re-rendered if instruction sizes change
+            relref = True
+
+        if lbl is None: # No label references
+          obj.set_position(inst_len)
+          r = obj.render()
+          inst_list.append([relref, r, obj])
+          inst_len += len(r)
+        else: # Instruction referencing a label.
+          if not lbl.name in self._labels:
+            raise Exception("Label operand '%s' has not beed added to instruction stream" % lbl.name)
+          obj.set_position(inst_len)
+
+          if lbl.position != None: # Back-reference, render the instruction
+            r = obj.render()
+            inst_list.append([True, r, obj])
+            inst_len += len(r)
+          else: # Fill in a dummy instruction, assuming 2-byte best case
+            inst_list.append([True, [-1, -1], obj])
+            inst_len += 2
+      elif isinstance(obj, Label): # Label, fill in a zero-length slot
+        obj.set_position(inst_len)
+        inst_list.append([False, [], obj])
+
+    return inst_len
+
+  def _resolve_label_refs_B(self, render_code, inst_list):
+    # Do adjustment passes until the rendered code stops changing
+    change = True
+    while change == True:
+      change = False
+      inst_len = 0
+  
+      for rec in inst_list:
+        # Once a change occurs, lbl/inst positions need to be updated
+        if change == True:
+          rec[2].set_position(inst_len)
+
+        if rec[0] == True:
+          # Re-render the instruction, it has a label ref
+          r = rec[2].render()
+          if r != rec[1]:
+            change = True
+            rec[1] = r
+
+        inst_len += len(rec[1])
+
+    # Final loop, bring everything together into render_code
+    for rec in inst_list:
+      if isinstance(rec[2], Instruction):
+        render_code.fromlist(rec[1])
+    return
+
+
+  def cache_code(self):
+    """
+    Fill in the epilogue and prologue.  This call freezes the code and
+    any subsequent calls to acquire_register() or add() will unfreeze
+    it.  Once the checks are performed, the code should not be modified.
+    """
+
+    if self._cached == True:
+      return
+
+
+    self._synthesize_prologue()
+    self._prologue.append(self.lbl_body)
+    self._synthesize_epilogue()
+
+    # We depend on label positions being None initially.  But if a label
+    # is part of a cache operation more than once, we need to reset the
+    # position back to None.
+    # Maybe just do this on B type, and always delay render on I type?
+    for lbl in self._labels.values():
+      lbl.position = None
+
+    if self.instruction_type == 'I':
+      render_code = extarray.extarray('I')
+      fwd_refs = [] # TODO - make fwd_refs a dict inst -> position
+      self._cache_code_I(render_code, fwd_refs, self._prologue)
+
+      # TODO - may want to do something different for non-IS objects
+      for stream in self._objects:
+        self._cache_code_I(render_code, fwd_refs, stream._objects)
+
+      self._cache_code_I(render_code, fwd_refs, self._epilogue)
+
+      self._resolve_label_refs_I(render_code, fwd_refs)
+      self.render_code = render_code
+
+      #self.render_code = self._cache_code_I()
+    elif self.instruction_type == 'B':
+      inst_list = []
+      inst_len = 0
+
+      inst_len = self._cache_code_B(inst_list, inst_len, self._prologue)
+
+      # TODO - may want to do something different for non-IS objects
+      for stream in self._objects:
+        inst_len = self._cache_code_B(inst_list, inst_len, stream._objects)
+
+      inst_len = self._cache_code_B(inst_list, inst_len, self._epilogue)
+
+      self.render_code = extarray.extarray('B')
+      self._resolve_label_refs_B(self.render_code, inst_list)
+
+    self.make_executable()
+    self._cached = True
+    return
+
+
+  def print_code(self, pro = False, epi = False, binary = False, hex = False):
+    import corepy.lib.printer as printer
+    if pro or epi or hex or binary:
+      self.cache_code()
+    module = printer.Default(show_prologue = pro, show_epilogue = epi,
+                             show_binary = binary, show_hex = hex,
+                             line_numbers = True)
+    printer.PrintProgram(self, module)
+    return
+      
+    
 class Processor(object):
   """
   The processor class handles execution of InstructionStreams.
@@ -1268,9 +1427,9 @@ class Processor(object):
 
   def __init__(self):  object.__init__(self)
   
-  def execute(self, code, mode = 'int', async = False, params = None, debug = False):
+  def execute(self, prgm, mode = 'int', async = False, params = None, debug = False):
     """
-    Execute the instruction stream in the code object.
+    Execute the code in the Program object.
 
     Execution modes are:
 
@@ -1288,19 +1447,21 @@ class Processor(object):
     to stdout before execution.
     """
 
-    if len(code._instructions) == 0:
+    if not isinstance(prgm, Program):
+      raise TypeError("Only Programs may be executed")
+
+    if len(prgm) == 0:
       return None
 
-    if not code._cached:
-      code.cache_code()
+    if not prgm._cached:
+      prgm.cache_code()
+
+    addr = prgm.inst_addr()
 
     if debug:
-      print 'code info: 0x%x %d' % (
-        code.inst_addr(),
-        len(code.render_code))
-      code.print_code(hex = True, pro = True, epi = True)
+      print 'prgm info: 0x%x %d' % (addr, len(prgm.render_code))
+      prgm.print_code(hex = True, pro = True, epi = True)
      
-    addr = code.inst_addr()
 
     if params is None:
       params = self.exec_module.ExecParams()

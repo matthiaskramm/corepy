@@ -159,7 +159,7 @@ class syn_iter(object):
   def start(self, align = True, branch = True):
 
     if self.r_count is None:
-      self.r_count = self.code.acquire_register()
+      self.r_count = self.code.prgm.acquire_register()
       
     if self.mode == CTR and branch:
       if self.step_size() != 1:
@@ -171,7 +171,7 @@ class syn_iter(object):
         util.load_word(self.code, self.r_count, self.n_steps())
         self.code.add(ppc.mtctr(self.r_count))
 
-      self.code.release_register(self.r_count)
+      self.code.prgm.release_register(self.r_count)
       self.r_count = None
 
     elif self.mode == DEC:
@@ -179,7 +179,7 @@ class syn_iter(object):
 
     elif self.mode == INC:
       if self.r_stop is None and branch:
-        self.r_stop = self.code.acquire_register()
+        self.r_stop = self.code.prgm.acquire_register()
 
       util.load_word(self.code, self.r_count, self.get_start())
 
@@ -197,7 +197,7 @@ class syn_iter(object):
         self.code.add(ppc.noop())
 
     # Label
-    self.start_label = self.code.get_unique_label("SYN_ITER_START")
+    self.start_label = self.code.prgm.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
 
     return
@@ -243,11 +243,11 @@ class syn_iter(object):
       util.load_word(self.code, self.r_count, self.get_start())
 
     if self.r_count is not None:
-      self.code.release_register(self.r_count)
+      self.code.prgm.release_register(self.r_count)
       self.r_count = None
       
     if self.r_stop is not None and not self.external_stop:
-      self.code.release_register(self.r_stop)      
+      self.code.prgm.release_register(self.r_stop)      
       self.r_count = None
     return
 
@@ -293,8 +293,8 @@ class parallel(object):
 
   def _update_inc_count(self):
     code = self.obj.code    
-    r_block_size = code.acquire_register()
-    r_offset = code.acquire_register()
+    r_block_size = code.prgm.acquire_register()
+    r_offset = code.prgm.acquire_register()
     
     # Determine the block size for each loop
     util.load_word(code, r_block_size, self.get_count() - self.get_start())
@@ -309,8 +309,8 @@ class parallel(object):
     if self.obj.r_stop is not None:
       code.add(ppc.add(self.obj.r_stop, self.obj.r_count, r_block_size))
 
-    code.release_register(r_offset)
-    code.release_register(r_block_size)
+    code.prgm.release_register(r_offset)
+    code.prgm.release_register(r_block_size)
     return
       
   def start(self, align = True, branch = True):
@@ -331,7 +331,7 @@ class parallel(object):
         code.add(ppc.noop())
       
     # Update the real iterator's label
-    self.obj.start_label = code.get_unique_label("PARALLEL_START")
+    self.obj.start_label = code.prgm.get_unique_label("PARALLEL_START")
     code.add(self.obj.start_label)
 
     return 
@@ -522,11 +522,11 @@ class var_iter(syn_iter):
       return util.load_word(self.code, self.r_addr, _array_address(self.data))
   
   def start(self, align = True, branch = True):
-    self.r_current = self.code.acquire_register(type = self.reg_type)
+    self.r_current = self.code.prgm.acquire_register(reg_type = self.reg_type)
 
     # addr_reg is the user supplied address for the data
     if self.addr_reg is None:
-      self.r_addr = self.code.acquire_register()
+      self.r_addr = self.code.prgm.acquire_register()
     else:
       self.r_addr = self.addr_reg
 
@@ -552,11 +552,11 @@ class var_iter(syn_iter):
 
   def end(self, branch = True):
     if self.r_current is not None:
-      self.code.release_register(self.r_current)
+      self.code.prgm.release_register(self.r_current)
       self.r_current = None
     
     if self.r_addr is not None and self.addr_reg is None:
-      self.code.release_register(self.r_addr)
+      self.code.prgm.release_register(self.r_addr)
       self.r_addr = None
     
     syn_iter.end(self, branch)
@@ -650,7 +650,9 @@ class zip_iter(syn_iter):
 
 def TestIter():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
 
   a = vars.SignedWord(0, code = code)
   
@@ -670,7 +672,7 @@ def TestIter():
   #a.release_register(code)
   
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
   
   # print 'should be 36:', r
   assert(r == 36)
@@ -678,7 +680,9 @@ def TestIter():
 
 def TestExternalStop():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
   
   # Data
@@ -718,7 +722,7 @@ def TestExternalStop():
   util.return_var(sum)
 
   proc = synppc.Processor()
-  r = proc.execute(code, mode = 'fp')
+  r = proc.execute(prgm, mode = 'fp')
   # print 'Test external stop: ', r
   assert(r == 4900.0)
     
@@ -727,7 +731,9 @@ def TestExternalStop():
 
 def TestNestedIter():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
 
   a = vars.UnsignedWord(0)
@@ -741,7 +747,7 @@ def TestNestedIter():
   #a.release_register()
 
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
 
   # print 'should be 750:', r
   assert(r == 750)
@@ -749,7 +755,9 @@ def TestNestedIter():
 
 def TestRange():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
   
   a = vars.UnsignedWord(0)
@@ -767,7 +775,7 @@ def TestRange():
   #a.release_register(code)
 
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
 
   # print 'should be 21:', r
   assert(r == 21)
@@ -788,7 +796,9 @@ def _array_check(result, expected = _expected):
 
 def TestVarIter():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
   
   a = array.array('I', range(4))
@@ -826,7 +836,7 @@ def TestVarIter():
     i.v = i + d10
 
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
 
   _array_check(a)
   _array_check(ai)
@@ -843,7 +853,9 @@ def TestVarIter():
 
 def TestMemoryDesc():
 
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
 
   a = array.array('I', range(4))
@@ -853,7 +865,7 @@ def TestMemoryDesc():
     i.v = i + 10
 
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
   _array_check(a)
   return
 
@@ -898,7 +910,9 @@ def TestMemoryDesc():
 #   return
 
 def TestVecIter():
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
+  prgm.add(code)
   ppc.set_active_code(code)
   
   a = extarray.extarray('I', range(16))
@@ -931,7 +945,7 @@ def TestVecIter():
     i.v = vmx.vaddfp.ex(i, i) 
 
   proc = synppc.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
 
   expected = [0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30]
 
@@ -946,8 +960,10 @@ def TestVecIter():
   return
 
 def TestZipIter():
-  code = synppc.InstructionStream()
+  prgm = synppc.Program()
+  code = prgm.get_stream()
   ppc.set_active_code(code)
+  prgm.add(code)
 
   a = extarray.extarray('I', range(16, 32))
   b = extarray.extarray('I', range(32, 48))
@@ -970,7 +986,7 @@ def TestZipIter():
   util.return_var(sum)
   
   proc = synppc.Processor()
-  r = proc.execute(code, mode = 'int')
+  r = proc.execute(prgm, mode = 'int')
 
   assert(r == 16)
   print a

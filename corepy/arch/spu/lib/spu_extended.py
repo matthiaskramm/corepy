@@ -49,10 +49,10 @@ class shr(SPUExt):
   def block(self, d, a, b):
     # Based on example on p133 of SPU ISA manual
     code = self.get_active_code()
-    temp = code.acquire_register()
+    temp = code.prgm.acquire_register()
     spu.sfi(temp, b, 0)
     spu.rotm(d, a, temp)
-    code.release_register(temp)
+    code.prgm.release_register(temp)
     return
 
 class cneq(SPUExt):
@@ -73,11 +73,11 @@ class cge(SPUExt):
 
   def block(self, d, a, b):
     code = self.get_active_code()
-    temp = code.acquire_register()
+    temp = code.prgm.acquire_register()
     spu.cgt(temp, a, b)
     spu.ceq(d, a, b)
     spu.or_(d, d, temp)
-    code.release_register(temp)
+    code.prgm.release_register(temp)
     return
 
 class cgei(SPUExt):
@@ -87,11 +87,11 @@ class cgei(SPUExt):
 
   def block(self, d, a, b):
     code = self.get_active_code()
-    temp = code.acquire_register()
+    temp = code.prgm.acquire_register()
     spu.cgti(temp, a, b)
     spu.ceqi(d, a, b)
     spu.or_(d, d, temp)
-    code.release_register(temp)
+    code.prgm.release_register(temp)
     return
 
 
@@ -111,11 +111,11 @@ class lti(SPUExt):
 
   def block(self, d, a, b):
     code = self.get_active_code()    
-    temp = code.acquire_register()
+    temp = code.prgm.acquire_register()
     spu.cgti(temp, a, b)
     spu.ceqi(d, a, b)
     spu.nor(d, d, temp)
-    code.release_register(temp)
+    code.prgm.release_register(temp)
     
     return
 
@@ -135,12 +135,12 @@ class subi(SPUExt):
 
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register()
+    temp = code.prgm.acquire_register()
 
     load_word(code, temp, value)
     # RD = RB - RA    
     spu.sf(d, temp, a)
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -171,12 +171,12 @@ class extended_I10(SPUExt):
       self.insti(d, a, value)
     else:
       code = self.get_active_code()      
-      temp = code.acquire_register()
+      temp = code.prgm.acquire_register()
 
       load_word(code, temp, value)
       self.inst(d, a, temp)
 
-      code.release_register(temp)
+      code.prgm.release_register(temp)
     return
 
 class ah_immediate(extended_I10):
@@ -275,12 +275,13 @@ class clgt_immediate(extended_I10):
 def TestAll():
   import corepy.arch.spu.platform as env
 
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
-  a = code.acquire_register()
-  b = code.acquire_register()
-  c = code.acquire_register()
+  a = code.prgm.acquire_register()
+  b = code.prgm.acquire_register()
+  c = code.prgm.acquire_register()
   
   shr(c, a, b)
   cneq(c, a, b)
@@ -293,10 +294,12 @@ def TestAll():
   a_immediate(c, a, 10000)  
   sf_immediate(c, a, 10000)
   
-  code.print_code()
+
+  prgm.add(code)
+  prgm.print_code()
+
   proc = env.Processor()
-  proc.execute(code)
-  
+  proc.execute(prgm)
   return
 
 if __name__=='__main__':

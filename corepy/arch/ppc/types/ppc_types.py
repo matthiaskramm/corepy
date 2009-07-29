@@ -150,12 +150,14 @@ class BitType(PPCType):
 
   def _set_literal_value(self, value):
     # Put the lower 16 bits into r-temp
-    self.code.add(ppc.addi(self.reg, 0, value & 0xFFFF))
+    #self.code.add(ppc.addi(self.reg, 0, value & 0xFFFF))
   
     # Addis r-temp with the upper 16 bits (shifted add immediate) and
     # put the result in r-target
-    if (value & 0x7FFF) != value:
-      self.code.add(ppc.addis(self.reg, self.reg, ((value + 32768) >> 16)))
+    #if (value & 0x7FFF) != value:
+    #  self.code.add(ppc.addis(self.reg, self.reg, ((value + 32768) >> 16)))
+
+    util.load_word(self.code, self.reg, value)
       
     return
 
@@ -267,17 +269,17 @@ class SingleFloatType(PPCType):
 
   def _set_literal_value(self, value):
     storage = array.array('f', (float(value),))
-    self.code.add_storage(storage)
+    self.code.prgm.add_storage(storage)
 
     self.load(storage.buffer_info()[0])
 
     #storage = array.array('f', (float(self.value),))
-    #self.code.add_storage(storage)
+    #self.code.prgm.add_storage(storage)
     
-    #r_storage = self.code.acquire_register()
+    #r_storage = self.code.prgm.acquire_register()
     #addr = Bits(storage.buffer_info()[0], reg = r_storage)
     #self.code.add(ppc.lfs(self.reg, addr.reg, 0))
-    #self.code.release_register(r_storage)
+    #self.code.prgm.release_register(r_storage)
 
     return
 
@@ -288,7 +290,7 @@ class SingleFloatType(PPCType):
 
     # If addr is a constant, create a variable and store the value
     if not issubclass(type(addr), spe.Type):
-      r_storage = self.code.acquire_register()
+      r_storage = self.code.prgm.acquire_register()
       addr = Bits(addr, reg = r_storage)
     else:
       r_storage = None
@@ -301,7 +303,7 @@ class SingleFloatType(PPCType):
       self.code.add(ppc.lfs(self, addr, offset))
 
     if r_storage is not None:
-      self.code.release_register(r_storage)
+      self.code.prgm.release_register(r_storage)
 
     return
 
@@ -309,7 +311,7 @@ class SingleFloatType(PPCType):
 
     # If addr is a constant, create a variable and store the value
     if not issubclass(type(addr), spe.Type):
-      r_storage = self.code.acquire_register()
+      r_storage = self.code.prgm.acquire_register()
       addr = Bits(addr, reg = r_storage)
     else:
       r_storage = None
@@ -322,7 +324,7 @@ class SingleFloatType(PPCType):
       self.code.add(ppc.stfs(self, addr, offset))
 
     if r_storage is not None:
-      self.code.release_register(r_storage)
+      self.code.prgm.release_register(r_storage)
 
     return
 
@@ -365,13 +367,13 @@ class DoubleFloatType(PPCType):
     
   def _set_literal_value(self, value):
     storage = array.array('d', (float(value),))
-    self.code.add_storage(storage)
+    self.code.prgm.add_storage(storage)
 
     self.load(storage.buffer_info()[0])
-#     r_storage = self.code.acquire_register()
+#     r_storage = self.code.prgm.acquire_register()
 #     addr = Bits(storage.buffer_info()[0], reg = r_storage)
 #     self.code.add(ppc.lfd(self.reg, addr.reg, 0))
-#     self.code.release_register(r_storage)
+#     self.code.prgm.release_register(r_storage)
 
     return
 
@@ -382,7 +384,7 @@ class DoubleFloatType(PPCType):
 
     # If addr is a constant, create a variable and store the value
     if not issubclass(type(addr), spe.Type):
-      r_storage = self.code.acquire_register()
+      r_storage = self.code.prgm.acquire_register()
       addr = Bits(addr, reg = r_storage)
     else:
       r_storage = None
@@ -395,7 +397,7 @@ class DoubleFloatType(PPCType):
       self.code.add(ppc.lfd(self, addr, offset))
 
     if r_storage is not None:
-      self.code.release_register(r_storage)
+      self.code.prgm.release_register(r_storage)
 
     return
 
@@ -403,7 +405,7 @@ class DoubleFloatType(PPCType):
 
     # If addr is a constant, create a variable and store the value
     if not issubclass(type(addr), spe.Type):
-      r_storage = self.code.acquire_register()
+      r_storage = self.code.prgm.acquire_register()
       addr = Bits(addr, reg = r_storage)
     else:
       r_storage = None
@@ -416,7 +418,7 @@ class DoubleFloatType(PPCType):
       self.code.add(ppc.stfd(self, addr, offset))
 
     if r_storage is not None:
-      self.code.release_register(r_storage)
+      self.code.prgm.release_register(r_storage)
 
     return
 
@@ -524,24 +526,26 @@ def SimpleTest():
   """
   Just make sure things are working...
   """
-  from corepy.arch.ppc.platform import Processor, InstructionStream
+  import corepy.arch.ppc.platform as env
 
-  code = InstructionStream()
-  proc = Processor()
+  prgm = env.Program()
+  code = prgm.get_stream()
+  proc = env.Processor()
+  prgm.add(code)
 
   # Without active code
   a = SignedWord(11, code)
-  b = SignedWord(31, code, reg = code.acquire_register())
-  c = SignedWord(code = code, reg = code.gp_return)
+  b = SignedWord(31, code, reg = code.prgm.acquire_register())
+  c = SignedWord(code = code, reg = prgm.gp_return)
 
   byte_mask = Bits(0xFF, code)
-  code.add(ppc.addi(code.gp_return, 0, 31))
+  code.add(ppc.addi(prgm.gp_return, 0, 31))
 
   # c.v = a + SignedWord.cast(b & byte_mask) + 12
   c.v = a + (byte_mask & b) + 12
 
   if True:
-    r = proc.execute(code)
+    r = proc.execute(prgm)
     assert(r == (42 + 12))
   
   # With active code
@@ -551,24 +555,25 @@ def SimpleTest():
   
   a = SignedWord(11)
   b = SignedWord(31)
-  c = SignedWord(reg = code.gp_return)
+  c = SignedWord(reg = prgm.gp_return)
 
   byte_mask = Bits(0xFF)
 
   c.v = a + (b & byte_mask)
 
   ppc.set_active_code(None)
-  r = proc.execute(code)
+  r = proc.execute(prgm)
   # code.print_code()
   assert(r == 42)
   return
 
 
 def TestBits():
-  from corepy.arch.ppc.platform import Processor, InstructionStream
+  import corepy.arch.ppc.platform as env
 
-  code = InstructionStream()
-  proc = Processor()
+  prgm = env.Program()
+  code = prgm.get_stream()
+  proc = env.Processor()
 
   ppc.set_active_code(code)
   
@@ -576,7 +581,7 @@ def TestBits():
   e = Bits(0xE0000)
   a = Bits(0xCA)
   f = Bits(0x5)
-  x = Bits(0, reg = code.gp_return)
+  x = Bits(0, reg = prgm.gp_return)
   
   mask = Bits(0xF)
   byte = Bits(8) # 8 bits
@@ -585,15 +590,17 @@ def TestBits():
   f.v = (a & mask) ^ f
   x.v = (b << byte) | (e >> byte) | ((a & mask) << halfbyte) | (f | mask)
 
-  r = proc.execute(code)
+  prgm.add(code)
+  r = proc.execute(prgm)
   assert(r == 0xBEAF)
   return
   
 def TestFloatingPoint(float_type):
-  from corepy.arch.ppc.platform import Processor, InstructionStream
+  import corepy.arch.ppc.platform as env
   
-  code = InstructionStream()
-  proc = Processor()
+  prgm = env.Program()
+  code = prgm.get_stream()
+  proc = env.Processor()
 
   ppc.set_active_code(code)
 
@@ -632,7 +639,7 @@ def TestFloatingPoint(float_type):
   reg_addr = Bits(addr)
   d.load(reg_addr)
   
-  r = float_type(reg = code.fp_return)
+  r = float_type(reg = prgm.fp_return)
 
   r.v = (x + y) / y
 
@@ -660,7 +667,8 @@ def TestFloatingPoint(float_type):
   d.store(reg_addr)
 
   
-  r = proc.execute(code, mode='fp')
+  prgm.add(code)
+  r = proc.execute(prgm, mode='fp')
   assert(r == 0.0)
   assert(data[0] == 11.0)
   assert(data[1] == 12.0)

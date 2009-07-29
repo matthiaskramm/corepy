@@ -37,25 +37,26 @@ from corepy.arch.spu.lib.iterators import memory_desc, spu_vec_iter, \
      stream_buffer, syn_iter, parallel
 import corepy.arch.spu.lib.dma as dma
 import corepy.arch.spu.lib.util as util
-from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     Processor, spu_exec
+#from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
+#     Processor, spu_exec
      #NativeInstructionStream, Processor, aligned_memory, spu_exec
+import corepy.arch.spu.platform as env
 
   
 def SimpleSPU():
   """
   A very simple SPU that computes 11 + 31 and returns 0xA on success.
   """
-  code = InstructionStream()
-  proc = Processor()
+  prgm = env.Program()
+  code = prgm.get_stream()
+  proc = env.Processor()
 
   spu.set_active_code(code)
-  
 
   # Acquire two registers
   #x    = code.acquire_register()
   x = code.gp_return
-  test = code.acquire_register(reg = 55)
+  test = prgm.acquire_register(reg_name = 55)
 
   spu.xor(x, x, x) # zero x
   spu.ai(x, x, 11) # x = x + 11
@@ -67,19 +68,22 @@ def SimpleSPU():
   spu.brz(test, 2)
   spu.stop(0x100A)
   spu.stop(0x100B)
- 
-  code.print_code(hex = True) 
-  r = proc.execute(code, mode = 'int', stop = True, debug = True) 
+
+  prgm.add(code) 
+  prgm.print_code(hex = True) 
+  r = proc.execute(prgm, mode = 'int', stop = True, debug = True) 
   assert(r[0] == 42)
   assert(r[1] == 0x100A)
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
   util.load_float(code, code.fp_return, 3.14)
 
-  code.print_code(hex = True)
-  r = proc.execute(code, mode = 'fp')
+  prgm.add(code)
+  prgm.print_code(hex = True)
+  r = proc.execute(prgm, mode = 'fp')
   print r
   return
 
@@ -114,8 +118,8 @@ def MemoryDescExample(data_size = 20000):
         transferring data over 16k.
   """
   
-  code = InstructionStream()
-  proc = Processor()
+  code = env.InstructionStream()
+  proc = env.Processor()
 
   code.debug = True
   spu.set_active_code(code)
@@ -182,8 +186,8 @@ def DoubleBufferExample(n_spus = 6):
   addr = a.buffer_info()[0]  
   n_bytes = n * 4
 
-  if n_spus > 1:  code = ParallelInstructionStream()
-  else:           code = InstructionStream()
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
 
   current = SignedWord(0, code)
   two = SignedWord(2, code)
@@ -203,7 +207,7 @@ def DoubleBufferExample(n_spus = 6):
       code.add(spu.stqx(current, lsa, buffer))
 
   # Run the synthetic program and copy the results back to the array 
-  proc = Processor()
+  proc = env.Processor()
   r = proc.execute(code, n_spus = n_spus)
 
   for i in range(2, len(a)):
@@ -220,8 +224,8 @@ def SpeedTest(n_spus = 6, n_floats = 6):
   On a PS3 using all 6 spus, this is 152 GFlops.
   """
 
-  if n_spus > 1:  code = ParallelInstructionStream()
-  else:           code = InstructionStream()
+  if n_spus > 1:  code = env.ParallelInstructionStream()
+  else:           code = env.InstructionStream()
 
   spu.set_active_code(code)
   
@@ -245,7 +249,7 @@ def SpeedTest(n_spus = 6, n_floats = 6):
 
   # Run the synthetic program and copy the results back to the array 
   # TODO - AWF - use the SPU decrementers to time this
-  proc = Processor()
+  proc = env.Processor()
   start = time.time()
   r = proc.execute(code, n_spus = n_spus)
   stop = time.time()
@@ -292,9 +296,9 @@ def SpeedTest(n_spus = 6, n_floats = 6):
 if __name__=='__main__':
   SimpleSPU()
   
-  for i in [4100, 10000, 20000, 30000]:
-    MemoryDescExample(i)
+#  for i in [4100, 10000, 20000, 30000]:
+#    MemoryDescExample(i)
 
-  DoubleBufferExample()
-  SpeedTest()
+#  DoubleBufferExample()
+#  SpeedTest()
 

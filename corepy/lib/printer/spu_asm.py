@@ -77,7 +77,10 @@ class SPU_Asm(object):
         instructions should be printed. """
     return self.show_epilogue
 
-  def body(self, fd):
+  def stream(self, fd, stream):
+    if self.verbose:
+      print >>fd
+      print >>fd, "# InstructionStream %x\n" % id(stream)
     return
 
   def label(self, fd, lbl):

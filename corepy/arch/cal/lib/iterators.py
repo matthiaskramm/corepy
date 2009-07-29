@@ -171,7 +171,7 @@ class syn_iter(object):
     count_vec = [0, 0, 0, 0]
 
     if self.r_count is None:
-      self.r_count = self.code.acquire_register()
+      self.r_count = self.code.prgm.acquire_register()
       
     if self.mode == DEC:
       if not self._external_start:
@@ -193,7 +193,7 @@ class syn_iter(object):
     # /end mode if
     
     if not (self._external_stop and self._external_start and self._external_step):
-      self.r_loop_consts = self.code.acquire_register(count_vec)
+      self.r_loop_consts = self.code.prgm.acquire_register(count_vec)
 
     if self._external_start == False:
       self.code.add(cal.mov(self.r_count, self.r_loop_consts.x))
@@ -201,11 +201,11 @@ class syn_iter(object):
       self.code.add(cal.mov(self.r_count, self.r_start))
 
     if self._external_stop == False:
-      self.r_stop = self.code.acquire_register()
+      self.r_stop = self.code.prgm.acquire_register()
       self.code.add(cal.mov(self.r_stop, self.r_loop_consts.y))
 
     if self._external_step == False:
-      self.r_step = self.code.acquire_register()
+      self.r_step = self.code.prgm.acquire_register()
       self.code.add(cal.mov(self.r_step, self.r_loop_consts.z))
 
     if self.r_count is not None:
@@ -249,7 +249,7 @@ class syn_iter(object):
         self.code.add(cal.mov(self.r_count, self.r_loop_consts.x))
 
     for reg in self.get_acquired_registers():
-      self.code.release_register(reg)
+      self.code.prgm.release_register(reg)
 
     return
 
@@ -281,7 +281,7 @@ class syn_iter_float(syn_iter):
     count_vec = [0, 0, 0, 0]
 
     if self.r_count is None:
-      self.r_count = self.code.acquire_register()
+      self.r_count = self.code.prgm.acquire_register()
       
     if self.mode == DEC:
       if not self._external_start:
@@ -307,7 +307,7 @@ class syn_iter_float(syn_iter):
     count_vec[2] = float(count_vec[2])
     count_vec[3] = float(count_vec[3])
     if not (self._external_stop and self._external_start and self._external_step):
-      self.r_loop_consts = self.code.acquire_register(count_vec)
+      self.r_loop_consts = self.code.prgm.acquire_register(count_vec)
 
     if self._external_start == False:
       self.code.add(cal.mov(self.r_count, self.r_loop_consts.x))
@@ -315,11 +315,11 @@ class syn_iter_float(syn_iter):
       self.code.add(cal.mov(self.r_count, self.r_start))
 
     if self._external_stop == False:
-      self.r_stop = self.code.acquire_register()
+      self.r_stop = self.code.prgm.acquire_register()
       self.code.add(cal.mov(self.r_stop, self.r_loop_consts.y))
 
     if self._external_step == False:
-      self.r_step = self.code.acquire_register()
+      self.r_step = self.code.prgm.acquire_register()
       self.code.add(cal.mov(self.r_step, self.r_loop_consts.z))
 
     if self.r_count is not None:
@@ -343,22 +343,30 @@ def TestSynIterDec():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
+
   for i in syn_iter(code, 4, step=1, mode=DEC):
     code.add(cal.iadd(counter, counter, ones))
   code.add(cal.mov(reg.o0, counter.x))
-  code.cache_code()
+
+  #code.cache_code()
   #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
+
   ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -366,7 +374,7 @@ def TestSynIterDec():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
 
@@ -375,22 +383,27 @@ def TestSynIterInc():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
+
   for i in syn_iter(code, 4, step=1, mode=INC):
     code.add(cal.iadd(counter, counter, ones))
+
   code.add(cal.mov(reg.o0, counter.x))
-  code.cache_code()
-  #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
-  ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+
+  ext_output=proc.alloc_remote('i', 1, SIZE)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -398,9 +411,10 @@ def TestSynIterInc():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
+
 #def TestSynIterInc():
 #  SIZE = 128
 #
@@ -429,22 +443,28 @@ def TestSynIterDecFloat():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
+
   for i in syn_iter_float(code, 4.0, step=1.0, mode=DEC):
     code.add(cal.iadd(counter, counter, ones))
+
   code.add(cal.mov(reg.o0, counter.x))
-  code.cache_code()
-  #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
+
   ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -452,7 +472,7 @@ def TestSynIterDecFloat():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
 
@@ -461,22 +481,28 @@ def TestSynIterIncFloat():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
+
   for i in syn_iter_float(code, 4.0, step=1.0, mode=INC):
     code.add(cal.iadd(counter, counter, ones))
+
   code.add(cal.mov(reg.o0, counter.x))
-  code.cache_code()
-  #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
+
   ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -484,7 +510,7 @@ def TestSynIterIncFloat():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
 
@@ -493,23 +519,30 @@ def TestSynIterIncFloatExtStop():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
-  stop = code.acquire_register((0.0, 4.0, 1.0, 0.0))
+
+  stop = prgm.acquire_register((0.0, 4.0, 1.0, 0.0))
+
   for i in syn_iter_float(code, stop.y, step=stop.z, mode=INC):
     code.add(cal.iadd(counter, counter, ones))
+
   code.add(cal.mov(reg.o0, counter.x))
-  code.cache_code()
-  #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
+
   ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -517,37 +550,42 @@ def TestSynIterIncFloatExtStop():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
+
 
 def TestSynIterIncFloatExtStopExtStart():
   SIZE = 64
 
   # build and run the kernel
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
+
   code.add(cal.dcl_output(reg.o0, USAGE=cal.usage.pos))
-  ones = code.acquire_register((1, 1, 1, 1))
-  counter = code.acquire_register()
+  ones = prgm.acquire_register((1, 1, 1, 1))
+  counter = prgm.acquire_register()
   code.add(cal.mov(counter, ones))
-  stop = code.acquire_register((4.0, 4.0, 4.0, 4.0))
-  start = code.acquire_register((2.0, 2.0, 2.0, 2.0))
-  step = code.acquire_register((1.0, 1.0, 1.0, 1.0))
+
+  stop = prgm.acquire_register((4.0, 4.0, 4.0, 4.0))
+  start = prgm.acquire_register((2.0, 2.0, 2.0, 2.0))
+  step = prgm.acquire_register((1.0, 1.0, 1.0, 1.0))
+
   fiter = syn_iter_float(code, stop, step=step, mode=INC)
   fiter.set_start_reg(start)
   for i in fiter:
     code.add(cal.iadd(counter, counter, ones))
+
   code.add(cal.mov(reg.o0, counter.x))
-  #for i in code._instructions:
-  #  print i.render()
-  code.cache_code()
-  #print code.render_string
 
   domain = (0, 0, SIZE, SIZE)
   proc = env.Processor(0)
+
   ext_output=proc.alloc_remote('i', 1, SIZE, 1)
-  code.set_remote_binding(reg.o0, ext_output)
-  proc.execute(code, domain)
+  prgm.set_binding(reg.o0, ext_output)
+
+  prgm.add(code)
+  proc.execute(prgm, domain)
 
   passed = True
   for i in xrange(0, SIZE):
@@ -555,7 +593,7 @@ def TestSynIterIncFloatExtStopExtStart():
       passed = False
   print "Passed == ", passed
 
-  proc.free_remote(ext_output)
+  proc.free(ext_output)
 
   return
 

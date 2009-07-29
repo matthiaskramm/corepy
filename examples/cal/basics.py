@@ -5,7 +5,9 @@ import corepy.arch.cal.platform as env
 
 
 proc = env.Processor(0)
-code = env.InstructionStream()
+
+prgm = env.Program()
+code = prgm.get_stream()
 
 inp = proc.alloc_remote('f', 4, 64)
 out = proc.alloc_remote('f', 4, 64)
@@ -22,11 +24,13 @@ cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
 
 cal.sample(0, 0, reg.o0, reg.v0.x)
 
-code.set_binding(reg.i0, inp)
-code.set_binding(reg.o0, out)
+prgm.set_binding(reg.i0, inp)
+prgm.set_binding(reg.o0, out)
 
-code.print_code()
-proc.execute(code)
+prgm.add(code)
+prgm.print_code()
+
+proc.execute(prgm)
 
 print "inp", inp
 print "out", out

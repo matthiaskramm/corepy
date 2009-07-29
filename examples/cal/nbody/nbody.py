@@ -129,29 +129,29 @@ def cal_nb_generate(n_bodies, dt):
   return code
 
 
-def cal_nb_generate_2d(n_bodies, dt):
-  code = env.InstructionStream()
+def cal_nb_generate_2d(prgm, n_bodies, dt):
+  code = prgm.get_stream()
   cal.set_active_code(code)
   fn_bodies = float(n_bodies)
 
-  #r_cx = code.acquire_register()
-  #r_cy = code.acquire_register()
-  r_count = code.acquire_register()
-  r_lpos = code.acquire_register()
-  r_rpos = code.acquire_register()
-  r_force = code.acquire_register()
-  r_diff = code.acquire_register()
-  r_dist_vec = code.acquire_register()
-  r_dist = code.acquire_register()
-  r_force_tmp = code.acquire_register()
-  r_force_vec = code.acquire_register()
-  r_vel = code.acquire_register()
+  #r_cx = prgm.acquire_register()
+  #r_cy = prgm.acquire_register()
+  r_count = prgm.acquire_register()
+  r_lpos = prgm.acquire_register()
+  r_rpos = prgm.acquire_register()
+  r_force = prgm.acquire_register()
+  r_diff = prgm.acquire_register()
+  r_dist_vec = prgm.acquire_register()
+  r_dist = prgm.acquire_register()
+  r_force_tmp = prgm.acquire_register()
+  r_force_vec = prgm.acquire_register()
+  r_vel = prgm.acquire_register()
 
   #code.add("dcl_input_position_interp(linear_noperspective) v0.xy__")
   cal.dcl_input(reg.v0.x___, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
-  r_bodies = code.acquire_register((fn_bodies,) * 4)
-  r_G = code.acquire_register((G,) * 4)
-  r_dt = code.acquire_register((dt,) * 4)
+  r_bodies = prgm.acquire_register((fn_bodies,) * 4)
+  r_G = prgm.acquire_register((G,) * 4)
+  r_dt = prgm.acquire_register((dt,) * 4)
   cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
   cal.dcl_output(reg.o1, USAGE=cal.usage.generic)
   cal.dcl_resource(0, cal.pixtex_type.twod, cal.fmt.float, UNNORM=True) # positions
@@ -433,8 +433,11 @@ if __name__ == '__main__':
     vel[0][i * 4 + 2] = 0.0
     vel[0][i * 4 + 3] = 0.0
 
-  code = cal_nb_generate_2d(SQRT_NBODIES, DT)
-  code.cache_code()
+  prgm = env.Program()
+  code = cal_nb_generate_2d(prgm, SQRT_NBODIES, DT)
+  for i in xrange(0, 25):
+    prgm.add(code)
+  prgm.cache_code()
   #print code.render_string
 
   #code.set_local_binding('g[]', (SQRT_NBODIES, SQRT_NBODIES * 2, env.cal_exec.FMT_FLOAT32_4))
@@ -449,18 +452,17 @@ if __name__ == '__main__':
     out = (i + 1) % 2
     #cal_nb_exec(proc, code, pos[inp], vel[inp], pos[out], vel[out])
     #glrender.c_nb_step(pos[0].buffer_info()[0], vel[0].buffer_info()[0], DT, N_BODIES)
-    code.set_binding(reg.i0, localpos[inp])
-    code.set_binding(reg.i1, localvel[inp])
-    code.set_binding(reg.o0, localpos[out])
-    code.set_binding(reg.o1, localvel[out])
+    prgm.set_binding(reg.i0, localpos[inp])
+    prgm.set_binding(reg.i1, localvel[inp])
+    prgm.set_binding(reg.o0, localpos[out])
+    prgm.set_binding(reg.o1, localvel[out])
 
     domain = (0, 0, SQRT_NBODIES, SQRT_NBODIES)
 
     #t3 = time.time()
-    proc.execute(code, domain)
+    proc.execute(prgm, domain)
     #t4 = time.time()
     #print "step %d time %f" % (i, t4 - t3)
-
 
   cpy1 = proc.copy(pos[out], localpos[out], async = True)
   cpy2 = proc.copy(vel[out], localvel[out], async = True)

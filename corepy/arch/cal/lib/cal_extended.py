@@ -44,9 +44,9 @@ class iaddi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.iadd(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -65,9 +65,9 @@ class isubi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((-1*value, -1*value, -1*value, -1*value))
+    temp = code.prgm.acquire_register((-1*value, -1*value, -1*value, -1*value))
     code.add(cal.iadd(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -86,9 +86,9 @@ class isubfi(CALExt):
   """
   def block(self, d, value, a):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(isub(d, temp, a))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -98,9 +98,9 @@ class umodi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.umod(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -110,9 +110,9 @@ class umuli(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.umul(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -122,9 +122,9 @@ class imuli(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.imul(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -134,9 +134,9 @@ class ishli(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.ishl(d, a, temp)) # documentation says temp is 'scalar' with all components the same
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -146,9 +146,9 @@ class ishri(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.ishr(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -158,9 +158,9 @@ class ushri(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.ushr(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -180,9 +180,9 @@ class raddi(CALExt):
   """
   def block(self, d, value, a):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.add(d, temp, a))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -192,9 +192,9 @@ class addi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.add(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -204,9 +204,9 @@ class subi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.sub(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -226,9 +226,9 @@ class subfi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.sub(d, temp, a))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -238,9 +238,9 @@ class muli(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.mul(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -250,9 +250,9 @@ class divi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.div(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -272,9 +272,9 @@ class rdivi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.div(d, temp, a))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -284,9 +284,9 @@ class daddi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.dadd(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -306,9 +306,9 @@ class dsubi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((-1.0*value, -1.0*value, -1.0*value, 1.0*value))
+    temp = code.prgm.acquire_register((-1.0*value, -1.0*value, -1.0*value, 1.0*value))
     code.add(cal.dadd(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -318,9 +318,9 @@ class dmuli(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.dmul(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -330,9 +330,9 @@ class ddivi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.ddiv(d, a, temp))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return
 
@@ -352,8 +352,8 @@ class drdivi(CALExt):
   """
   def block(self, d, a, value):
     code = self.get_active_code()    
-    temp = code.acquire_register((value, value, value, value))
+    temp = code.prgm.acquire_register((value, value, value, value))
     code.add(cal.ddiv(d, temp, a))
-    code.release_register(temp)
+    code.prgm.release_register(temp)
 
     return

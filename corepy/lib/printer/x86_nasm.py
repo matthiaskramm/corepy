@@ -90,7 +90,7 @@ class x86_Nasm(object):
 
     return self.show_epilogue
 
-  def body(self, fd):
+  def stream(self, fd, stream):
     #print >>fd, "\nbody:"
     return
 

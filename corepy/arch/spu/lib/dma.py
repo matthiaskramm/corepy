@@ -197,7 +197,7 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
 #      r_mbox_mma_cached = True
 #      code.add_storage(ref, r_mbox_mma)
 
-  r_mbox_mma = code.acquire_register()
+  r_mbox_mma = code.prgm.acquire_register()
   if isinstance(psmap, (int, long)):
     util.load_word(code, r_mbox_mma, psmap + 0x400C)
   else:
@@ -209,7 +209,7 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
   r_size = code.get_storage(ref)
   if not isinstance(r_size, spu.Register):
     r_size_cached = False
-    r_size = code.acquire_register()
+    r_size = code.prgm.acquire_register()
     util.load_word(code, r_size, 4)
     if cache == True:
       r_size_cached = True
@@ -258,7 +258,7 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 #      r_sig_mma_cached = True
 #      code.add_storage(ref, r_sig_mma)
 
-  r_sig_mma = code.acquire_register()
+  r_sig_mma = code.prgm.acquire_register()
   if isinstance(psmap, (int, long)):
     util.load_word(code, r_sig_mma, psmap + addr)
   else:
@@ -276,12 +276,12 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
   #    r_size_cached = True
   #    code.add_storage(ref, r_size)
 
-  r_size = code.acquire_register()
+  r_size = code.prgm.acquire_register()
   util.load_word(code, r_size, 4)
 
   mem_put(code, lsa, r_sig_mma, r_size, tag)
-  code.release_register(r_size)
-  code.release_register(r_sig_mma)
+  code.prgm.release_register(r_size)
+  code.prgm.release_register(r_sig_mma)
 
   #if cache == False:
     #if not isinstance(psmap, (int, long)):
@@ -307,7 +307,7 @@ def mem_complete(code, tag):
     mfc_write_tag_mask(code, 1 << tag)
     
   r_status = mfc_read_tag_status_all(code)
-  code.release_register(r_status)
+  code.prgm.release_register(r_status)
   return
 
 
@@ -333,7 +333,7 @@ def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
 #    util.load_word(code, r_cmd, cmd)
 #    code.add_storage(ref, r_cmd)
   
-  r_cmd = code.acquire_register()
+  r_cmd = code.prgm.acquire_register()
   util.load_word(code, r_cmd, cmd)
 
   code.add(spu.wrch(r_ls, MFC_LSA))
@@ -342,11 +342,11 @@ def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
   code.add(spu.wrch(r_tagid, MFC_TagID))
   last = code.add(spu.wrch(r_cmd, MFC_Cmd))
 
-  code.release_register(r_cmd)
+  code.prgm.release_register(r_cmd)
   return last
 
 def spu_mfcdma64(code, r_ls, r_eah, r_eal, r_size, r_tagid, cmd):
-  r_cmd = code.acquire_register()
+  r_cmd = code.prgm.acquire_register()
   util.load_word(code, r_cmd, cmd)
 
   code.add(spu.wrch(r_ls, MFC_LSA))
@@ -364,21 +364,19 @@ def spu_writech(code, ch, msg):
   if isinstance(msg, (spe.Register, spe.Variable)):
     last = code.add(spu.wrch(msg, ch))
   else:
-    r_msg = code.acquire_register()
+    r_msg = code.prgm.acquire_register()
     util.load_word(code, r_msg, msg)
     last = code.add(spu.wrch(r_msg, ch))
-    code.release_register(r_msg)
+    code.prgm.release_register(r_msg)
 
   return last
 
 def spu_readch(code, ch, r_msg = None):
   if r_msg is None:
-    r_msg = code.acquire_register()
+    r_msg = code.prgm.acquire_register()
 
   code.add(spu.rdch(r_msg, ch))
-
   return r_msg
-
 
 
 # ------------------------------------------------------------
@@ -425,8 +423,7 @@ def mfc_write_tag_update_all(code):
 # define mfc_stat_tag_update()            spu_readchcnt(MFC_WrTagUpdate)
 
 def mfc_read_tag_status(code):
-  r_status = spu_readch(code, MFC_RdTagStat)
-  return r_status
+  return spu_readch(code, MFC_RdTagStat)
 
 # define mfc_read_tag_status_immediate()  mfc_write_tag_update_immediate();    \
 #                                         mfc_read_tag_status()
@@ -435,8 +432,7 @@ def mfc_read_tag_status(code):
 
 def mfc_read_tag_status_all(code):
   mfc_write_tag_update_all(code)
-  r_status = mfc_read_tag_status(code)
-  return r_status
+  return mfc_read_tag_status(code)
 
 # define mfc_stat_tag_status()            spu_readchcnt(MFC_RdTagStat)
 

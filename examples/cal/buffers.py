@@ -5,7 +5,8 @@ import corepy.arch.cal.platform as env
 
 def test_4comp():
   proc = env.Processor(0)
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
 
   inp = proc.alloc_remote('i', 1, 4, 1)
   out = proc.alloc_remote('i', 4, 1, 1)
@@ -14,16 +15,16 @@ def test_4comp():
     inp[i] = i + 1
     out[i] = 0
 
-  print "inp", inp
-  print "out", out
+  print "inp", inp[0:4]
+  print "out", out[0:4]
   
   cal.set_active_code(code)
 
   cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
   cal.dcl_resource(0, cal.pixtex_type.oned, cal.fmt.float, UNNORM=True) # positions
 
-  r_cnt = code.acquire_register()
-  r = code.acquire_registers(4)
+  r_cnt = prgm.acquire_register()
+  r = prgm.acquire_registers(4)
 
   cal.mov(r_cnt, r_cnt('0000'))
 
@@ -37,15 +38,16 @@ def test_4comp():
   cal.iadd(r[0], r[0], r[0])
   cal.mov(reg.o0, r[0])
 
-  code.set_binding(reg.i0, inp)
-  code.set_binding(reg.o0, out)
+  prgm.set_binding(reg.i0, inp)
+  prgm.set_binding(reg.o0, out)
 
-  code.cache_code()
-  print code.render_string
-  proc.execute(code, (0, 0, 1, 1))
+  prgm.add(code)
+  prgm.print_code()
 
-  print "inp", inp
-  print "out", out
+  proc.execute(prgm, (0, 0, 1, 1))
+
+  print "inp", inp[0:4]
+  print "out", out[0:4]
   for i in xrange(0, 4):
     assert(out[i] == (i + 1) * 2)
   return
@@ -53,7 +55,8 @@ def test_4comp():
 
 def test_1comp():
   proc = env.Processor(0)
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
 
   inp = proc.alloc_remote('i', 4, 1, 1)
   out = proc.alloc_remote('i', 1, 4, 1)
@@ -62,15 +65,15 @@ def test_1comp():
     inp[i] = i + 1
     out[i] = 0
 
-  print "inp", inp
-  print "out", out
+  print "inp", inp[0:4]
+  print "out", out[0:4]
   
   cal.set_active_code(code)
 
   cal.dcl_output(reg.o0, USAGE=cal.usage.generic)
   cal.dcl_resource(0, cal.pixtex_type.oned, cal.fmt.float, UNNORM=True) # positions
 
-  r = code.acquire_register()
+  r = prgm.acquire_register()
 
   cal.sample(0, 0, r.x000, r('0000'))
 
@@ -81,15 +84,16 @@ def test_1comp():
 
   cal.mov(reg.o0.x, r)
 
-  code.set_binding(reg.i0, inp)
-  code.set_binding(reg.o0, out)
+  prgm.set_binding(reg.i0, inp)
+  prgm.set_binding(reg.o0, out)
 
-  code.cache_code()
-  print code.render_string
-  proc.execute(code, (0, 0, 4, 1))
+  prgm.add(code)
+  prgm.print_code()
 
-  print "inp", inp
-  print "out", out
+  proc.execute(prgm, (0, 0, 4, 1))
+
+  print "inp", inp[0:4]
+  print "out", out[0:4]
   for i in xrange(0, 4):
     assert(out[i] == 2)
   
@@ -98,7 +102,8 @@ def test_1comp():
 
 def test_foo():
   proc = env.Processor(0)
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
 
   cal.set_active_code(code)
 
@@ -122,17 +127,18 @@ def test_foo():
   cal.mov('o0', 'r0')
   cal.mov('g[0]', 'r0')
 
-  code.set_binding('cb0', cb)
-  code.set_binding('o0', out)
-  code.set_binding('g[]', gb)
+  prgm.set_binding('cb0', cb)
+  prgm.set_binding('o0', out)
+  prgm.set_binding('g[]', gb)
 
-  code.cache_code()
-  print code.render_string
-  proc.execute(code, (0, 0, 1, 1))
+  prgm.add(code)
+  prgm.print_code()
 
-  print "cb ", cb
-  print "out", out
-  print "gb ", gb
+  proc.execute(prgm, (0, 0, 1, 1))
+
+  print "cb ", cb[0:4]
+  print "out", out[0:4]
+  print "gb ", gb[0:4]
   return
 
 

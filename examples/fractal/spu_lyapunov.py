@@ -46,13 +46,13 @@ def fdiv(code, d, x, y, one = None):
   """
   Single-precision floating point division for x / y
   """
-  Y = code.acquire_registers(3)
-  t = code.acquire_register()
+  Y = code.prgm.acquire_registers(3)
+  t = code.prgm.acquire_register()
   regs = Y[:]
   regs.append(t)
   
   if one is None:
-    one = code.acquire_register()
+    one = code.prgm.acquire_register()
     spu.xor(one, one, one)
     spu.ai(one, one, 1)
     spu.cuflt(one, one, 155)
@@ -67,7 +67,7 @@ def fdiv(code, d, x, y, one = None):
   # Compute x * (1/y)
   spu.fm(d, x, Y[2])
   
-  code.release_registers(regs)
+  code.prgm.release_registers(regs)
     
   return
 
@@ -102,7 +102,7 @@ class LyapunovPoint:
   
   def setup(self, code):
     for const in constants.keys():
-      self.consts[const] = var.Word(constants[const])
+      self.consts[const] = var.Word(constants[const], code = code)
     return
 
   def _next_r(self, r):
@@ -147,7 +147,7 @@ class LyapunovPoint:
     old_code = spu.get_active_code()
     spu.set_active_code(code)
 
-    zero = var.Word(reg = code.r_zero)
+    zero = var.Word(reg = code.prgm.r_zero)
     one = self.log.consts['ONE']
     two = self.consts['TWO']
     
@@ -487,12 +487,15 @@ class MailboxLyapunov:
     ly_block.set_max_n(max_n)
     ly_block.set_renderer(renderer)
 
-    code = synspu.InstructionStream()
+    prgm = synspu.Program()
+    code = prgm.get_stream()
+    prgm += code
+
     ly_block.synthesize(code)
 
     proc = synspu.Processor()
 
-    spe_id = proc.execute(code, async=True)
+    spe_id = proc.execute(prgm, async=True)
 
     for i in range(size[0] * size[1]):
       while synspu.spu_exec.stat_out_mbox(spe_id) == 0: pass
@@ -561,7 +564,7 @@ class FramebufferLyapunov:
     pattern = extarray.extarray('I', len(bits[0]))
 
     # Create the instruction streams
-    codes  = []
+    prgms = []
 
     n = len(patterns) * 10
     offset = 0
@@ -582,10 +585,13 @@ class FramebufferLyapunov:
       ly_block.set_max_init(max_init)
       ly_block.set_max_n(max_n)
       ly_block.set_renderer(renderer)
-      
-      code = synspu.InstructionStream()
+
+      prgm = synspu.Program()
+      code = env.get_stream()
+      prgm += code
+
       # code.set_debug(True)
-      codes.append(code)
+      prgms.append(prgm)
       offset += spu_slices[i][1] * fb.stride * 4
 
       # for i in spuiter.syn_range(code, n):
@@ -612,7 +618,7 @@ class FramebufferLyapunov:
         pattern[j] = bits[ipattern][j]
 
       for ispu in range(n_spus):
-        ids[ispu] = proc.execute(codes[ispu], async=True)
+        ids[ispu] = proc.execute(prgms[ispu], async=True)
 
       for ispu in range(n_spus):
         proc.join(ids[ispu])

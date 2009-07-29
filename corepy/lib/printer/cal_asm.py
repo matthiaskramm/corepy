@@ -75,7 +75,10 @@ class CAL_Asm(object):
     # CAL has no epilogue, so always return false.
     return False
 
-  def body(self, fd):
+  def stream(self, fd, stream):
+    if self.verbose:
+      print >>fd
+      print >>fd, "# InstructionStream %x\n" % id(stream)
     return
 
   def label(self, fd, lbl):
@@ -88,4 +91,8 @@ class CAL_Asm(object):
     print >>fd, "\t%s" % (inst.render())
     return
 
+  def string(self, fd, str):
+    """Print a string (assumedly representing an instruction)."""
+    print >>fd, "\t%s" % (str)
+    return
 

@@ -154,7 +154,7 @@ class BitType(SPUType):
         
       util.vector_from_array(self.code, self, value)
 
-      self.code.add_storage(value)
+      self.code.prgm.add_storage(value)
       self.storage = self.value
       
       # elif type(self.value) is _numeric_type:
@@ -174,7 +174,7 @@ class BitType(SPUType):
     if self.array_typecode is not None and INT_ARRAY_SIZES[self.array_typecode] != 4:
       print "Warning: Only 4-byte integers are supported for spu variables from arrays"
 
-    self.code.add_storage(self.storage)
+    self.code.prgm.add_storage(self.storage)
     return
 
 
@@ -277,8 +277,8 @@ class SingleFloatType(SPUType):
       
       util.vector_from_array(self.code, self, int_value)
 
-      self.code.add_storage(value)
-      self.code.add_storage(int_value)
+      self.code.prgm.add_storage(value)
+      self.code.prgm.add_storage(int_value)
       self.storage = self.value
       
       # elif type(self.value) is _numeric_type:
@@ -386,8 +386,10 @@ def _bits_to_float(bits):
 def TestFloatScalar():
   from corepy.arch.spu.platform import InstructionStream, Processor
   import corepy.arch.spu.lib.dma as dma
+  import corepy.arch.spu.platform as env
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
   x = SingleFloat(1.0)
@@ -395,9 +397,10 @@ def TestFloatScalar():
   r = SingleFloat(0.0, reg = code.fp_return)
 
   r.v = spu.fa.ex(x, y)
-  
-  proc = Processor()
-  result = proc.execute(code, mode='fp')
+
+  prgm.add(code)
+  proc = env.Processor()
+  result = proc.execute(prgm, mode='fp')
   assert(result == (1.0 + 2.0))
   
   return
@@ -406,8 +409,10 @@ def TestFloatScalar():
 def TestFloatArray():
   from corepy.arch.spu.platform import InstructionStream, Processor
   import corepy.arch.spu.lib.dma as dma
+  import corepy.arch.spu.platform as env
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
   x = SingleFloat([1.0, 2.0, 3.0, 4.0])
@@ -421,9 +426,10 @@ def TestFloatArray():
   for i in range(4):
     r.v = spu.fa.ex(sum, r)
     spu.rotqbyi(sum, sum, 4)
-  
-  proc = Processor()
-  result = proc.execute(code, mode='fp')
+ 
+  prgm.add(code) 
+  proc = env.Processor()
+  result = proc.execute(prgm, mode='fp')
 
   x_test = array.array('f', [1.0, 2.0, 3.0, 4.0])
   y_test = array.array('f', [0.5, 1.5, 2.5, 3.5])
@@ -436,16 +442,19 @@ def TestFloatArray():
   return
 
 def RunTest(test):
-  from corepy.arch.spu.platform import InstructionStream, Processor
+  import corepy.arch.spu.platform as env
+  #from corepy.arch.spu.platform import InstructionStream, Processor
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
   test()
-  
-  code.print_code()
-  proc = Processor()
-  proc.execute(code)
+
+  prgm.add(code)
+  prgm.print_code()
+  proc = env.Processor()
+  proc.execute(prgm)
   return
 
 

@@ -83,8 +83,12 @@ class FBDraw:
 cell_fb = synspu.cell_fb
 
 def fb_draw():
-  code0 = synspu.InstructionStream()
-  code1 = synspu.InstructionStream()  
+  prgm0 = synspu.Program()
+  prgm1 = synspu.Program()
+  code0 = prgm0.get_stream()
+  code1 = prgm1.get_stream()
+  prgm0 += code0
+  prgm1 += code1
   proc = synspu.Processor()
 
   fb = cell_fb.framebuffer()
@@ -105,12 +109,12 @@ def fb_draw():
   while True:
 
     # cell_fb.fb_clear(fb, 0)
-    proc.execute(code0)
+    proc.execute(prgm0)
     cell_fb.fb_wait_vsync(fb)
     cell_fb.fb_flip(fb, 0)
 
     # cell_fb.fb_clear(fb, 1)
-    proc.execute(code1)
+    proc.execute(prgm1)
     cell_fb.fb_wait_vsync(fb)
     cell_fb.fb_flip(fb, 1)
     

@@ -167,7 +167,7 @@ def common_memref_modrm(opcode, ref, modrm):
   elif ref.index != None:
     sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
 
-    if ref.base in regs.ebp:
+    if ref.base == regs.ebp:
       return opcode + [0x44 | modrm, sib, 0x00] # [ebp, index]
     return opcode + [0x04 | modrm, sib]
   elif ref.index == None:

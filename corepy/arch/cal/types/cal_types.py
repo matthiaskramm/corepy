@@ -440,50 +440,19 @@ def TestFloatScalar():
   return
 
 
-def TestFloatArray():
-  from corepy.arch.spu.platform import InstructionStream, Processor
-  import corepy.arch.spu.lib.dma as dma
-
-  code = InstructionStream()
-  spu.set_active_code(code)
-
-  x = SingleFloat([1.0, 2.0, 3.0, 4.0])
-  y = SingleFloat([0.5, 1.5, 2.5, 3.5])
-  sum = SingleFloat(0.0)
-
-  sum.v = spu.fa.ex(x, y)
-
-  r = SingleFloat([0.0, 0.0, 0.0, 0.0], reg = code.fp_return)
-
-  for i in range(4):
-    r.v = spu.fa.ex(sum, r)
-    spu.rotqbyi(sum, sum, 4)
-  
-  proc = Processor()
-  result = proc.execute(code, mode='fp')
-
-  x_test = array.array('f', [1.0, 2.0, 3.0, 4.0])
-  y_test = array.array('f', [0.5, 1.5, 2.5, 3.5])
-  r_test = 0.0
-  for i in range(4):
-    r_test += x_test[i] + y_test[i]
-
-  assert(result == r_test)
-  
-  return
-
 def RunTest(test):
-  from corepy.arch.cal.platform import InstructionStream, Processor
+  import corepy.arch.cal.platform as env
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   cal.set_active_code(code)
 
   test()
-  
-  code.cache_code()
-  print code.render_string
-  proc = Processor(0)
-  proc.execute(code, (0, 0, 128, 128))
+
+  prgm.add(code)
+  prgm.print_code()
+  proc = env.Processor(0)
+  proc.execute(prgm, (0, 0, 128, 128))
   return
 
 

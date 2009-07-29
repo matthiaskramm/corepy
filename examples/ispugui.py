@@ -254,9 +254,10 @@ class EditorWindow(wx.Frame):
     self.statusCtrl.SetStatusText("Executing...")
 
     # Move the start point past any labels
-    while line[-1] == ':':
+    while line != '' and line[-1] == ':':
       start += 1
       line = self.editCtrl.GetLine(start).strip()
+
 
     if step != None:
       step = start
@@ -302,7 +303,8 @@ class EditorWindow(wx.Frame):
 
 
   def GenerateStream(self, step = None):
-    code = env.InstructionStream()
+    prgm = env.Program()
+    code = prgm.get_stream()
     txt = self.editCtrl.GetText().split('\n')
     txtlen = len(txt)
 
@@ -315,7 +317,8 @@ class EditorWindow(wx.Frame):
           continue
         if cmd[-1] == ":":
           # Label - better parsing?
-          code.add(env.Label(cmd[:-1]))
+          #code.add(spe.Label(cmd[:-1]))
+          code.add(code.prgm.get_label(cmd[:-1]))
         else:
           code.add(spu.stop(0x2FFF))
         continue
@@ -328,17 +331,20 @@ class EditorWindow(wx.Frame):
         inst = None
         if cmd[-1] == ":":
           # Label - better parsing?
-          inst = env.Label(cmd[:-1])
+          #inst = spe.Label(cmd[:-1])
+          inst = code.prgm.get_label(cmd[:-1])
         else:
           # Instruction
-          strcmd = re.sub("Label\((.*?)\)", "code.get_label('\\1')", cmd)
+          strcmd = re.sub("Label\((.*?)\)", "code.prgm.get_label('\\1')", cmd)
           try:
             inst = eval('spu.%s' % strcmd)
           except:
             print 'Error creating instruction: %s' % cmd
 
         code.add(inst)
-    code.cache_code()
+
+    prgm.add(code)
+    prgm.cache_code()
     return code
 
 
@@ -346,7 +352,7 @@ class EditorWindow(wx.Frame):
     self.editCtrl.ClearAll()
 
     fd = StringIO.StringIO()
-    printer.PrintInstructionStream(self.app.code, printer.Default(), fd = fd)
+    printer.PrintInstructionStream(self.app.code, printer.SPU_Debugger(), fd = fd)
 
     for line in fd.getvalue().split('\n'):
        #if line != "" and line != "BODY:":
@@ -766,7 +772,7 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
     map = self.GetMap(item)
     addr = map[1] + ((item - map[0]) * 16)
 
-    self._array.set_memory(addr + (4 * (column - 1)))
+    self._array.set_memory(addr + (4 * (column - 1)), 4)
     self._array[0] = int(data, self.base)
     self.app.reg_frame.Update()
     self.app.ls_frame.Update()
@@ -776,10 +782,11 @@ class MemoryListCtrl(wx.ListCtrl, listmix.TextEditMixin):
   def OnGetItemText(self, item, column):
     map = self.GetMap(item)
     addr = map[1] + ((item - map[0]) * 16)
+
     if column == 0:
       return "0x%08X" % (addr)
     elif column < 5:
-      self._array.set_memory(addr + (4 * (column - 1)))
+      self._array.set_memory(addr + (4 * (column - 1)), 4)
       if self.base == 16:
         return "%08X" % (self._array[0])
       elif self.base == 10:
@@ -942,49 +949,52 @@ class SPUApp(wx.App):
     self.ctx = ctx = env.spu_exec.alloc_context()
 
     # Execute a no-op instruction stream so the prolog is executed
-    code = env.InstructionStream()
+    prgm = env.Program()
+    code = prgm.get_stream()
     code.add(spu.nop(code.r_zero))
 
-    code.cache_code()
-    itemsize = code.render_code.itemsize 
-    code_len = len(code.render_code) * itemsize
+    prgm.cache_code()
+    itemsize = prgm.render_code.itemsize 
+    code_len = len(prgm.render_code) * itemsize
     if code_len % 16 != 0:
       code_len += 16 - (code_len % 16)
     code_lsa = 0x40000 - code_len
 
-    env.spu_exec.run_stream(ctx, code.inst_addr(), code_len, code_lsa, code_lsa)
+    env.spu_exec.run_stream(ctx, prgm.inst_addr(), code_len, code_lsa, code_lsa)
 
     self.localstore = extarray.extarray('I', 262144 / 4)
-    print "spuls", ctx.spuls, type(ctx.spuls)
-    self.localstore.set_memory(ctx.spuls)
+    #print "spuls %x" % (ctx.spuls), ctx.spuls, type(ctx.spuls)
+    self.localstore.set_memory(ctx.spuls, 262144)
     return
 
 
   def ExecuteStream(self, code, start):
     """Start executing code at instruction number start, and return the stop
        instruction number"""
+    prgm = code.prgm
 
-    code.cache_code()
-    itemsize = code.render_code.itemsize 
-    code_len = len(code.render_code) * itemsize
+    # Find the overall code starting point
+    prgm.cache_code()
+    itemsize = prgm.render_code.itemsize 
+    code_len = len(prgm.render_code) * itemsize
     if code_len % 16 != 0:
       code_len += 16 - (code_len % 16)
     code_lsa = 0x40000 - code_len
 
+    # start is the inst number.. find the real number discounting labels
     offset = start
     for i in xrange(0, start):
       if isinstance(code[i], spe.Label):
         offset -= 1
-   
-    print "prolog len", len(code._prologue) 
-    print "offset", offset
-    exec_lsa = code_lsa + ((offset + len(code._prologue) - 2) * itemsize)
-    print "exec code lsa", exec_lsa, code_lsa
+
+    # use the offset to find the LSA to start executing at
+    exec_lsa = code_lsa + ((offset + len(prgm._prologue) - 2) * itemsize)
     #code.print_code(pro = True)
 
-    ret = env.spu_exec.run_stream(self.ctx, code.inst_addr(), code_len, code_lsa, exec_lsa)
+    ret = env.spu_exec.run_stream(self.ctx, prgm.inst_addr(), code_len, code_lsa, exec_lsa)
 
-    offset = ((ret - code_lsa) / 4) - (len(code._prologue) - 1)
+    # figure out the index of the next instruction to execute.
+    offset = ((ret - code_lsa) / 4) - (len(prgm._prologue) - 1)
 
     if offset == 0:
       return 0
@@ -995,7 +1005,6 @@ class SPUApp(wx.App):
       if not isinstance(inst, spe.Label):
         off += 1
         if off == offset:
-          print "offset num", i, offset
           return i + 1
 
     return 0
@@ -1008,31 +1017,32 @@ class SPUApp(wx.App):
 
 
 if __name__=='__main__':
-  code = env.InstructionStream()
-  reg = code.acquire_register()
-  foo = code.acquire_register(reg = 1)
+  prgm = env.Program()
+  code = prgm.get_stream()
+  reg = prgm.acquire_register()
+  foo = prgm.acquire_register(reg_name = 5)
 
-  code.add(code.get_label("FOO"))
+  code.add(prgm.get_label("FOO"))
   code.add(spu.il(foo, 0xCAFE))
   code.add(spu.ilhu(reg, 0xDEAD))
   code.add(spu.iohl(reg, 0xBEEF))
   code.add(spu.stqd(reg, code.r_zero, 4))
 
-  lbl_loop = code.get_label("LOOP")
-  lbl_break = code.get_label("BREAK")
+  lbl_loop = prgm.get_label("LOOP")
+  lbl_break = prgm.get_label("BREAK")
 
   r_cnt = code.gp_return
-  r_stop = code.acquire_register(reg = 9)
-  r_cmp = code.acquire_register()
+  r_stop = prgm.acquire_register(reg_name = 9)
+  r_cmp = prgm.acquire_register()
 
   code.add(spu.ori(r_cnt, code.r_zero, 0))
   code.add(spu.il(r_stop, 5))
 
   code.add(lbl_loop)
   code.add(spu.ceq(r_cmp, r_cnt, r_stop))
-  code.add(spu.brnz(r_cmp, code.get_label("BREAK")))
+  code.add(spu.brnz(r_cmp, prgm.get_label("BREAK")))
   code.add(spu.ai(r_cnt, r_cnt, 1))
-  code.add(spu.br(code.get_label("LOOP")))
+  code.add(spu.br(prgm.get_label("LOOP")))
   code.add(lbl_break)
 
   app = SPUApp(code)

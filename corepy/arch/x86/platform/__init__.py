@@ -29,7 +29,7 @@
 import corepy.corepy_conf as conf
 
 platform_imports = [
-  'Processor', 'InstructionStream',
+  'Processor', 'Program', 'InstructionStream',
   'WORD_SIZE', 'WORD_TYPE', 'ExecParams',
   ]
 

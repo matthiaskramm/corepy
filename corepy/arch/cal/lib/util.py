@@ -31,9 +31,9 @@ import corepy.arch.cal.isa as cal
 import corepy.lib.extarray as extarray
 
 def load_word(code, r_target, word):
-  l = code.acquire_register((word, word, word, word))
+  l = code.prgm.acquire_register((word, word, word, word))
   code.add(cal.mov(r_target, l.x))
-  code.release_register(l)
+  code.prgm.release_register(l)
 
   return
 
@@ -51,9 +51,9 @@ def vector_from_array(code, r_target, a):
   from an array.
   """
 
-  l = code.acquire_register((a[0], a[1], a[2], a[3]))
+  l = code.prgm.acquire_register((a[0], a[1], a[2], a[3]))
   code.add(cal.mov(r_target, l))
-  code.release_register(l)
+  code.prgm.release_register(l)
 
   return
 
@@ -76,14 +76,14 @@ def get_param_reg(code, param, dict, copy = True):
   if isinstance(param, (spe.Register, spe.Variable)):
     if copy == True:
       # TODO - behave differently if at an even/odd spot
-      reg = code.acquire_register()
+      reg = code.prgm.acquire_register()
       code.add(spu.ori(reg, param, 0))
       dict[reg] = True
     else:
       reg = param
       dict[reg] = False
   else: # TODO - check types?
-    reg = code.acquire_register()
+    reg = code.prgm.acquire_register()
     load_word(code, reg, param)
     dict[reg] = True
 
@@ -95,7 +95,7 @@ def put_param_reg(code, reg, dict):
      provided dictionary indicates it was acquired by get_param_reg()/
   """
   if dict[reg] == True:
-    code.release_register(reg)
+    code.prgm.release_register(reg)
 
 
 # ------------------------------------------------------------

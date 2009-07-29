@@ -98,12 +98,25 @@ class Default(object):
       self._line_num = 0
     return self.show_epilogue
 
-  def body(self, fd):
+  #def body(self, fd):
+  #  print >>fd
+  #  if self.verbose:
+  #    print >>fd, "# Body \n"
+
+  #  self._line_num = 0
+  #  return
+
+  def stream(self, fd, stream):
     print >>fd
     if self.verbose:
-      print >>fd, "# Body \n"
+      print >>fd, "# InstructionStream %x\n" % id(stream)
 
     self._line_num = 0
+    return
+
+  def string(self, fd, str):
+    """Print a string (assumedly representing an instruction)."""
+    print >>fd, "\t%s" % (str)
     return
 
   def instruction(self, fd, inst):
@@ -130,7 +143,6 @@ class Default(object):
     return
 
   def str_op(self, op):
-    t = type(op)
     if isinstance(op, spe.Register):
       return str(op)
     elif isinstance(op, spe.Variable):

@@ -146,10 +146,10 @@ class memory_desc(object):
     spu.set_active_code(code)
 
     # Acquire registers for address and size, if they were not supplied by the user
-    if self.r_addr is None: r_ea_data = code.acquire_register()
+    if self.r_addr is None: r_ea_data = code.prgm.acquire_register()
     else:                   r_ea_data = self.r_addr
       
-    if self.r_size is None: r_size = code.acquire_register()
+    if self.r_size is None: r_size = code.prgm.acquire_register()
     else:                   r_size = self.r_size
 
     # Create variables 
@@ -331,7 +331,7 @@ class syn_iter(object):
   def start(self, align = True, branch = True):
     """Do pre-loop iteration initialization"""
     if self.r_count is None:
-      self.r_count = self.code.acquire_register()
+      self.r_count = self.code.prgm.acquire_register()
       
     if self.mode == DEC:
       if self._external_start:
@@ -341,7 +341,7 @@ class syn_iter(object):
 
     elif self.mode == INC:
       if self.r_stop is None and branch:
-        self.r_stop = self.code.acquire_register()
+        self.r_stop = self.code.prgm.acquire_register()
 
       if self._external_start:
         self.code.add(spu.ai(self.r_count, self.r_start, 0))
@@ -359,17 +359,17 @@ class syn_iter(object):
     # If the step size doesn't fit in an immediate value, store it in a register
     # (-512 < word < 511):
     if not (-512 < self.step_size() < 511):
-      self.r_step = self.code.acquire_register()
+      self.r_step = self.code.prgm.acquire_register()
       util.load_word(self.code, self.r_step, self.step_size())
 
     # Label
-    self.start_label = self.code.get_unique_label("SYN_ITER_START")
+    self.start_label = self.code.prgm.get_unique_label("SYN_ITER_START")
     self.code.add(self.start_label)
 
     # Create continue/branch labels so they can be referenced; they will be
     # added to the code in their appropriate locations.
-    self.branch_label = self.code.get_unique_label("SYN_ITER_BRANCH")
-    self.continue_label = self.code.get_unique_label("SYN_ITER_CONTINUE")
+    self.branch_label = self.code.prgm.get_unique_label("SYN_ITER_BRANCH")
+    self.continue_label = self.code.prgm.get_unique_label("SYN_ITER_CONTINUE")
     return
 
   def setup(self):
@@ -414,13 +414,13 @@ class syn_iter(object):
     elif self.mode == INC:
       # branch if r_current < r_stop
       if branch:
-        r_cmp_gt = self.code.acquire_register()
+        r_cmp_gt = self.code.prgm.acquire_register()
 
         self.code.add(spu.cgt(r_cmp_gt, self.r_stop, self.r_count))
         self.code.add(self.branch_label)
         self.code.add(spu.brnz(r_cmp_gt, self.start_label))
 
-        self.code.release_register(r_cmp_gt)        
+        self.code.prgm.release_register(r_cmp_gt)        
 
       # Reset the the current value in case this is a nested loop
       if self._external_start:
@@ -429,9 +429,9 @@ class syn_iter(object):
         util.load_word(self.code, self.r_count, self.get_start())
 
     if self.r_count is not None:
-      self.code.release_register(self.r_count)
+      self.code.prgm.release_register(self.r_count)
     if self.r_stop is not None and not self._external_stop:
-      self.code.release_register(self.r_stop)      
+      self.code.prgm.release_register(self.r_stop)      
 
     return
 
@@ -564,11 +564,11 @@ class spu_vec_iter(syn_iter):
       return util.load_word(self.code, self.r_addr, _array_address(self.data))
   
   def start(self, align = True, branch = True):
-    self.r_current = self.code.acquire_register()
+    self.r_current = self.code.prgm.acquire_register()
 
     # addr_reg is the user supplied address for the data
     if self.addr_reg is None:
-      self.r_addr = self.code.acquire_register()
+      self.r_addr = self.code.prgm.acquire_register()
     else:
       self.r_addr = self.addr_reg
 
@@ -594,10 +594,10 @@ class spu_vec_iter(syn_iter):
 
   def end(self, branch = True):
     if self.r_current is not None:
-      self.code.release_register(self.r_current)
+      self.code.prgm.release_register(self.r_current)
 
     if self.r_addr is not None and self.addr_reg is None:
-      self.code.release_register(self.r_addr)
+      self.code.prgm.release_register(self.r_addr)
 
     syn_iter.end(self, branch)
     return
@@ -672,13 +672,13 @@ class stream_buffer(syn_range):
     #  right before the DMA get.
 
     # Don't perform the load the last time through the loop
-    r_cmp = self.code.acquire_register()
+    r_cmp = self.code.prgm.acquire_register()
 
     # Compare count == step
     self.code.add(spu.ceq(r_cmp, self.r_stop, self.r_count))
 
     # Create a skip label and add the branch
-    skip_label = self.code.get_unique_label("STREAM_BUFFER_SKIP")
+    skip_label = self.code.prgm.get_unique_label("STREAM_BUFFER_SKIP")
     self.code.add(spu.brnz(r_cmp, skip_label))
 
     # Start the DMA get
@@ -687,7 +687,7 @@ class stream_buffer(syn_range):
     # Add the branch label
     self.code.add(skip_label)
 
-    self.code.release_register(r_cmp)
+    self.code.prgm.release_register(r_cmp)
     return
 
   def _save_buffer(self):
@@ -710,7 +710,7 @@ class stream_buffer(syn_range):
 
     dma.mfc_write_tag_mask(self.code, mask)
     reg = dma.mfc_read_tag_status_all(self.code)
-    self.code.release_register(reg)
+    self.code.prgm.release_register(reg)
 
     #mask.release_register()
 
@@ -776,7 +776,7 @@ class stream_buffer(syn_range):
       self._load_buffer()
   
     # Update the start label (make a new one and add it)
-    self.start_label = self.code.get_unique_label("STREAM_BUFFER_START")
+    self.start_label = self.code.prgm.get_unique_label("STREAM_BUFFER_START")
     self.code.add(self.start_label)
     return
 
@@ -830,9 +830,9 @@ class stream_buffer(syn_range):
     """Do post-loop iterator code"""
     syn_range.end(self, branch = branch)
   
-    self.code.release_register(self.ls.reg)
-    self.code.release_register(self.tag.reg)
-    self.code.release_register(self.buffer_size.reg)
+    self.code.prgm.release_register(self.ls.reg)
+    self.code.prgm.release_register(self.tag.reg)
+    self.code.prgm.release_register(self.buffer_size.reg)
 
     return
     
@@ -844,10 +844,10 @@ class parallel(object):
     object.__init__(self)
     self.obj = obj
 
-    if type(obj.code) is not env.ParallelInstructionStream:
-      raise Exception("ParallelInstructionStream required")
+    if type(obj.code.prgm) is not env.ParallelProgram:
+      raise Exception("ParallelProgram required")
 
-    if obj.code.raw_data_size is not None:
+    if obj.code.prgm.raw_data_size is not None:
       print 'Warning (parallel): raw_data_size is already set'
   
     if type(self.obj) is zip_iter:
@@ -869,13 +869,13 @@ class parallel(object):
   def _update_inc_count(self):
     code = self.obj.code
 
-    code.acquire_block_registers()
+    code.prgm.acquire_block_registers()
   
-    r_block_size = code.r_block_size
-    r_offset = code.r_offset
+    r_block_size = code.prgm.r_block_size
+    r_offset = code.prgm.r_offset
   
     # Determine the block size for each loop
-    code.raw_data_size = self.get_count() - self.get_start()
+    code.prgm.raw_data_size = self.get_count() - self.get_start()
     # synppc.load_word(code, r_block_size, self.get_count() - self.get_start())
     # code.add(synppc.ppc.divw(r_block_size, r_block_size, code.r_size))
   
@@ -891,8 +891,8 @@ class parallel(object):
     if self.obj.r_stop is not None:
       code.add(spu.a(self.obj.r_stop, r_block_size, self.obj.r_count))
 
-    # code.release_register(r_offset)
-    # code.release_register(r_block_size)
+    # code.prgm.release_register(r_offset)
+    # code.prgm.release_register(r_block_size)
     return
     
   def start(self, align = True, branch = True):
@@ -921,7 +921,7 @@ class parallel(object):
 #          code.add(spu.lnop(0))
         
     # Update the real iterator's label
-    self.obj.start_label = code.get_unique_label("PARALLEL_START")
+    self.obj.start_label = code.prgm.get_unique_label("PARALLEL_START")
 
     # HACK end
     if hasattr(self.obj, '_start_post'):
@@ -978,20 +978,17 @@ class parallel(object):
 def TestSPUIter():
   size = 32
   data = extarray.extarray('I', range(size))
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
 
-  r_zero    = code.acquire_register()
-  r_ea_data = code.acquire_register()
-  r_ls_data = code.acquire_register()
-  r_size    = code.acquire_register()
-  r_tag     = code.acquire_register()  
-
-  # Load zero
-  util.load_word(code, r_zero, 0)
+  r_ea_data = prgm.acquire_register()
+  r_ls_data = prgm.acquire_register()
+  r_size    = prgm.acquire_register()
+  r_tag     = prgm.acquire_register()  
 
   #print 'array ea: %X' % (data.buffer_info()[0])
   #print 'r_zero = %s, ea_data = %s, ls_data = %s, r_size = %s, r_tag = %s' % (
-  #  str(r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
+  #  str(code.r_zero), str(r_ea_data), str(r_ls_data), str(r_size), str(r_tag))
   
   # Load the effective address
   util.load_word(code, r_ea_data, data.buffer_info()[0])
@@ -1000,10 +997,10 @@ def TestSPUIter():
   util.load_word(code, r_size, size * 4)
 
   # Load the tag
-  code.add(spu.ai(r_tag, r_zero, 12))
+  code.add(spu.ai(r_tag, code.r_zero, 12))
 
   # Load the lsa
-  code.add(spu.ai(r_ls_data, r_zero, 0))
+  code.add(spu.ai(r_ls_data, code.r_zero, 0))
 
   # Load the data into address 0
   dma.mfc_get(code, r_ls_data, r_ea_data, r_size, r_tag)
@@ -1020,18 +1017,18 @@ def TestSPUIter():
   
   # Use an SPU iter
   for lsa in syn_iter(code, size * 4, 16):
-    code.add(spu.lqx(current, r_zero, lsa))
+    code.add(spu.lqx(current, code.r_zero, lsa))
     # code.add(spu.ai(1, r_current, r_current))
     current.v = current + current
-    code.add(spu.stqx(current, r_zero, lsa))    
+    code.add(spu.stqx(current, code.r_zero, lsa))    
 
-  # code.release_register(r_current)
+  # code.prgm.release_register(r_current)
   #current.release_register(code)
   
   # Store the values back to main memory
 
   # Load the tag
-  code.add(spu.ai(r_tag, r_zero, 13))
+  code.add(spu.ai(r_tag, code.r_zero, 13))
 
   # Load the data into address 0
   dma.mfc_put(code, r_ls_data, r_ea_data, r_size, r_tag)
@@ -1043,18 +1040,18 @@ def TestSPUIter():
   dma.mfc_read_tag_status_all(code);
 
   # Cleanup
-  code.release_register(r_zero)
-  code.release_register(r_ea_data)
-  code.release_register(r_ls_data)  
-  code.release_register(r_size)
-  code.release_register(r_tag)  
+  prgm.release_register(r_ea_data)
+  prgm.release_register(r_ls_data)  
+  prgm.release_register(r_size)
+  prgm.release_register(r_tag)  
 
   # Stop for debugging
   # code.add(spu.stop(0xA))
 
   # Execute the code
+  prgm.add(code)
   proc = env.Processor()
-  r = proc.execute(code)
+  r = proc.execute(prgm)
 
   for i in range(0, size):
     assert(data[i] == i + i)
@@ -1237,8 +1234,9 @@ def TestStreamBufferSingle(n_spus = 1):
   a = extarray.extarray('I', range(n))
   buffer_size = 128
 
+  prgm = env.Program()
   if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = env.InstructionStream()
+  else:           code = prgm.get_stream()
   
   current = var.SignedWord(0, code)
 
@@ -1271,8 +1269,9 @@ def TestStreamBufferSingle(n_spus = 1):
       code.add(spu.stqx(current, lsa, buffer))
       
 
+  prgm.add(code)
   proc = env.Processor()
-  r = proc.execute(code, n_spus = n_spus)
+  r = proc.execute(prgm, n_spus = n_spus)
 
   for i in range(0, n):
     assert(a[i] == i + i)
@@ -1286,8 +1285,9 @@ def TestVecIter(n_spus = 1):
   
   buffer_size = 16
 
+  prgm = env.Program()
   if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = env.InstructionStream()
+  else:           code = prgm.get_stream()
 
   current = var.SignedWord(0, code)
 
@@ -1300,8 +1300,9 @@ def TestVecIter(n_spus = 1):
     for current in spu_vec_iter(code, md):
       current.v = current + current
 
+  prgm.add(code)
   proc = env.Processor()
-  r = proc.execute(code, n_spus = n_spus)
+  r = proc.execute(prgm, n_spus = n_spus)
 
   for i in range(0, n):
     assert(a[i] == i + i)
@@ -1315,8 +1316,9 @@ def TestContinueLabel(n_spus = 1):
   
   buffer_size = 16
 
+  prgm = env.Program()
   if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = env.InstructionStream()
+  else:           code = prgm.get_stream()
   
   current = var.SignedWord(0, code)
   test    = var.SignedWord(0, code)
@@ -1340,9 +1342,10 @@ def TestContinueLabel(n_spus = 1):
       current.v = current + current
 
     #lsa_iter.add_continue(code, lbl_continue, lambda next, reg = test.reg: spu.brz(reg, next))
-  
+ 
+  prgm.add(code) 
   proc = env.Processor()
-  r = proc.execute(code, n_spus = n_spus)
+  r = proc.execute(prgm, n_spus = n_spus)
 
   for i in range(0, n):
     if i >= 4:
@@ -1359,8 +1362,9 @@ def TestStreamBufferDouble(n_spus = 1):
   
   buffer_size = 32
 
-  if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = env.InstructionStream()
+  if n_spus > 1:  prgm = env.ParallelProgram()
+  else:           prgm = env.Program()
+  code = prgm.get_stream()
 
   current = var.SignedWord(0, code)
 
@@ -1377,8 +1381,9 @@ def TestStreamBufferDouble(n_spus = 1):
       current.v = current + current
       code.add(spu.stqx(current, lsa, buffer))
 
+  prgm.add(code)
   proc = env.Processor()
-  r = proc.execute(code, n_spus = n_spus)
+  r = proc.execute(prgm, n_spus = n_spus)
 
   for i in range(0, len(a)):
     assert(a[i] == i + i)

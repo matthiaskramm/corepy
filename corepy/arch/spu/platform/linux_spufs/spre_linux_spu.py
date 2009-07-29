@@ -45,13 +45,30 @@ except:
 
 ExecParams = spu_exec.ExecParams
 
+
 # ------------------------------
 # Registers
 # ------------------------------
 
 class SPURegister(spe.Register):
-  def __init__(self, reg):
-    spe.Register.__init__(self, reg, prefix = 'r')
+  def __init__(self, name):
+    if isinstance(name, int):
+      self.reg = name
+      self.name = "r%d" % name
+    elif isinstance(name, str):
+      self.name = name
+      try:
+        self.reg = int(name[1:])
+      except ValueError:
+        raise Exception("Invalid register name %s" % name)
+
+      if name[0] != 'r':
+        raise Exception("Invalid register name %s" % name)
+    else:
+      raise Exception("Invalid register name %s" % str(name))
+
+    #self.acquired = False
+    return
 
 
 # ------------------------------
@@ -100,19 +117,19 @@ def copy_param(code, target, source):
     code.add(spu.ai(target, source[REG], 0))
   return
 
-ALIGN_UP = 0
-ALIGN_DOWN = 1
+#ALIGN_UP = 0
+#ALIGN_DOWN = 1
 
-def align_addr(addr, align = 16, dir = ALIGN_DOWN):
-  """
-  Round an address to the nearest aligned address based on align.
-  Round up or down based on dir.
-  """
+#def align_addr(addr, align = 16, dir = ALIGN_DOWN):
+#  """
+#  Round an address to the nearest aligned address based on align.
+#  Round up or down based on dir.
+#  """
 
-  if dir == ALIGN_DOWN:
-    return addr - (addr % align)
-  else:
-    return addr + (align - addr % align)
+#  if dir == ALIGN_DOWN:
+#    return addr - (addr % align)
+#  else:
+#    return addr + (align - addr % align)
 
   
 # ------------------------------------------------------------
@@ -131,226 +148,129 @@ class InstructionStream(spe.InstructionStream):
   prologue/epilogue) is used.
   """
 
-  # Class attributes
-  RegisterFiles = (('gp', SPURegister, range(1,128)),)
-  
-  default_register_type = SPURegister
-  exec_module   = spu_exec
-  instruction_type  = WORD_TYPE
-  
-  def __init__(self, optimize = False):
-    spe.InstructionStream.__init__(self)
+  def __init__(self, prgm, optimize = False):
+    if not isinstance(prgm, Program):
+      raise TypeError("ERROR: A Program must be passed to InstructionStream.  Have you updated your code for the code composition changes?")
+    spe.InstructionStream.__init__(self, prgm)
 
     self._optimize = optimize
 
-    self.r_zero = SPURegister(0)
-    self.gp_return = SPURegister(1)
+    # TODO - acquire these normally so they go in the schedule
+    self.r_zero = SPURegister("r0")
+    self.gp_return = SPURegister("r1")
     self.fp_return = self.gp_return
 
-    # Localstore is actually 0x40000 bytes, but reserve 8kb for code.
-    self.allocator = allocator.Allocator(0, 0x3E000)
-    self._allocs = {}
     return
 
-  def make_executable(self):
-    # spu_exec's make_executable does nothing, so don't call it.
-    #bi = self.render_code.buffer_info()
-    #self.exec_module.make_executable(bi[0], bi[1] * self.render_code.itemsize)
-    return 
-
-  def create_register_files(self):
-    # Each declarative RegisterFiles entry is:
-    #   (file_id, register class, valid values)
-    for reg_type, cls, values in self.RegisterFiles:
-      regs = [cls(value) for value in values]
-      self._register_files[cls] = spe.RegisterFile(regs, reg_type)
-      self._reg_type[reg_type] = cls
-    return
-  
   # ------------------------------
   # Execute/ABI support
   # ------------------------------
 
-  def _synthesize_prologue(self):
-    """
-    Setup register 0.
-    """
-
-    #self._prologue = InstructionStream()
-    self._prologue = [self.lbl_prologue]
-
-    # Reserve register r0 for the value zero
-    self._prologue.append(spu.il(self.r_zero, 0, ignore_active = True))
-    self._prologue.append(spu.lnop(ignore_active = True))
-    return
-
-  def _synthesize_epilogue(self):
-    """
-    Add a stop signal with return type 0x2000 (EXIT_SUCCESS) to the
-    instruction stream epilogue. (BE Handbook, p. 422).
-    """
-    self._epilogue = [self.lbl_epilogue]
-    self._epilogue.append(spu.stop(0x2000, ignore_active = True))
-    return
-
+  # TODO - this is broken, how should it be fixed?
   def debug_set(self, idx, inst):
     self._prologue[idx] = inst.render()
     self[idx] = inst
     return
 
+#  def add(self, inst, optimize_override = False):
+#    if not optimize_override and self._optimize:
+#      # binary_string_inst = spu.DecToBin(inst)
+#      #op = 'nop'
+#      # if binary_string_inst[0:3] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:3]]
+#      # elif binary_string_inst[0:6] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:6]]
+#      # elif binary_string_inst[0:7] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:7]]
+#      # elif binary_string_inst[0:8] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:8]]
+#      # elif binary_string_inst[0:9] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:9]]
+#      # elif binary_string_inst[0:10] in spu.inst_opcodes:
+#      #   op = spu.inst_opcodes[binary_string_inst[0:10]]
+#      
+#      # TODO - AWF - thanks to labels, this won't work quite right anymore  
+#      pipeline = inst.cycles[0]
+#        
+#      if (len(self) % 2 == 0) and pipeline == 0:   
+#        InstructionStream.add(self, inst)
+#
+#      elif (len(self) % 2 == 1) and pipeline == 1:
+#        InstructionStream.add(self, inst)
+#      elif (len(self) % 2 == 0) and pipeline == 1:
+#        InstructionStream.add(self, spu.nop(0))
+#        InstructionStream.add(self, inst)
+#      elif (len(self) % 2 == 1) and pipeline == 0:
+#        InstructionStream.add(self, spu.lnop(0))
+#        InstructionStream.add(self, inst)
+#
+#    else:
+#      spe.InstructionStream.add(self, inst)
+#
+#    return len(self)
 
-  #def align_code(self, boundary):
-  #  """
-  #  Insert the appropraite nop/lnops to align the next instruction
-  #  on the byte boudary.  boundary must be a multiple of four.
-  #  """
-  #  word_align = boundary / 4
-
-  #  # TODO - AWF - thanks to labels, this won't work quite right anymore  
-  #  while len(self._instructions) % word_align:
-  #    if len(self._instructions) % 2 == 0:
-  #      self.add(spu.nop(0), True)
-  #    else:
-  #      self.add(spu.lnop(), True)
-
-  #  return
-
-  def add(self, inst, optimize_override = False):
-
-    if not optimize_override and self._optimize:
-      # binary_string_inst = spu.DecToBin(inst)
-      #op = 'nop'
-      # if binary_string_inst[0:3] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:3]]
-      # elif binary_string_inst[0:6] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:6]]
-      # elif binary_string_inst[0:7] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:7]]
-      # elif binary_string_inst[0:8] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:8]]
-      # elif binary_string_inst[0:9] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:9]]
-      # elif binary_string_inst[0:10] in spu.inst_opcodes:
-      #   op = spu.inst_opcodes[binary_string_inst[0:10]]
-      
-      # TODO - AWF - thanks to labels, this won't work quite right anymore  
-      pipeline = inst.cycles[0]
-        
-      if (len(self._instructions) % 2 == 0) and pipeline == 0:   
-        InstructionStream.add(self, inst)
-
-      elif (len(self._instructions) % 2 == 1) and pipeline == 1:
-        InstructionStream.add(self, inst)
-      elif (len(self._instructions) % 2 == 0) and pipeline == 1:
-        InstructionStream.add(self, spu.nop(0))
-        InstructionStream.add(self, inst)
-      elif (len(self._instructions) % 2 == 1) and pipeline == 0:
-        InstructionStream.add(self, spu.lnop(0))
-        InstructionStream.add(self, inst)
-
-    else:
-      spe.InstructionStream.add(self, inst)
-
-    return len(self._instructions)
-
-  def _align_stream(self, length, align):
-    # Return nop's such that length % align = 0
-    if align % 4 != 0:
-      raise Exception("SPU InstructionStream alignment must be a multiple of 4 bytes")
-    length /= 4
-    align /= 4
-
-    mod = align - (length % align)
-    # need mod instructions to achieve alignment
-
-    ret = []
-    if mod % 2 == 0:
-      nop_pair = (spu.nop(self.r_zero, ignore_active = True), spu.lnop(ignore_active = True))
-      # issue mod / 2 nop/lnop pairs
-      for i in xrange(0, mod / 2):
-        ret.extend(nop_pair)
-    else:
-      # issue an lnop, then (mod - 1) / 2 nop/lnop pairs
-      nop_pair = (spu.lnop(ignore_active = True), spu.nop(self.r_zero, ignore_active = True))
-      for i in xrange(0, mod / 2):
-        ret.extend(nop_pair)
-      ret.append(spu.lnop(ignore_active = True))
-
-    return ret
-
-
-  def acquire_localstore(self, size):
-    memhandle = self.allocator.alloc(size)
-    self._allocs[memhandle.addr] = memhandle
-    return memhandle.addr
-
-  def release_localstore(self, addr):
-    self._allocs[addr].free()
-    del self._allocs[addr]
-    return
-
-
-class ParallelInstructionStream(InstructionStream):
-
-  def __init__(self, optimize=False):
-    InstructionStream.__init__(self, optimize)
-
-    self.r_rank = self.acquire_register()
-    self.r_size = self.acquire_register()
-
-    self.r_block_size = None
-    self.r_offset     = None
-
-    # All the params are stored in r_rank
-    self.r_params = self.r_rank
-
-    # User/library supplied data size, used by processor to determine
-    # block and offset for an execution run.  This value is in bytes.
-    self.raw_data_size = None
-    
-    return
-
-  def _synthesize_prologue(self):
-    """
-    Add raw_data_size/offest support code.
-    """
-
-    InstructionStream._synthesize_prologue(self)
-
-    # Parallel parameters are passed in the prefered slot and the next
-    # slot of the user arugment.
-    self._prologue.append(spu.shlqbyi(self.r_rank, SPURegister(3), 4)) 
-    self._prologue.append(spu.shlqbyi(self.r_size, SPURegister(3), 8)) 
-
-    if self.raw_data_size is not None:
-      self.acquire_block_registers()
-
-      self._prologue.append(spu.shlqbyi(self.r_block_size, SPURegister(4), 4)) 
-      self._prologue.append(spu.shlqbyi(self.r_offset, SPURegister(4), 8)) 
-    else:
-      print 'no raw data'
-    return
-
-  def acquire_block_registers(self):
-    if self.r_block_size is None:
-      self.r_block_size = self.acquire_register()
-    if self.r_offset is None:
-      self.r_offset     = self.acquire_register()
-
-    # print 'offset/block_size', self.r_offset, self.r_block_size
-    return
-  
-    
-  def release_parallel_registers(self):
-    self.release_register(self.r_rank)
-    self.release_register(self.r_size)
-
-    if self.r_block_size is not None:
-      self.release_register(self.r_block_size)
-    if self.r_offset is not None:
-      self.release_register(self.r_offset)
-      
-    return
+#class ParallelInstructionStream(InstructionStream):
+#
+#  def __init__(self, optimize=False):
+#    InstructionStream.__init__(self, optimize)
+#
+#    self.r_rank = self.acquire_register()
+#    self.r_size = self.acquire_register()
+#
+#    self.r_block_size = None
+#    self.r_offset     = None
+#
+#    # All the params are stored in r_rank
+#    self.r_params = self.r_rank
+#
+#    # User/library supplied data size, used by processor to determine
+#    # block and offset for an execution run.  This value is in bytes.
+#    self.raw_data_size = None
+#    
+#    return
+#
+#  def _synthesize_prologue(self):
+#    """
+#    Add raw_data_size/offest support code.
+#    """
+#
+#    InstructionStream._synthesize_prologue(self)
+#
+#    # Parallel parameters are passed in the prefered slot and the next
+#    # slot of the user arugment.
+#    p3 = self.acquire_register(reg_name = 3)
+#    self._prologue.append(spu.shlqbyi(self.r_rank, p3, 4)) 
+#    self._prologue.append(spu.shlqbyi(self.r_size, p3, 8)) 
+#
+#    if self.raw_data_size is not None:
+#      self.acquire_block_registers()
+#
+#      p4 = self.acquire_register(reg_name = 4)
+#      self._prologue.append(spu.shlqbyi(self.r_block_size, p4, 4)) 
+#      self._prologue.append(spu.shlqbyi(self.r_offset, p4, 8)) 
+#    else:
+#      print 'no raw data'
+#    return
+#
+#  def acquire_block_registers(self):
+#    if self.r_block_size is None:
+#      self.r_block_size = self.acquire_register()
+#    if self.r_offset is None:
+#      self.r_offset     = self.acquire_register()
+#
+#    # print 'offset/block_size', self.r_offset, self.r_block_size
+#    return
+#  
+#    
+#  def release_parallel_registers(self):
+#    self.release_register(self.r_rank)
+#    self.release_register(self.r_size)
+#
+#    if self.r_block_size is not None:
+#      self.release_register(self.r_block_size)
+#    if self.r_offset is not None:
+#      self.release_register(self.r_offset)
+#    return
 
 
 def _copy_params(params, rank, size):
@@ -375,6 +295,178 @@ def _copy_params(params, rank, size):
   ret.p10 = params.p10
   
   return ret
+
+
+class Program(spe.Program):
+  default_register_type = SPURegister
+  instruction_type  = WORD_TYPE
+
+  stream_type = InstructionStream
+
+  def __init__(self, debug = False):
+    spe.Program.__init__(self, debug)
+
+    self.r_zero = SPURegister("r0")
+    self.gp_return = SPURegister("r1")
+    self.fp_return = self.gp_return
+
+    # Localstore is actually 0x40000 bytes, but reserve 8kb for code.
+    self.allocator = allocator.Allocator(0, 0x3E000)
+    self._allocs = {}
+    return
+
+
+  def make_executable(self):
+    # spu_exec's make_executable does nothing, so don't call it.
+    #bi = self.render_code.buffer_info()
+    #self.exec_module.make_executable(bi[0], bi[1] * self.render_code.itemsize)
+    return 
+
+
+  def create_register_files(self):
+    #self._used_registers[SPURegister] = []
+    self._register_files[SPURegister] = [SPURegister(i) for i in xrange(5, 128)]
+    self._reg_type['gp'] = SPURegister
+    return
+ 
+ 
+  def _align_stream(self, length, align):
+    # Return nop's such that length % align = 0
+    if align % 4 != 0:
+      raise Exception("SPU alignment must be a multiple of 4 bytes")
+    length /= 4
+    align /= 4
+
+    mod = align - (length % align)
+    # need mod instructions to achieve alignment
+
+    ret = []
+    if mod % 2 == 0:
+      nop_pair = (spu.nop(self.r_zero, ignore_active = True),
+                  spu.lnop(ignore_active = True))
+      # issue mod / 2 nop/lnop pairs
+      for i in xrange(0, mod / 2):
+        ret.extend(nop_pair)
+    else:
+      # issue an lnop, then (mod - 1) / 2 nop/lnop pairs
+      nop_pair = (spu.lnop(ignore_active = True),
+                  spu.nop(self.r_zero, ignore_active = True))
+      for i in xrange(0, mod / 2):
+        ret.extend(nop_pair)
+      ret.append(spu.lnop(ignore_active = True))
+
+    return ret
+
+
+  # ------------------------------
+  # Localstore Management
+  # ------------------------------
+
+  def acquire_localstore(self, size):
+    memhandle = self.allocator.alloc(size)
+    self._allocs[memhandle.addr] = memhandle
+    return memhandle.addr
+
+  def release_localstore(self, addr):
+    self._allocs[addr].free()
+    del self._allocs[addr]
+    return
+
+
+  # ------------------------------
+  # Execute/ABI support
+  # ------------------------------
+
+  def _synthesize_prologue(self):
+    """
+    Setup register 0.
+    """
+
+    # Reserve register r0 for the value zero
+    # TODO - technically this is not needed, system sets all regs to 0
+    self._prologue = [self.lbl_prologue,
+                      spu.il(self.r_zero, 0, ignore_active = True),
+                      spu.lnop(ignore_active = True)]
+    return
+
+  def _synthesize_epilogue(self):
+    """
+    Add a stop signal with return type 0x2000 (EXIT_SUCCESS) to the
+    instruction stream epilogue. (BE Handbook, p. 422).
+    """
+    self._epilogue = [self.lbl_epilogue,
+                      spu.stop(0x2000, ignore_active = True)]
+    return
+
+
+class ParallelProgram(Program):
+  def __init__(self):
+    Program.__init__(self)
+
+    self.r_rank = self.acquire_register()
+    self.r_size = self.acquire_register()
+
+    self.r_block_size = None
+    self.r_offset     = None
+
+    # All the params are stored in r_rank
+    self.r_params = self.r_rank
+
+    # User/library supplied data size, used by processor to determine
+    # block and offset for an execution run.  This value is in bytes.
+    self.raw_data_size = None
+
+    return
+
+
+  # ------------------------------
+  # Execute/ABI support
+  # ------------------------------
+
+  def _synthesize_prologue(self):
+    """
+    Add raw_data_size/offest support code.
+    """
+
+    Program._synthesize_prologue(self)
+
+    # Parallel parameters are passed in the prefered slot and the next
+    # slot of the user arugment.
+    #p3 = self.acquire_register(reg_name = 3)
+    p3 = SPURegister("r3")
+    self._prologue.append(spu.shlqbyi(self.r_rank, p3, 4)) 
+    self._prologue.append(spu.shlqbyi(self.r_size, p3, 8)) 
+
+    if self.raw_data_size is not None:
+      self.acquire_block_registers()
+
+      #p4 = self.acquire_register(reg_name = 4)
+      p4 = SPURegister("r4")
+      self._prologue.append(spu.shlqbyi(self.r_block_size, p4, 4)) 
+      self._prologue.append(spu.shlqbyi(self.r_offset, p4, 8)) 
+    #else:
+    #  print 'no raw data'
+    return
+
+  def acquire_block_registers(self):
+    if self.r_block_size is None:
+      self.r_block_size = self.acquire_register()
+    if self.r_offset is None:
+      self.r_offset     = self.acquire_register()
+
+    # print 'offset/block_size', self.r_offset, self.r_block_size
+    return
+  
+    
+  def release_parallel_registers(self):
+    self.release_register(self.r_rank)
+    self.release_register(self.r_size)
+
+    if self.r_block_size is not None:
+      self.release_register(self.r_block_size)
+    if self.r_offset is not None:
+      self.release_register(self.r_offset)
+    return
 
 
 class Processor(spe.Processor):
@@ -432,7 +524,7 @@ class Processor(spe.Processor):
     return retval
 
 
-  def execute(self, code, mode = 'int', async = False, params = None, debug = False, stop = False, n_spus = 1):
+  def execute(self, prgm, mode = 'int', async = False, params = None, debug = False, stop = False, n_spus = 1):
     """
     Execute the instruction stream in the code object.
 
@@ -483,40 +575,39 @@ class Processor(spe.Processor):
       _params.p1, _params.p2, _params.p3 = params
       params = _params
 
-    if len(code._instructions) == 0:
+    if len(prgm) == 0:
       return None
 
-    if not code._cached:
-      code.cache_code()
+    prgm.cache_code()
 
-    bi = code.render_code.buffer_info()
+    bi = prgm.render_code.buffer_info()
     params.addr = bi[0]
-    params.size = bi[1] * code.render_code.itemsize
+    params.size = bi[1] * prgm.render_code.itemsize
 
     if debug:
-      print 'code info:'
-      print ' body inst addr: 0x%x' % (code.inst_addr())
-      code.print_code(hex = True, pro = True, epi = True)
+      print 'prgm info:'
+      print ' body inst addr: 0x%x' % (prgm.inst_addr())
+      prgm.print_code(hex = True, pro = True, epi = True)
 
     retval = None
 
-    if type(code) is ParallelInstructionStream:
+    if type(prgm) is ParallelProgram:
       # Parallel SPU execution
       speids = []
       if n_spus > N_SPUS:
         raise Exception("Too many SPUs requests (%d > %d)" % n_spus, N_SPUS)
 
       # Set up the parameters and execute each spu thread
-      for i in range(n_spus):
+      for i in xrange(0, n_spus):
         pi = _copy_params(params, i, n_spus)
 
-        if hasattr(code, "raw_data_size") and code.raw_data_size is not None:
-          pi.p4 = int(code.raw_data_size / n_spus)  # block_size
+        if hasattr(prgm, "raw_data_size") and prgm.raw_data_size is not None:
+          pi.p4 = int(prgm.raw_data_size / n_spus)  # block_size
           pi.p5 = pi.p4 * i                         # offset
 
-          # print 'Executing: 0x%x %d %d %d %d' % (pi.addr, pi.p1, pi.p2, pi.p4, pi.p5)
-        #speids.append(spe.Processor.execute(self, code, async = True, debug = debug, params = pi, mode = mode))
-        speids.append(self._execute(code.inst_addr(), mode, True, pi, mode))
+        #print 'Executing: 0x%x %d %d %d %d' % (pi.addr, pi.p1, pi.p2, pi.p4, pi.p5)
+        #speids.append(spe.Processor.execute(self, prgm, async = True, debug = debug, params = pi, mode = mode))
+        speids.append(self._execute(prgm.inst_addr(), mode, True, pi, mode))
 
       # Handle blocking execution modes
       if async == False:
@@ -525,7 +616,7 @@ class Processor(spe.Processor):
         retval = speids
     else:
       # Single SPU execution
-      retval = self._execute(code.inst_addr(), mode, async, params, stop)
+      retval = self._execute(prgm.inst_addr(), mode, async, params, stop)
 
     return retval
 
@@ -590,7 +681,7 @@ class DebugProcessor(spe.Processor):
 
     self.code = code
     
-    if len(code._instructions) == 0:
+    if len(code) == 0:
       return None
 
     # Add the debug instructions - two each for normal instructions and branch targets

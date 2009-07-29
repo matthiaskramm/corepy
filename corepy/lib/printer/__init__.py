@@ -31,26 +31,69 @@ import corepy.spre.spe as spe
 
 from default import Default
 from spu_asm import SPU_Asm
-from x86_64_asm import x86_64_Asm
+from spu_debugger import SPU_Debugger
+#from x86_64_asm import x86_64_Asm
 from x86_64_nasm import x86_64_Nasm
-from x86_nasm import x86_Nasm
+#from x86_nasm import x86_Nasm
 from cal_asm import CAL_Asm
 
 
-def PrintInstructionStream(code, module, fd = sys.stdout):
-  code.cache_code()
-
+def PrintProgram(prgm, module, fd = sys.stdout):
   module.header(fd)
-  if code._prologue != None and module.prologue(fd):
-    for obj in code._prologue:
+  if prgm._prologue != None and module.prologue(fd):
+    for obj in prgm._prologue:
       if isinstance(obj, spe.Instruction):
         module.instruction(fd, obj)
       elif isinstance(obj, spe.Label):
         module.label(fd, obj)
+      elif isinstance(obj, str):
+        module.string(fd, obj)
+      else:
+        raise Exception("Unknown object in prologue: %s" % str(obj))
+
+  for stream in prgm:
+    if isinstance(stream, spe.InstructionStream):
+      module.stream(fd, stream)
+    else:
+      raise Exception("Unknown object in program: %s" % str(stream))
+
+    for obj in stream:
+      if isinstance(obj, spe.Instruction):
+        module.instruction(fd, obj)
+      elif isinstance(obj, spe.Label):
+        module.label(fd, obj)
+      elif isinstance(obj, str):
+        module.string(fd, obj)
       else:
         raise Exception("Unknown object in instruction stream: %s" % str(obj))
+
+  if prgm._epilogue != None and module.epilogue(fd):
+    for obj in prgm._epilogue:
+      if isinstance(obj, spe.Instruction):
+        module.instruction(fd, obj)
+      elif isinstance(obj, spe.Label):
+        module.label(fd, obj)
+      elif isinstance(obj, str):
+        module.string(fd, obj)
+      else:
+        raise Exception("Unknown object in epilogue: %s" % str(obj))
+
+  return
+
+def PrintInstructionStream(code, module, fd = sys.stdout):
+  #code.cache_code()
+
+  #module.header(fd)
+  #if code._prologue != None and module.prologue(fd):
+  #  for obj in code._prologue:
+  #    if isinstance(obj, spe.Instruction):
+  #      module.instruction(fd, obj)
+  #    elif isinstance(obj, spe.Label):
+  #      module.label(fd, obj)
+  #    else:
+  #      raise Exception("Unknown object in instruction stream: %s" % str(obj))
  
-  module.body(fd) 
+  module.stream(fd, code)
   for obj in code:
     if isinstance(obj, spe.Instruction):
       module.instruction(fd, obj)
@@ -61,14 +104,14 @@ def PrintInstructionStream(code, module, fd = sys.stdout):
     else:
       raise Exception("Unknown object in instruction stream: %s" % str(obj))
 
-  if code._epilogue != None and module.epilogue(fd):
-    for obj in code._epilogue:
-      if isinstance(obj, spe.Instruction):
-        module.instruction(fd, obj)
-      elif isinstance(obj, spe.Label):
-        module.label(fd, obj)
-      else:
-        raise Exception("Unknown object in instruction stream: %s" % str(obj))
+  #if code._epilogue != None and module.epilogue(fd):
+  #  for obj in code._epilogue:
+  #    if isinstance(obj, spe.Instruction):
+  #      module.instruction(fd, obj)
+  #    elif isinstance(obj, spe.Label):
+  #      module.label(fd, obj)
+  #    else:
+  #      raise Exception("Unknown object in instruction stream: %s" % str(obj))
 
   return
 
@@ -102,7 +145,7 @@ if __name__ == '__main__':
   import corepy.arch.x86_64.types.registers as regs
   import corepy.arch.x86_64.lib.memory as mem
 
-  code = env.InstructionStream()
+  code = env.InstructionStream(None)
   code.add(x86.mov(regs.rax, 0xDEADBEEF))
   code.add(x86.add(regs.rax, 0xDEADBEEF))
   code.add(x86.call(-6))

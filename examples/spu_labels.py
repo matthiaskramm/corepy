@@ -35,27 +35,27 @@ from corepy.arch.spu.types.spu_types import SignedWord, SingleFloat
 #     stream_buffer, syn_iter, parallel
 import corepy.arch.spu.lib.dma as dma
 import corepy.arch.spu.lib.util as util
-from corepy.arch.spu.platform import InstructionStream, ParallelInstructionStream, \
-     Processor, spu_exec
+import corepy.arch.spu.platform as env
 
   
 def SimpleSPU():
   """
   A very simple SPU that computes 11 + 31 and returns 0xA on success.
   """
-  code = InstructionStream()
-  proc = Processor()
+  prgm = env.Program()
+  code = prgm.get_stream()
+  proc = env.Processor()
 
   spu.set_active_code(code)
   
 
   # Acquire two registers
   #x    = code.acquire_register()
-  x = code.gp_return
-  test = code.acquire_register()
+  x = prgm.gp_return
+  test = prgm.acquire_register()
 
-  lbl_brz = code.get_label("BRZ")
-  lbl_skip = code.get_label("SKIP")
+  lbl_brz = prgm.get_label("BRZ")
+  lbl_skip = prgm.get_label("SKIP")
 
   spu.hbrr(lbl_brz, lbl_skip)
   spu.xor(x, x, x) # zero x
@@ -70,27 +70,29 @@ def SimpleSPU():
   spu.stop(0x100A)
   code.add(lbl_skip)
   spu.stop(0x100B)
- 
-  code.print_code(hex = True, pro = True, epi = True) 
-  r = proc.execute(code, mode = 'int', stop = True) 
+
+  prgm.add(code) 
+  prgm.print_code() 
+  r = proc.execute(prgm, mode = 'int', stop = True) 
   print "ret", r
   assert(r[0] == 42)
   assert(r[1] == 0x100A)
 
 
-  code = InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   spu.set_active_code(code)
 
-  lbl_loop = code.get_label("LOOP")
-  lbl_break = code.get_label("BREAK")
+  lbl_loop = prgm.get_label("LOOP")
+  lbl_break = prgm.get_label("BREAK")
 
-  r_cnt = code.acquire_register()
-  r_stop = code.acquire_register()
-  r_cmp = code.acquire_register()
-  r_foo = code.gp_return
+  r_cnt = prgm.acquire_register()
+  r_stop = prgm.acquire_register()
+  r_cmp = prgm.acquire_register()
+  r_foo = prgm.gp_return
 
-  spu.ori(r_foo, code.r_zero, 0)
-  spu.ori(r_cnt, code.r_zero, 0)
+  spu.ori(r_foo, prgm.r_zero, 0)
+  spu.ori(r_cnt, prgm.r_zero, 0)
   util.load_word(code, r_stop, 10)
 
   code.add(lbl_loop)
@@ -104,8 +106,9 @@ def SimpleSPU():
   spu.br(lbl_loop)
   code.add(lbl_break)
 
-  code.print_code()
-  r = proc.execute(code, mode = 'int', stop = True)
+  prgm.add(code)
+  prgm.print_code()
+  r = proc.execute(prgm, mode = 'int', stop = True)
   print "ret", r
   assert(r[0] == 55)
 

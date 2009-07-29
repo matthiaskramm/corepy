@@ -137,13 +137,13 @@ class BitType(VMXType):
         vsplat = extarray.extarray(self.array_typecode, splat)
 
         util.load_vector(self.code, self.reg, vsplat.buffer_info()[0])
-        self.code.add_storage(vsplat)
+        self.code.prgm.add_storage(vsplat)
         self.storage = vsplat
         
     self.value = value
 
     if self.storage is not None:
-      self.code.add_storage(self.storage)
+      self.code.prgm.add_storage(self.storage)
 
     return
 
@@ -271,9 +271,11 @@ for t in _user_types:
 # ------------------------------------------------------------
 
 def TestLiterals():
-  from corepy.arch.ppc.platform import Processor, InstructionStream
-  code = InstructionStream()
-  proc = Processor()
+  import corepy.arch.ppc.platform as env
+  prgm = env.Program()
+  code = prgm.get_stream()
+  prgm += code
+  proc = env.Processor()
 
   ppc.set_active_code(code)
   vmx.set_active_code(code)
@@ -317,14 +319,14 @@ def TestLiterals():
   target.v = vmx.vor.ex(target, w)
   
   result = extarray.extarray('I', [42,42,42,42])
-  r_addr = code.acquire_register()
+  r_addr = prgm.acquire_register()
   util.load_word(code, r_addr, result.buffer_info()[0])
 
   vmx.stvx(target, 0, r_addr)
 
   ppc.set_active_code(None)
   vmx.set_active_code(None)
-  r = proc.execute(code)
+  r = proc.execute(prgm)
   print result
   for i in result:
     assert(i == 0)
