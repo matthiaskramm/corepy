@@ -155,7 +155,6 @@ class InstructionStream(spe.InstructionStream):
 
     self._optimize = optimize
 
-    # TODO - acquire these normally so they go in the schedule
     self.r_zero = SPURegister("r0")
     self.gp_return = SPURegister("r1")
     self.fp_return = self.gp_return
@@ -907,13 +906,14 @@ class DebugProcessor(spe.Processor):
 # ------------------------------------------------------------
 
 def TestInt():
-  code = InstructionStream()
+  prgm = Program()
+  code = prgm.get_stream()
   proc = Processor()
 
   spu.set_active_code(code)
   
-  r13 = code.acquire_register(reg = 13)
-  r20 = code.acquire_register(reg = 20)
+  r13 = prgm.acquire_register(reg_name = 13)
+  r20 = prgm.acquire_register(reg_name = 20)
   spu.ai(r20, r20, 13)
   spu.ai(r13, r13, 13)
   spu.ai(r13, r13, 13)
@@ -922,8 +922,9 @@ def TestInt():
   spu.ai(r13, r13, 13)
   
   spu.stop(0x200D)
-  
-  r = proc.execute(code, stop = True) # , debug = True)
+
+  prgm += code
+  r = proc.execute(prgm, stop = True) # , debug = True)
 
   #print 'int result:', r
   assert(r[0] == 0)
@@ -933,12 +934,13 @@ def TestInt():
 
 def TestParams():
   # Run this with a stop instruction and examine the registers
-  code = InstructionStream()
+  prgm = Program()
+  code = prgm.get_stream()
   proc = Processor()
 
   #r_sum = code.acquire_register(reg = 1)
-  r_sum = code.gp_return
-  r_current = code.acquire_register()
+  r_sum = prgm.gp_return
+  r_current = prgm.acquire_register()
 
   # Zero the sum
   code.add(spu.xor(r_sum, r_sum, r_sum))
@@ -971,7 +973,8 @@ def TestParams():
   params.p10 = 10
 
 
-  r = proc.execute(code, params = params, stop = True)
+  prgm += code
+  r = proc.execute(prgm, params = params, stop = True)
 
   assert(r[0] == 55)
   assert(r[1] == 0x200A)
@@ -981,17 +984,19 @@ def TestParams():
 
 def TestParallel():
   # Run this with a stop instruction and examine the registers and memory
-  code = ParallelInstructionStream()
+  prgm = ParallelProgram()
+  code = prgm.get_stream()
   proc = Processor()
 
   code.raw_data_size = 128*8
 
-  r = code.acquire_register()
+  r = prgm.acquire_register()
   code.add(spu.ai(r, r, 0x2FE))
   code.add(spu.ai(r, r, 0x2BE))    
   code.add(spu.stop(0x1FFF))
 
-  r = proc.execute(code, async = True, mode='void', n_spus = 6)
+  prgm += code
+  r = proc.execute(prgm, async = True, mode='void', n_spus = 6)
 
   for speid in r:
     proc.join(speid)
@@ -1001,11 +1006,12 @@ def TestParallel():
 
 
 def TestDebug():
-  code = InstructionStream()
+  prgm = Program()
+  code = prgm.get_stream()
   proc = DebugProcessor()
 
   spu.set_active_code(code)
-  
+
   ra = code.acquire_register()
   rb = code.acquire_register()
   rc = code.acquire_register()
@@ -1014,7 +1020,7 @@ def TestDebug():
   rf = code.acquire_register()
   rg = code.acquire_register()
   rh = code.acquire_register()  
-  
+
   spu.ai(ra, 0, 14)
   spu.ai(rb, 0, 13)
   spu.ai(rc, 0, 14)
@@ -1025,10 +1031,11 @@ def TestDebug():
   spu.ai(rg, 0, 18)
   spu.ai(rh, 0, 19)    
   spu.nop(0)
-  
+
   spu.stop(0x200A)
-  
-  r = proc.execute(code) # , debug = True)
+
+  prgm += code
+  r = proc.execute(prgm) # , debug = True)
 
   r = proc.nexti()
   r = proc.nexti()
@@ -1048,24 +1055,25 @@ def TestDebug():
   return
 
 
-def TestOptimization():
-  import time
-  import spuiter
-  import spuvar
-  code1 = InstructionStream(optimize=False)
-  code2 = InstructionStream(optimize=True)
-  proc = Processor()
-  for code in [code1, code2]:
-    x = spuvar.spu_int_var(code, 0)
-    y = spuvar.spu_int_var(code, 0)
-    for i in spuiter.syn_iter(code, pow(2, 14)):
-      x.v = x + x
-      y.v = y + y
-    s = time.time()
-    proc.execute(code)
-    e = time.time()
-    print "Total time: ", e - s
-  print "(First time is withOUT optimization.)"
+#def TestOptimization():
+#  import time
+#  import spuiter
+#  import spuvar
+
+#  code1 = InstructionStream(optimize=False)
+#  code2 = InstructionStream(optimize=True)
+#  proc = Processor()
+#  for code in [code1, code2]:
+#    x = spuvar.spu_int_var(code, 0)
+#    y = spuvar.spu_int_var(code, 0)
+#    for i in spuiter.syn_iter(code, pow(2, 14)):
+#      x.v = x + x
+#      y.v = y + y
+#    s = time.time()
+#    proc.execute(code)
+#    e = time.time()
+#    print "Total time: ", e - s
+#  print "(First time is withOUT optimization.)"
 
 def TestInt2(i0 = 0, i1 = 1):
   i2 = i0 + i1

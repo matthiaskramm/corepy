@@ -1234,9 +1234,9 @@ def TestStreamBufferSingle(n_spus = 1):
   a = extarray.extarray('I', range(n))
   buffer_size = 128
 
-  prgm = env.Program()
-  if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = prgm.get_stream()
+  if n_spus > 1:  prgm = env.ParallelProgram()
+  else:           prgm = env.Program()
+  code = prgm.get_stream()
   
   current = var.SignedWord(0, code)
 
@@ -1285,9 +1285,9 @@ def TestVecIter(n_spus = 1):
   
   buffer_size = 16
 
-  prgm = env.Program()
-  if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = prgm.get_stream()
+  if n_spus > 1:  prgm = env.ParallelProgram()
+  else:           prgm = env.Program()
+  code = prgm.get_stream()
 
   current = var.SignedWord(0, code)
 
@@ -1316,9 +1316,9 @@ def TestContinueLabel(n_spus = 1):
   
   buffer_size = 16
 
-  prgm = env.Program()
-  if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = prgm.get_stream()
+  if n_spus > 1:  prgm = env.ParallelProgram()
+  else:           prgm = env.Program()
+  code = prgm.get_stream()
   
   current = var.SignedWord(0, code)
   test    = var.SignedWord(0, code)

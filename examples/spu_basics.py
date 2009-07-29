@@ -224,8 +224,9 @@ def SpeedTest(n_spus = 6, n_floats = 6):
   On a PS3 using all 6 spus, this is 152 GFlops.
   """
 
-  if n_spus > 1:  code = env.ParallelInstructionStream()
-  else:           code = env.InstructionStream()
+  if n_spus > 1:  prgm = env.ParallelProgram()
+  else:           prgm = env.Program()
+  code = prgm.get_stream()
 
   spu.set_active_code(code)
   
@@ -250,8 +251,10 @@ def SpeedTest(n_spus = 6, n_floats = 6):
   # Run the synthetic program and copy the results back to the array 
   # TODO - AWF - use the SPU decrementers to time this
   proc = env.Processor()
+  prgm += code
+
   start = time.time()
-  r = proc.execute(code, n_spus = n_spus)
+  r = proc.execute(prgm, n_spus = n_spus)
   stop = time.time()
   total = stop - start
   n_ops = long(outer) * inner * long(unroll) * long(n_floats) * long(fuse) * long(simd) * long(n_spus)
@@ -300,5 +303,5 @@ if __name__=='__main__':
 #    MemoryDescExample(i)
 
 #  DoubleBufferExample()
-#  SpeedTest()
+  SpeedTest()
 
