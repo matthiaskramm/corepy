@@ -39,6 +39,10 @@ The source code itself also serves as documentation.  Large portions are
 commented, and many files include unit-style tests and examples at the bottom.
 Also the examples/ directory contains a variety of examples and tests.
 
+Code composition was added to the development trunk on July 29, 2009 in
+revision 789.  This new functionality breaks all existing code, though only
+minor changes are needed to bring things up to date.  See the wiki for more
+information.
 
 If you have bugs, questions, or comments, the best thing to do is to subscribe
 and post to the CorePy development mailing list.  To prevent spam, only
