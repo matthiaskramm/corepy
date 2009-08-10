@@ -60,7 +60,7 @@ def Test():
     code.add(lbl2)
 
     prgm.add(code)
-    prgm.print_code(pro = True, epi = True) 
+    #prgm.print_code(pro = True, epi = True, hex = True) 
     ret = proc.execute(prgm, mode = 'int')
     print "ret", ret
     assert(ret == 12)

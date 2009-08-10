@@ -522,8 +522,8 @@ class DispatchInstruction(Instruction):
 
 
     if self.machine_inst is None:
-      raise Exception("Instruction %s does not support operand types (%s)" % (
-        type(self), ','.join([str(arg_type.name) for arg_type in op_types],)))
+      raise TypeError("Instruction %s does not support operands (%s)" % (
+        type(self), ', '.join([str(op) for op in operands],)))
 
 
     # Skip the Instruction constructor and do mostly the same work here.
@@ -661,11 +661,33 @@ class Label(object):
        set_position() without checking whether the object is an instruction or
        a label."""
     self.position = pos
+    return
 
 
 class AlignStream(object):
-  def __init__(self, align):
+  def __init__(self, prgm, align):
     self.align = align
+    self.prgm = prgm
+    self.position = None
+    return
+
+  def render(self):
+    #return [i.render() for i in self.prgm._align_stream(self.position, self.align)]
+    r = self.prgm._align_stream(self.position, self.align)
+    ret = []
+    for n in r:
+      ret.extend(n.render())
+    return ret
+    
+
+  def set_position(self, pos):
+    """Set the byte-offset position of this AlignStream in its
+       InstructionStream.  Provided so that cache_code can simply call
+       set_position() without checking whether the object is an instruction or
+       a label or alignment object.
+       The position is used to determinate how much padding is needed to achieve
+       the requested alignment."""
+    self.position = pos
     return
   
 
@@ -818,7 +840,7 @@ class InstructionStream(object):
 
   def align(self, align):
     """Insert no-op's into the stream to achieve a specified alignment"""
-    self._objects.append(AlignStream(align))
+    self._objects.append(AlignStream(self.prgm, align))
     return
 
 
@@ -1310,6 +1332,14 @@ class Program(object):
       elif isinstance(obj, Label): # Label, fill in a zero-length slot
         obj.set_position(inst_len)
         inst_list.append([False, [], obj])
+      elif isinstance(obj, AlignStream):
+        # Call arch-specific alignment.
+        # give it the desired alignment and current alignment.
+        # should return an array of instructions to render
+        obj.set_position(inst_len)
+        r = obj.render()
+        inst_list.append([True, r, obj])
+        inst_len += len(r)
 
     return inst_len
 
@@ -1336,7 +1366,7 @@ class Program(object):
 
     # Final loop, bring everything together into render_code
     for rec in inst_list:
-      if isinstance(rec[2], Instruction):
+      if isinstance(rec[2], (Instruction, AlignStream)):
         render_code.fromlist(rec[1])
     return
 
