@@ -99,6 +99,10 @@ class Program(spe.Program):
     return
 
 
+  def _align_stream(self, length, align):
+    return [x86.nop() for i in xrange(0, align - (length % align))]
+
+
   # ------------------------------
   # Execute/ABI support
   # ------------------------------
