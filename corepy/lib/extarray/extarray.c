@@ -1,11 +1,18 @@
 #include <Python.h>
 #include "structmember.h"
+
+#if (PY_VERSION_HEX < 0x02050000)
+typedef int Py_ssize_t;
+#endif
+
 #include <stdio.h>
 #include "alloc.h"
 
 //#ifndef _DEBUG
 //#define _DEBUG 0
 //#endif
+
+//Make sure Py_ssize_t is defined
 
 typedef struct ExtArray {
   PyObject_HEAD

@@ -30,6 +30,11 @@
 
 #include <Python.h>
 #include "structmember.h"
+
+#if (PY_VERSION_HEX < 0x02050000)
+typedef int Py_ssize_t;
+#endif
+
 #include <stdio.h>
 #include <sched.h>
 #include "cal.h"
