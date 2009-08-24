@@ -949,7 +949,7 @@ class Program(object):
 
   def reset(self):
     """
-    Reset the instruction stream, clear all storage, and return all the
+    Reset the program, clear all storage, and return all the
     registers to the register pools.
     """
     self._objects = []
@@ -1193,8 +1193,8 @@ class Program(object):
     return 
 
   
-  def acquire_registers(self, n, type = None, reg = None):
-    return [self.acquire_register(type, reg) for i in xrange(n)]
+  def acquire_registers(self, n, reg_type = None):
+    return [self.acquire_register(reg_type) for i in xrange(n)]
 
   def release_registers(self, regs):
     for reg in regs:

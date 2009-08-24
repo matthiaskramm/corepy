@@ -148,7 +148,7 @@ def cal_nb_generate_2d(prgm, n_bodies, dt):
   r_vel = prgm.acquire_register()
 
   #code.add("dcl_input_position_interp(linear_noperspective) v0.xy__")
-  cal.dcl_input(reg.v0.x___, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
+  cal.dcl_input(reg.v0.xy__, USAGE=cal.usage.pos, INTERP=cal.interp.linear_noperspective)
   r_bodies = prgm.acquire_register((fn_bodies,) * 4)
   r_G = prgm.acquire_register((G,) * 4)
   r_dt = prgm.acquire_register((dt,) * 4)

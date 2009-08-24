@@ -83,6 +83,9 @@ def PrintProgram(prgm, module, fd = sys.stdout):
 def PrintInstructionStream(code, module, fd = sys.stdout):
   #code.cache_code()
 
+  if not isinstance(code, spe.InstructionStream):
+    raise TypeError("code is not an InstructionStream: %s" % str(type(code)))
+
   #module.header(fd)
   #if code._prologue != None and module.prologue(fd):
   #  for obj in code._prologue:
@@ -102,7 +105,7 @@ def PrintInstructionStream(code, module, fd = sys.stdout):
     elif isinstance(obj, spe.AlignStream):
       print " # ALIGN STREAM"
     else:
-      raise Exception("Unknown object in instruction stream: %s" % str(obj))
+      raise TypeError("Unknown object in instruction stream: %s" % str(obj))
 
   #if code._epilogue != None and module.epilogue(fd):
   #  for obj in code._epilogue:

@@ -26,6 +26,7 @@ SQRT_BODIES = 64
 N_BODIES = SQRT_BODIES ** 2
 print "total bodies", N_BODIES
 
+prgm = env.Program()
 
 def InitGL(Width, Height): 
   glClearColor(0.0, 0.0, 0.0, 0.0)
@@ -72,17 +73,17 @@ def DrawGL():
 
 def ProcessStep():
   #global x, y, vx, vy, m
-  global pos, vel, code, step, proc
+  global pos, vel, prgm, step, proc
   global fps_time, fps_count
 
   for i in xrange(0, 4):
     inp = step % 2
     out = (step + 1) % 2
-    code.set_remote_binding('i0', pos[inp], copy_local = False)
-    code.set_remote_binding('i1', vel[inp], copy_local = False)
-    code.set_remote_binding('o0', pos[out])
-    code.set_remote_binding('o1', vel[out])
-    proc.execute(code, (0, 0, SQRT_BODIES, SQRT_BODIES))
+    prgm.set_binding('i0', pos[inp])
+    prgm.set_binding('i1', vel[inp])
+    prgm.set_binding('o0', pos[out])
+    prgm.set_binding('o1', vel[out])
+    proc.execute(prgm, (0, 0, SQRT_BODIES, SQRT_BODIES))
 
     fps_count += 1
     step += 1
@@ -126,7 +127,7 @@ def py_nbody():
   return
 
 def cal_nbody():
-  global pos, vel, mass, code, step, proc
+  global pos, vel, mass, prgm, step, proc
   step = 0
   proc = env.Processor(1)
 
@@ -173,8 +174,9 @@ def cal_nbody():
   pos[0][ind * 4 + 2] = 0.0
   pos[0][ind * 4 + 3] = 1e16
 
-  code = nbody.cal_nb_generate_2d(SQRT_BODIES, 0.000002)
-  code.cache_code()
+  code = nbody.cal_nb_generate_2d(prgm, SQRT_BODIES, 0.000002)
+  prgm += code
+  prgm.cache_code()
   return
 
 

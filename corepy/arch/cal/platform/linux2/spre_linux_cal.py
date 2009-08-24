@@ -232,7 +232,7 @@ class Program(spe.Program):
 
     self.render_string = self._prologue + render_string + self._epilogue
 
-    print self.render_string
+    #print self.render_string
     self.render_code = cal_exec.compile(self.render_string)
     self._cached = True
     return

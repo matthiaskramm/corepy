@@ -35,13 +35,14 @@ from corepy.arch.x86_64.types.registers import *
 import corepy.arch.x86_64.platform as env
 from corepy.arch.x86_64.lib.memory import MemRef
 import corepy.lib.printer as printer
+import corepy.spre.spe as spe
 
 
-def get_nasm_output(code, inst):
+def get_nasm_output(prgm, inst):
   """Take an instruction, and return a hex string of its encoding, as encoded by GAS"""
  
   fd = open("x86_64_test.s", "w")
-  printer.PrintInstructionStream(code, printer.x86_64_Nasm(function_name="_start"), fd = fd)
+  printer.PrintProgram(prgm, printer.x86_64_Nasm(function_name="_start"), fd = fd)
   fd.close()
 
   ret = subprocess.call(["nasm", "-Ox", "x86_64_test.s"])
@@ -62,7 +63,7 @@ def get_nasm_output(code, inst):
   return hex[startpos:stoppos]
 
 
-def get_corepy_output(code, inst):
+def get_corepy_output(prgm, inst):
   """Take an instruction, and return a hex string of its encoding, as encoded by CorePy"""
   hex_list = inst.render()
 
@@ -72,7 +73,7 @@ def get_corepy_output(code, inst):
   return hex
 
 
-def ops_from_sig(code, sig):
+def ops_from_sig(prgm, sig):
   ops = []
 
   for s in sig:
@@ -129,7 +130,7 @@ def ops_from_sig(code, sig):
     elif isinstance(s, x86.x86ImmediateOperand):
       ops.append(21)
     elif isinstance(s, x86.x86LabelOperand):
-      ops.append(code.lbl_body)
+      ops.append(prgm.lbl_body)
     else:
       raise Exception("unhandled operand %s" % str(s))
 
@@ -137,16 +138,17 @@ def ops_from_sig(code, sig):
 
 
 def test_inst(code, inst):
-  code.add(inst)
-  code.cache_code()
+  prgm = code.prgm
+  code += inst
+  prgm.cache_code()
 
-  nasm_hex_str = get_nasm_output(code, inst)
-  corepy_hex_str = get_corepy_output(code, inst)
+  nasm_hex_str = get_nasm_output(prgm, inst)
+  corepy_hex_str = get_corepy_output(prgm, inst)
 
   if nasm_hex_str == None:
       print "***************************  NASM ERROR"
       print "corepy output:", corepy_hex_str
-      printer.PrintInstructionStream(code,
+      printer.PrintProgram(prgm,
           printer.x86_64_Nasm(show_epilogue = False, show_prologue = False))
       return 'nasm_fail'
   elif nasm_hex_str == corepy_hex_str:
@@ -164,7 +166,7 @@ def test_inst(code, inst):
       print "***************************  ERROR"
       print "nasm output:   ", nasm_hex_str
       print "corepy output: ", corepy_hex_str
-      printer.PrintInstructionStream(code,
+      printer.PrintProgram(prgm,
           printer.x86_64_Nasm(show_epilogue = False, show_prologue = False))
       return 'fail'
   return
@@ -184,18 +186,22 @@ if __name__ == '__main__':
   for obj in dir(x86):
     cls = getattr(x86, obj)
     if isinstance(cls, type):
-      if issubclass(cls, (x86.x86DispatchInstruction, x86.x86Instruction)):
-        if cls != x86.x86DispatchInstruction and cls != x86.x86Instruction:
+      if issubclass(cls, (spe.DispatchInstruction, spe.Instruction)):
+        if cls != spe.DispatchInstruction and cls != spe.Instruction:
           classes.append(cls)
 
-  code = env.InstructionStream()
+
   for c in classes:
     if c == x86.int_3:
       # No way to write 'int 3' for NASM since it clashes with 'int 3' (heh)
       # So just make sure it gets rendered as 0xCC and call it a day
+      prgm = env.Program()
+      code = prgm.get_stream()
+      prgm += code
+
       inst = x86.int_3()
       code.add(inst)
-      corepy_hex_str = get_corepy_output(code, inst)
+      corepy_hex_str = get_corepy_output(prgm, inst)
       if corepy_hex_str == 'cc':
         print "PASS"
         results['pass'] += 1
@@ -203,11 +209,13 @@ if __name__ == '__main__':
         print "***************************  ERROR"
         print "corepy output:", corepy_hex_str
         results['pass'] += 1
-    elif issubclass(c, x86.x86DispatchInstruction):
+    elif issubclass(c, spe.DispatchInstruction):
       for d in c.dispatch:
-        code.reset()
+        prgm = env.Program()
+        code = prgm.get_stream()
+        prgm += code
 
-        ops = ops_from_sig(code, d[0].signature)
+        ops = ops_from_sig(prgm, d[0].signature)
         inst = c(*ops)
 
         print "Testing instruction:", inst
@@ -216,9 +224,12 @@ if __name__ == '__main__':
         results[r] += 1
         sys.stdout.flush()
         sys.stderr.flush()
-    elif issubclass(c, x86.x86Instruction):
-      code.reset()
-      ops = ops_from_sig(code, c.machine_inst.signature)
+    elif issubclass(c, spe.Instruction):
+      prgm = env.Program()
+      code = prgm.get_stream()
+      prgm += code
+
+      ops = ops_from_sig(prgm, c.machine_inst.signature)
       inst = c(*ops)
 
       print "Testing instruction:", inst
