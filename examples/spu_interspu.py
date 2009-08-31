@@ -51,9 +51,10 @@ if __name__ == '__main__':
   SPUS = 6
 
   proc = env.Processor()
-  codes = [env.InstructionStream() for i in xrange(0, SPUS)]
+  prgms = [env.Program() for i in xrange(0, SPUS)]
 
-  for rank, code in enumerate(codes):
+  for rank, prgm in enumerate(prgms):
+    code = prgm.get_stream()
     spu.set_active_code(code)
 
     # First all the SPUs should start up and wait for an mbox message.
@@ -65,15 +66,15 @@ if __name__ == '__main__':
     dma.mem_complete(code, 17)
 
     # Load the PS info into some registers.. one register per address
-    r_psinfo = code.acquire_registers(SPUS)
+    r_psinfo = prgm.acquire_registers(SPUS)
     for i in xrange(0, SPUS):
       spu.lqd(r_psinfo[i], code.r_zero, i)
 
     # Initialize a data register with this rank and store it at LSA 0
-    r_send = code.acquire_register()
+    r_send = prgm.acquire_register()
     load_word(code, r_send, rank)
     spu.stqd(r_send, code.r_zero, 0)
-    code.release_register(r_send)
+    prgm.release_register(r_send)
 
     # Send our rank as a mailbox message to the rank after this rank
     dma.mem_write_in_mbox(code, r_psinfo[(rank + 1) % SPUS], 12, 18)
@@ -84,11 +85,13 @@ if __name__ == '__main__':
 
     # Write the value out the interrupt mailbox for the PPU
     dma.spu_write_out_intr_mbox(code, r_recv)
-    code.release_register(r_recv)
+    code.prgm.release_register(r_recv)
+
+    prgm.add(code)
 
 
   # Start the SPUs
-  id = [proc.execute(codes[i], async = True) for i in xrange(0, SPUS)]
+  id = [proc.execute(prgms[i], async = True) for i in xrange(0, SPUS)]
 
   # Set up an array of pointers to PS maps.
   psinfo = extarray.extarray('I', SPUS * 4)

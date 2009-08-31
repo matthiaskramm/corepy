@@ -324,11 +324,11 @@ class Program(spe.Program):
 
   def create_register_files(self):
     #self._used_registers[SPURegister] = []
-    self._register_files[SPURegister] = [SPURegister(i) for i in xrange(5, 128)]
+    self._register_files[SPURegister] = [SPURegister(i) for i in xrange(2, 128)]
     self._reg_type['gp'] = SPURegister
     return
- 
- 
+
+
   def _align_stream(self, length, align):
     # Return nop's such that length % align = 0
     if align % 4 != 0:

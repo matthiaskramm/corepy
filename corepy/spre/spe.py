@@ -727,8 +727,10 @@ class InstructionStream(object):
     """
     Reset the instruction stream.
     """
-    self._objects = []
-    self._labels = []
+    self.objects = []
+    self.labels = []
+    #self._objects = []
+    #self._labels = []
     self._stack_info = []
 
     # This stream belongs to a program, which may have any code previously
@@ -746,39 +748,50 @@ class InstructionStream(object):
   # Overloaded Operators
   # ------------------------------
 
-  def __setitem__(self, key, inst):
+  def __setitem__(self, key, obj):
     """
     Allow the user to replace instructions by index.
     """
-    self._objects[key] = inst
+    # If a label was replaced, remove it from the labels list.
+    if isinstance(self.objects[key], Label):
+      self.labels.remove(self.objects[key])
+
+    self.objects[key] = obj
+
+    # Clear the code cache
     self.render_code = None
     self._cached = False
     return
 
   def __getitem__(self, v):
-    return self._objects[v]
+    """Return the instruction at a particular index."""
+    return self.objects[v]
 
   def __iter__(self):
-    return self._objects.__iter__()
+    """Iterate over all the objects in the InstructionStream"""
+    return self.objects.__iter__()
 
 
-  def size(self): return len(self._objects)
-  def __len__(self): return len(self._objects)
+  def size(self): return len(self.objects)
+  def __len__(self): return len(self.objects)
 
   # Overload addition to do the equivalent of code.add(other)
   def __add__(self, other):
+    """Create and return a new IntructionStream consisting of the 'other'
+       object concatenated to the contents of this stream."""
     code = self.prgm.get_stream()
     code.add(self)
     code.add(other)
     return code
 
   def __iadd__(self, other):
+    """Add an object (e.g. Instruction, Label) to the stream."""
     self.add(other)
     return self
 
 
   # ------------------------------
-  # Instruction Management
+  # Object Management
   # ------------------------------
 
   def add(self, obj):
@@ -797,17 +810,17 @@ class InstructionStream(object):
       #   code.add(inst(a, b, c))
       # when active code is set.
       if obj.active_code_used is not self:
-        self._objects.append(obj)
+        self.objects.append(obj)
 
         if self._debug:
           import inspect
           self._stack_info.append(_extract_stack_info(inspect.stack()))
     elif isinstance(obj, Label):
-      if obj in self._labels:
+      if obj in self.labels:
         raise Exception('Label has already been added to the instruction stream; labels may only be added once.')
 
-      self._objects.append(obj)
-      self._labels.append(obj)
+      self.objects.append(obj)
+      self.labels.append(obj)
 
       if self._debug:
         import inspect
@@ -827,21 +840,62 @@ class InstructionStream(object):
       # Merge in the objects list of the substream.
       for subobj in obj:
         if isinstance(subobj, Label):
-          self._labels.append(subobj)
-        self._objects.append(subobj)
+          self.labels.append(subobj)
+        self.objects.append(subobj)
     else:
       raise Exception('Unsupported object: %s' % type(obj))
 
     # Clear the program's cache
     self.prgm._cached = False
 
-    return len(self._objects)
+    return len(self.objects)
 
 
   def align(self, align):
     """Insert no-op's into the stream to achieve a specified alignment"""
-    self._objects.append(AlignStream(self.prgm, align))
+    self.objects.append(AlignStream(self.prgm, align))
     return
+
+
+  class __type_iter(object):
+    """Internal iterator that iterates over a list,
+       only returning items of a particular type"""
+    def __init__(self, obj_type, obj_list):
+      self.obj_type = obj_type
+      self.obj_list = obj_list
+      return
+
+    def __iter__(self):
+      return self
+
+    def next(self):
+      for obj in self.obj_list:
+        if isinstance(obj, self.obj_type):
+          yield obj
+      raise StopIteration
+      return
+
+
+  def inst_iter(self):
+    """
+    Return an iterator that iterates over the Instruction objects in the stream.
+    """
+    return __type_iter(Instruction, self.objects)
+
+
+  def label_iter(self):
+    """
+    Return an iterator that iterates over the Label objects in the stream.
+    """
+
+    # Could use __type_iter, but we already have a list of labels to improve
+    #  speed in other places.
+    return self.labels
+
+
+  def align_iter(self):
+    """Return an iterator that iterates over the AlignStream's in the stream."""
+    return __type_iter(AlignStream, self.objects)
 
 
   # ------------------------------
@@ -952,8 +1006,8 @@ class Program(object):
     Reset the program, clear all storage, and return all the
     registers to the register pools.
     """
-    self._objects = []
-    self._labels = self._builtin_labels.copy()
+    self.objects = []
+    self.labels = self._builtin_labels.copy()
 
     self._cached = False
     self.render_code = None
@@ -975,10 +1029,10 @@ class Program(object):
   # Overloaded Operators
   # ------------------------------
 
-  def __len__(self): return len(self._objects)
+  def __len__(self): return len(self.objects)
 
   def __iter__(self):
-    return self._objects.__iter__()
+    return self.objects.__iter__()
 
   def __str__(self):
     import corepy.lib.printer as printer
@@ -991,6 +1045,7 @@ class Program(object):
 
   # Overload addition to do the equivalent of prgm.add(other)
   def __iadd__(self, other):
+    """Add an object (e.g. InstructionStream) to the program."""
     self.add(other)
     return self
 
@@ -1046,7 +1101,21 @@ class Program(object):
   # ------------------------------
 
   def get_stream(self):
+    """Return a new InstructionStream object.
+       For any code in the stream to be part of the Program, the stream must
+       be added back to the program with code.add() or += operator."""
     return self.stream_type(self)
+
+
+  def add(self, obj):
+    if isinstance(obj, InstructionStream):
+      self.objects.append(obj)
+    else:
+      raise Exception('Unsupported object: %s' % type(obj))
+
+    self._cached = False
+    self.render_code = None
+    return len(self.objects)
 
 
   # ------------------------------
@@ -1058,11 +1127,11 @@ class Program(object):
 
   def get_label(self, name):
     try:
-      return self._labels[name]
+      return self.labels[name]
     except KeyError: pass
 
     lbl = Label(name)
-    self._labels[name] = lbl
+    self.labels[name] = lbl
     return lbl
 
   def get_unique_label(self, name = ""):
@@ -1192,7 +1261,19 @@ class Program(object):
         pool.append(reg)
     return 
 
-  
+
+  def registers_available(self, reg_type = None):
+    if reg_type is None:
+      reg_type = self.default_register_type    
+    elif isinstance(reg_type, str):
+      reg_type = self._reg_type[reg_type]
+
+    if hasattr(reg_type, '_complex_reg'):
+      return len(self._register_avail_bins)
+
+    return len(self._register_pools[reg_type]) 
+ 
+
   def acquire_registers(self, n, reg_type = None):
     return [self.acquire_register(reg_type) for i in xrange(n)]
 
@@ -1200,21 +1281,6 @@ class Program(object):
     for reg in regs:
       self.release_register(reg)
     return
-
-
-  # ------------------------------
-  # Instruction management
-  # ------------------------------
-
-  def add(self, obj):
-    if isinstance(obj, InstructionStream):
-      self._objects.append(obj)
-    else:
-      raise Exception('Unsupported object: %s' % type(obj))
-
-    self._cached = False
-    self.render_code = None
-    return len(self._objects)
 
 
   # ------------------------------
@@ -1255,7 +1321,7 @@ class Program(object):
           render_code.append(obj.render())
         else: # Label reference
           # Check that the label is in this stream
-          if not lbl.name in self._labels:
+          if not lbl.name in self.labels:
             raise Exception("Label operand '%s' has not beed added to instruction stream" % lbl.name)
 
           obj.set_position(len(render_code) * 4)
@@ -1318,7 +1384,7 @@ class Program(object):
           inst_list.append([relref, r, obj])
           inst_len += len(r)
         else: # Instruction referencing a label.
-          if not lbl.name in self._labels:
+          if not lbl.name in self.labels:
             raise Exception("Label operand '%s' has not beed added to instruction stream" % lbl.name)
           obj.set_position(inst_len)
 
@@ -1390,7 +1456,7 @@ class Program(object):
     # is part of a cache operation more than once, we need to reset the
     # position back to None.
     # Maybe just do this on B type, and always delay render on I type?
-    for lbl in self._labels.values():
+    for lbl in self.labels.values():
       lbl.position = None
 
     if self.instruction_type == 'I':
@@ -1399,8 +1465,8 @@ class Program(object):
       self._cache_code_I(render_code, fwd_refs, self._prologue)
 
       # TODO - may want to do something different for non-IS objects
-      for stream in self._objects:
-        self._cache_code_I(render_code, fwd_refs, stream._objects)
+      for stream in self.objects:
+        self._cache_code_I(render_code, fwd_refs, stream.objects)
 
       self._cache_code_I(render_code, fwd_refs, self._epilogue)
 
@@ -1415,8 +1481,8 @@ class Program(object):
       inst_len = self._cache_code_B(inst_list, inst_len, self._prologue)
 
       # TODO - may want to do something different for non-IS objects
-      for stream in self._objects:
-        inst_len = self._cache_code_B(inst_list, inst_len, stream._objects)
+      for stream in self.objects:
+        inst_len = self._cache_code_B(inst_list, inst_len, stream.objects)
 
       inst_len = self._cache_code_B(inst_list, inst_len, self._epilogue)
 

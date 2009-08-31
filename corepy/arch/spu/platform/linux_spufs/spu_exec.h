@@ -624,12 +624,13 @@ unsigned int poll_out_mbox(struct ThreadInfo* ti) {
 
   //Poll the status register until a message is available
   //while(*addr & 0x1 == 0);
-  for(i = 0; *addr & 0x1 == 0; i++);
+  for(i = 0; (*addr & 0x1) == 0; i++);
   __asm__("eieio");
   return i;
 }
 
 
+#if 0
 unsigned int benchmark_mbox(struct ThreadInfo* ti) {
 # if 0
   volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4014);
@@ -674,6 +675,8 @@ unsigned int benchmark_mbox(struct ThreadInfo* ti) {
     status = *addr;
   } while(status != 2);
 }
+#endif
+
 
 unsigned int read_out_ibox(struct ThreadInfo* ti) {
   //Interrupt Mailbox register is Privilege level 2, meaning we cant read it

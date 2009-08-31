@@ -32,11 +32,12 @@ import corepy.arch.spu.lib.dma as dma
 from corepy.arch.spu.lib.util import load_word
 
 
-code = env.InstructionStream()
+prgm = env.Program()
+code = prgm.get_stream()
 proc = env.Processor()
 
 # Grab a register and initialize it
-reg = code.acquire_register()
+reg = prgm.acquire_register()
 load_word(code, reg, 0xCAFEBABE)
 
 # Write the value to the outbound mailbox
@@ -45,12 +46,14 @@ dma.spu_write_out_mbox(code, reg)
 # Wait for a signal
 sig = dma.spu_read_signal1(code)
 
-code.release_register(sig)
-code.release_register(reg)
+prgm.release_register(sig)
+prgm.release_register(reg)
 
+
+prgm.add(code)
 
 # Start the synthesized SPU program
-id = proc.execute(code, async = True)
+id = proc.execute(prgm, async = True)
 
 # Spin until the mailbox can be read
 while env.spu_exec.stat_out_mbox(id) == 0: pass

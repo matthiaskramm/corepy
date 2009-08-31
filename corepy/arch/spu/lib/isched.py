@@ -174,6 +174,11 @@ def isched_generate_dag(code, g_out, g_in, g_incnt, start):
 
       barrier = inst
       barrier_deps = []
+
+      # Very unlikely, but a branch could have no deps.
+      if g_incnt[inst] == 0:
+        start.append(inst)
+ 
     elif inst in branch_insts:
       # Branches depend on every inst since the last barrier, plus the barrier.
       #  Also, the branch may have 1-2 read-after-write dependences, which must
@@ -345,6 +350,7 @@ def isched(scode):
     # appear in the start queue alone, i.e. they are the only object in the
     # queue.  As such, they are handled specially; no heuristics are needed as
     # no choice needs to be made.
+    print "start", start
     if len(start) == 1 and (isinstance(start[0], spe.Label) or start[0] in branch_insts):
       inst = start[0]
       fcode.add(inst)
@@ -398,6 +404,9 @@ def isched(scode):
       fcode.add(inst)
 
       # Dual issue? if so, adjust the cycle back one.
+      # previnst could be a label
+      # update the pipe by alternating it when an inst is added to the stream
+      # use a lastpos variable to track the pos of the last instruction
       previnst = fcode[pos - 1]
       if (pipe == inst.cycles[0] == 1 and
           previnst.cycles[0] == 0 and 

@@ -963,7 +963,7 @@ class SPUApp(wx.App):
     env.spu_exec.run_stream(ctx, prgm.inst_addr(), code_len, code_lsa, code_lsa)
 
     self.localstore = extarray.extarray('I', 262144 / 4)
-    #print "spuls %x" % (ctx.spuls), ctx.spuls, type(ctx.spuls)
+    print "spuls %x" % (ctx.spuls), ctx.spuls, type(ctx.spuls)
     self.localstore.set_memory(ctx.spuls, 262144)
     return
 

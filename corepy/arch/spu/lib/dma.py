@@ -183,7 +183,7 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
 
 #  r_mbox_mma_cached = True
 #  ref = "__mem_write_in_mbox_mma_reg_%s" % (str(psmap))
-#  r_mbox_mma = code.get_storage(ref)
+#  r_mbox_mma = code.prgm.get_storage(ref)
 #  if not isinstance(r_mbox_mma, spu.Register):
 #    r_size_cached = False
 #    r_mbox_mma = code.acquire_register()
@@ -195,7 +195,7 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
 #
 #    if cache == True:
 #      r_mbox_mma_cached = True
-#      code.add_storage(ref, r_mbox_mma)
+#      code.prgm.add_storage(ref, r_mbox_mma)
 
   r_mbox_mma = code.prgm.acquire_register()
   if isinstance(psmap, (int, long)):
@@ -206,22 +206,22 @@ def mem_write_in_mbox(code, psmap, lsa, tag, cache = False):
 
   r_size_cached = True
   ref = "_const_val_4"
-  r_size = code.get_storage(ref)
+  r_size = code.prgm.get_storage(ref)
   if not isinstance(r_size, spu.Register):
     r_size_cached = False
     r_size = code.prgm.acquire_register()
     util.load_word(code, r_size, 4)
     if cache == True:
       r_size_cached = True
-      code.add_storage(ref, r_size)
+      code.prgm.add_storage(ref, r_size)
 
   mem_put(code, lsa, r_mbox_mma, r_size, tag)
 
-  code.release_register(r_mbox_mma)
+  code.prgm.release_register(r_mbox_mma)
   if cache == False:
     #if not isinstance(psmap, (int, long)) and r_mbox_mma_cached == False:
     if r_size_cached == False:
-      code.release_register(r_size)
+      code.prgm.release_register(r_size)
   return
 
 
@@ -244,7 +244,7 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 
 #  r_sig_mma_cached = True
 #  ref = "__mem_write_signal_mma_reg_%d_%s" % (which, str(psmap))
-#  r_sig_mma = code.get_storage(ref)
+#  r_sig_mma = code.prgm.get_storage(ref)
 #  if not isinstance(r_sig_mma, spu.Register):
 #    r_sig_mma_cached = False
 #    r_sig_mma = code.acquire_register()
@@ -256,7 +256,7 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 
 #    if cache == True:
 #      r_sig_mma_cached = True
-#      code.add_storage(ref, r_sig_mma)
+#      code.prgm.add_storage(ref, r_sig_mma)
 
   r_sig_mma = code.prgm.acquire_register()
   if isinstance(psmap, (int, long)):
@@ -267,14 +267,14 @@ def mem_write_signal(code, which, psmap, lsa, tag, cache = False):
 
   #r_size_cached = True
   #ref = "_const_val_4"
-  #r_size = code.get_storage(ref)
+  #r_size = code.prgm.get_storage(ref)
   #if not isinstance(r_size, spu.Register):
   #  r_size_cached = False
   #  r_size = code.acquire_register()
   #  util.load_word(code, r_size, 4)
   #  if cache == True:
   #    r_size_cached = True
-  #    code.add_storage(ref, r_size)
+  #    code.prgm.add_storage(ref, r_size)
 
   r_size = code.prgm.acquire_register()
   util.load_word(code, r_size, 4)
@@ -327,11 +327,11 @@ def MFC_CMD_WORD(tid, rid, cmd):
 def spu_mfcdma32(code, r_ls, r_ea, r_size, r_tagid, cmd):
 #  print "spu_mfcdma32 cmd", cmd, str(cmd)
 #  ref = "__spu_mfcdma32_cmd_%s" % str(cmd)
-#  r_cmd = code.get_storage(ref)
+#  r_cmd = code.prgm.get_storage(ref)
 #  if not isinstance(r_cmd, spu.Register):
 #    r_cmd = code.acquire_register()
 #    util.load_word(code, r_cmd, cmd)
-#    code.add_storage(ref, r_cmd)
+#    code.prgm.add_storage(ref, r_cmd)
   
   r_cmd = code.prgm.acquire_register()
   util.load_word(code, r_cmd, cmd)

@@ -35,15 +35,16 @@ from corepy.arch.spu.lib.util import load_word
 if __name__ == '__main__':
   a = extarray.extarray('i', range(0, 32))
   b = extarray.extarray('i', [0 for i in range(0, 32)])
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   proc = env.Processor()
 
   spu.set_active_code(code)
 
-  r_lsa = code.acquire_register()   # Local Store address
-  r_mma = code.acquire_register()   # Main Memory address
-  r_size = code.acquire_register()  # Size in bytes
-  r_tag = code.acquire_register()   # DMA Tag
+  r_lsa = prgm.acquire_register()   # Local Store address
+  r_mma = prgm.acquire_register()   # Main Memory address
+  r_size = prgm.acquire_register()  # Size in bytes
+  r_tag = prgm.acquire_register()   # DMA Tag
 
   # Set the parameters for a GET command
   abi = a.buffer_info()
@@ -80,13 +81,14 @@ if __name__ == '__main__':
   dma.mfc_write_tag_mask(code, r_tag)
   dma.mfc_read_tag_status_all(code)
 
-  code.release_register(r_lsa)
-  code.release_register(r_mma)
-  code.release_register(r_size)
-  code.release_register(r_tag)
+  prgm.release_register(r_lsa)
+  prgm.release_register(r_mma)
+  prgm.release_register(r_size)
+  prgm.release_register(r_tag)
 
   # Execute the code
-  proc.execute(code)
+  prgm += code
+  proc.execute(prgm)
 
   # Check the results 
   for i in range(0, 32):

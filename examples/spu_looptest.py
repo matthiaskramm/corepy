@@ -35,12 +35,13 @@ from corepy.arch.spu.lib.util import load_word
 import time
 
 if __name__ == '__main__':
-  code = env.InstructionStream()
+  prgm = env.Program()
+  code = prgm.get_stream()
   proc = env.Processor()
 
   spu.set_active_code(code)
 
-  r_cnt = code.acquire_register()
+  r_cnt = prgm.acquire_register()
   load_word(code, r_cnt, 0x10000)
 
   br_loop = code.size()
@@ -48,10 +49,11 @@ if __name__ == '__main__':
   spu.ai(r_cnt, r_cnt, -1)
   spu.brnz(r_cnt, br_loop - code.size())
 
-  code.print_code()
+  prgm.add(code)
+  prgm.print_code()
 
   for i in xrange(0, 10000):
-    proc.execute(code)
+    proc.execute(prgm)
     #if i % 25 == 0:
     #  print "sleep"
     #  time.sleep(1)
