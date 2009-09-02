@@ -107,10 +107,11 @@ nowrite_insts = (spu.nop, spu.stqx, spu.stqd, spu.stqa, spu.stqr, spu.wrch,
 def heurcompare(a, b, pipe, g_maxdist, g_in, g_incnt):
   # hint heuristics:
   #  if pending_insts > 250 (?), do not select the hint!
+  # Use a special heuristic for branch hints to prevent them from being
+  # scheduled too far from their branch.
   if type(b[0]) in hint_insts:
     # Branch hint, figure out how many pending instructions.
     lbl = b[0]._operand_iter[0]
-    #print "hint points to branch at lbl", lbl, g_incnt[lbl]
     pending_insts = g_incnt[lbl]
 
     # Never choose a hint if it's too far from its hinted branch.
@@ -127,8 +128,6 @@ def heurcompare(a, b, pipe, g_maxdist, g_in, g_incnt):
           type(g_in[lbl][0]) in branch_insts):
         # Reached the beginning of the code.  This means the hbr is after the
         # branch it hints, so just treat it like an lnop.
-        # No need to set pending_insts, just fall out.
-        #pending_insts = 0
         break
 
       lbl = g_in[lbl][0]
@@ -415,7 +414,6 @@ def isched(scode):
   inst_cycle = {}   # For each inst, the cycle number it has in the code
 
   lastpos = -1   # Index of last instruction in the stream (excludes labels!)
-  #pos = 0
   pipe = 0
   cycle = 0 # Current cycle number
   LS = 0    # Count of loads/stores issued in a row
@@ -433,11 +431,10 @@ def isched(scode):
       inst_cycle[inst] = cycle
 
       if not isinstance(inst, spe.Label):
-        lastpos += 1
+        lastpos = len(fcode) - 1
         pipe = (pipe + 1) & 1
 
     else:
-#    if True:
       # Normal case -- all instructions excluding branches.
       # Apply heuristics to find the best instruction in the queue.
     
@@ -490,11 +487,10 @@ def isched(scode):
       # Careful, lastpos starts out as -1.  However the pipe also starts out
       # as 0, so the first part of the conditional will fail before lastpos
       # is used.
-      #previnst = fcode[pos - 1]
+
+      # Ah - if a label occurs first in the stream, followed by say an ai,
+      # this will fail
       previnst = fcode[lastpos]
-      #if (pipe == inst.cycles[0] == 1 and
-      #    fcode[lastpos].cycles[0] == 0 and 
-      #    inst_cycle[fcode[lastpos]] == cycle - 1):
       if (pipe == inst.cycles[0] == 1 and
           previnst.cycles[0] == 0 and 
           inst_cycle[previnst] == cycle - 1):
@@ -502,10 +498,8 @@ def isched(scode):
 
       inst_cycle[inst] = cycle
 
-      lastpos += 1
+      lastpos = len(fcode) - 1
       pipe = (pipe + 1) & 1
-      #pos += 1
-      #pipe = pos & 1
 
     # An inserted hbr won't be in the DAG, so skip adding nodes to start
 #     if did_hbr:
