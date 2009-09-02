@@ -56,11 +56,44 @@ import corepy.spre.spe as spe
 #   - issue wrch commands according to SPU constraints
 #     - what are they exactly? the cmd i think has to go last
 
+# ideas for branch hinting:
+#  have a function that takes two labels -- one is the branch's target, the
+#  other precedes the branch itself.
+# Find the branch, then search backwards 11 cycles and insert a nop/hbrr pair.
+#  maybe use the hbr a-form and give a literal address?
+#  if a label or conditional branch is reached before 11 cycles, print a
+#   warning (return a warning?) and insert the hint as best as possible.
+
+# if the scheduler encounters a hint, note the surrounding scheduling barriers
+#  and leave it out of the scheduling.  At the end, come back and insert a
+#  nop/hint pair at some point within the scheduling barrier region,
+#  moving it to fit in the 11 cycle to 255 instructino range if possible.
+# Maybe only do this if we know where the targets of the hint are --
+#  if we don't, we cant intelligently place it, so treatit like a noop
+
+# an hbr instruction has a specific latency.. can use that for the minimum
+# distance from the branch. but again, what about max distance?
+
+# max distance heuristic:
+#  consider the label the hint references, for the branch itself
+#  does this label depend on the branch hint?
+#   if so, distance = incnt of this label
+#   if not, recurse: dist = incnt of the label + incnt of its prev barrier
+#     does prev barrier depend on hint? if so, we're done
+#      this must occur at some point before prev barrier is none
+#       although, checking prev_barrier == none might speed things up
+# this won't work in the case that the hbr is AFTER the branch it is hinting.
+#  when this happens, the recursive max distance WILL hit the none barrier
+#   when the none barrier is hit, just treat the hbr as a noop.
+
 # List of branch/halt instructions that should act as scheduling barriers.
 branch_insts = (spu.bi, spu.bihnz, spu.bihz, spu.binz, spu.bisl, spu.bisled,
                 spu.biz, spu.br, spu.bra, spu.brasl, spu.brhnz, spu.brhz,
                 spu.brnz, spu.brsl, spu.brz, spu.heq, spu.heqi, spu.hgt,
                 spu.hgti, spu.hlgt, spu.hlgti)
+
+# List of branch hint instructions for choosing special hint heuristics.
+hint_insts = (spu.hbrr, spu.hbra, spu.hbr)
 
 # List of instructions that do not write to their (first) operand.
 nowrite_insts = (spu.nop, spu.stqx, spu.stqd, spu.stqa, spu.stqr, spu.wrch,
@@ -71,7 +104,40 @@ nowrite_insts = (spu.nop, spu.stqx, spu.stqd, spu.stqa, spu.stqr, spu.wrch,
 #             spu.stqx)
 
 
-def heurcompare(a, b, pipe, g_maxdist):
+def heurcompare(a, b, pipe, g_maxdist, g_in, g_incnt):
+  # hint heuristics:
+  #  if pending_insts > 250 (?), do not select the hint!
+  if type(b[0]) in hint_insts:
+    # Branch hint, figure out how many pending instructions.
+    lbl = b[0]._operand_iter[0]
+    #print "hint points to branch at lbl", lbl, g_incnt[lbl]
+    pending_insts = g_incnt[lbl]
+
+    # Never choose a hint if it's too far from its hinted branch.
+    if pending_insts > 200:
+      return a
+
+    # Repeatedly go back through the scheduling barriers, adding to
+    # pending_insts until the barrier that depends directly on this hint is
+    # found.
+    while b[0] not in [d[0] for d in g_in[lbl]]:
+      # The DAG construction always places the last barrier dep first, so
+      # just check that one element.
+      if not (isinstance(g_in[lbl][0], spe.Label) or
+          type(g_in[lbl][0]) in branch_insts):
+        # Reached the beginning of the code.  This means the hbr is after the
+        # branch it hints, so just treat it like an lnop.
+        # No need to set pending_insts, just fall out.
+        #pending_insts = 0
+        break
+
+      lbl = g_in[lbl][0]
+      pending_insts += g_incnt[lbl]
+
+      # Never choose a hint if it's too far from its hinted branch.
+      if pending_insts > 20:
+        return a
+
   # Force negative stall counts to -1
   astall = a[1]
   if astall < 0:
@@ -169,9 +235,17 @@ def isched_generate_dag(code, g_out, g_in, g_incnt, start):
 
       for dep in barrier_deps:
         # This label depends on every instruction since the last barrier.
-        g_in[inst].append((dep, 0))
-        g_out[dep].append(inst)
 
+        # If this dep is a hint instruction, check if this label is the branch operand.
+        # If it is, set the stall time properly.
+        stall = 0
+        if type(dep) in hint_insts and dep._operand_iter[0] == inst:
+          stall = dep.cycles[1]
+
+        g_out[dep].append(inst)
+        g_in[inst].append((dep, stall))
+
+      # Reset the barrier and its dependences
       barrier = inst
       barrier_deps = []
 
@@ -179,16 +253,28 @@ def isched_generate_dag(code, g_out, g_in, g_incnt, start):
       if g_incnt[inst] == 0:
         start.append(inst)
  
-    elif inst in branch_insts:
+    elif type(inst) in branch_insts:
       # Branches depend on every inst since the last barrier, plus the barrier.
       #  Also, the branch may have 1-2 read-after-write dependences, which must
       #  be handled specifically to determine the proper latency.
       # Add the branch to the graph
       g_out[inst] = []
-      g_in[inst] = []
-      g_incnt[inst] = 0
+
+      # Depend on the last barrier.
+      if barrier is not None:
+        g_in[inst] = [(barrier, 0)]
+        g_incnt[inst] = 1
+        g_out[barrier].append(inst)
+      else:
+        g_in[inst] = []
+        g_incnt[inst] = 0
+ 
 
       # First, handle any register dependences.
+      # The barrier is always a label or branch, meaning it never writes
+      # to a register.  Thus this branch instruction can't have a register
+      # dependence on the last barrier.  This allows us to just always
+      # add the last barrier as a dep before processing register dependences.
       reg_deps = []
       for op in inst._operand_iter:
         if isinstance(op, env.SPURegister):
@@ -215,12 +301,6 @@ def isched_generate_dag(code, g_out, g_in, g_incnt, start):
             # Add this inst to the list of insts that depend on the last write
             g_out[d[0]].append(inst)
             deps[op][1].append(inst)
-
-      # Depend on the last barrier.
-      if barrier is not None and barrier not in reg_deps:
-        g_in[inst].append((barrier, 0))
-        g_incnt[inst] += 1
-        g_out[barrier].append(inst)
 
       # Depend on all instructions since the last barrier.
       for dep in barrier_deps:
@@ -334,23 +414,18 @@ def isched(scode):
 
   inst_cycle = {}   # For each inst, the cycle number it has in the code
 
-  pos = 0   # Instruction number, also used for determining current pipe
+  lastpos = -1   # Index of last instruction in the stream (excludes labels!)
+  #pos = 0
   pipe = 0
   cycle = 0 # Current cycle number
   LS = 0    # Count of loads/stores issued in a row
 
   while len(start) > 0:
-    # For each inst in start, compute the minimum stall time
-    # TODO - cache this instead of computing each time?
-    #  Do this by computing the stall time when an inst is added to start.
-    #  Each time the cycle number is moved forward, reduce the stall time
-    #  by that number of cycles for each inst in start.
-
     # Labels and branches are scheduling barriers.  As such, they will only
     # appear in the start queue alone, i.e. they are the only object in the
     # queue.  As such, they are handled specially; no heuristics are needed as
     # no choice needs to be made.
-    print "start", start
+    #print "start", start
     if len(start) == 1 and (isinstance(start[0], spe.Label) or start[0] in branch_insts):
       inst = start[0]
       fcode.add(inst)
@@ -358,13 +433,21 @@ def isched(scode):
       inst_cycle[inst] = cycle
 
       if not isinstance(inst, spe.Label):
-        pos += 1
-        pipe = pos & 1
+        lastpos += 1
+        pipe = (pipe + 1) & 1
 
     else:
+#    if True:
       # Normal case -- all instructions excluding branches.
       # Apply heuristics to find the best instruction in the queue.
-      best = (None, 99)
+    
+      # For each inst in start, compute the minimum stall time
+      # TODO - cache this instead of computing each time?
+      #  Do this by computing the stall time when an inst is added to start.
+      #  Each time the cycle number is moved forward, reduce the stall time
+      #  by that number of cycles for each inst in start.
+
+      best = (None, 999)
       for s in start:
         # Find the stall time of s, or maximum delay for all its deps
         maxstall = 0
@@ -377,7 +460,7 @@ def isched(scode):
           if stall > maxstall:
             maxstall = stall
 
-        best = heurcompare(best, (s, maxstall), pipe, g_maxdist)
+        best = heurcompare(best, (s, maxstall), pipe, g_maxdist, g_in, g_incnt)
 
       inst = best[0]
 
@@ -404,10 +487,14 @@ def isched(scode):
       fcode.add(inst)
 
       # Dual issue? if so, adjust the cycle back one.
-      # previnst could be a label
-      # update the pipe by alternating it when an inst is added to the stream
-      # use a lastpos variable to track the pos of the last instruction
-      previnst = fcode[pos - 1]
+      # Careful, lastpos starts out as -1.  However the pipe also starts out
+      # as 0, so the first part of the conditional will fail before lastpos
+      # is used.
+      #previnst = fcode[pos - 1]
+      previnst = fcode[lastpos]
+      #if (pipe == inst.cycles[0] == 1 and
+      #    fcode[lastpos].cycles[0] == 0 and 
+      #    inst_cycle[fcode[lastpos]] == cycle - 1):
       if (pipe == inst.cycles[0] == 1 and
           previnst.cycles[0] == 0 and 
           inst_cycle[previnst] == cycle - 1):
@@ -415,8 +502,10 @@ def isched(scode):
 
       inst_cycle[inst] = cycle
 
-      pos += 1
-      pipe = pos & 1
+      lastpos += 1
+      pipe = (pipe + 1) & 1
+      #pos += 1
+      #pipe = pos & 1
 
     # An inserted hbr won't be in the DAG, so skip adding nodes to start
 #     if did_hbr:
