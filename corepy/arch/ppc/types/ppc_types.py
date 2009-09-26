@@ -190,9 +190,8 @@ class UnsignedWordType(BitType):
     elif isinstance(other, (spe.Immediate, int)):
       return self.expr_cls(ppc.mulli, *(self, other))      
     raise Exception('__mul__ not implemented for %s and %s' % (type(self), type(other)))          
-  div = staticmethod(__div__)
-
-
+  mul = staticmethod(__mul__)
+  
 class SignedWordType(BitType):
 
   def __add__(self, other):
@@ -215,7 +214,7 @@ class SignedWordType(BitType):
     elif isinstance(other, (spe.Immediate, int)):
       return self.expr_cls(ppc.mulli, *(self, other))      
     raise Exception('__mul__ not implemented for %s and %s' % (type(self), type(other)))          
-  div = staticmethod(__div__)
+  mul = staticmethod(__mul__)
 
   def __neg__(self):
     return ppc.negx(self, type_cls = self.var_cls)
