@@ -29,12 +29,17 @@
 # Matrix-Matrix Multiplication Examples
 # NOTE: This is a work in progress
 
-import Numeric
+# BDM: Update to support numpy and the current corepy version, Sept. 2009
+
+import numpy
 import time
 
 # ------------------------------------------------------------
 # Python
 # ------------------------------------------------------------
+
+def array_address(arr):
+  return arr.__array_interface__['data'][0]
 
 def invalid(A, B, C): pass
 
@@ -53,7 +58,7 @@ def python_mm(A, B, C):
   return
 
 def numeric_mm(A, B, C, mc, kc, nc, mr=1, nr=1):
-  C[:,:] = Numeric.matrixmultiply(A, B)
+  C[:,:] = numpy.matrixmultiply(A, B)
   return
 
 
@@ -68,8 +73,8 @@ def _gebp_opt1(A, B, C, nc):
     # Load Cj into cache
 
     # Cj += ABj + Cj
-    ABj = Numeric.matrixmultiply(A, B[:,j:j+nc])
-    Numeric.add(C[:,j:j+nc], ABj, C[:,j:j+nc])
+    ABj = numpy.matrixmultiply(A, B[:,j:j+nc])
+    numpy.add(C[:,j:j+nc], ABj, C[:,j:j+nc])
 
     # Store Caux into memory
   return
@@ -112,8 +117,8 @@ def numeric_gemm_var1_flat(A, B, C, mc, kc, nc, mr=1, nr=1):
   kc = min(kc, K)
   nc = min(nc, N)  
 
-  tA = Numeric.zeros((mc, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((kc, N), typecode = Numeric.Float)  
+  tA = numpy.zeros((mc, kc), dtype = numpy.float)
+  tB = numpy.zeros((kc, N), dtype = numpy.float)  
 
   for k in range(0, K, kc):
     # Pack B into tB
@@ -127,8 +132,8 @@ def numeric_gemm_var1_flat(A, B, C, mc, kc, nc, mr=1, nr=1):
       for j in range(0, N): # , nc):
         # Cj += ABj + Cj
         # jnc = j+nc
-        ABj = Numeric.matrixmultiply(tA, tB[:,j])
-        Numeric.add(C[i:imc:,j], ABj, C[i:imc:,j])
+        ABj = numpy.matrixmultiply(tA, tB[:,j])
+        numpy.add(C[i:imc:,j], ABj, C[i:imc:,j])
         
         # Store Caux into memory
   return
@@ -160,8 +165,8 @@ def numeric_gemm_var1_row(A, B, C, mc, kc, nc, mr=1, nr=1):
   kc = min(kc, K)
   mc = min(mc, M)
   
-  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((kc, nc), typecode = Numeric.Float)  
+  tA = numpy.zeros((M, kc), dtype = numpy.float)
+  tB = numpy.zeros((kc, nc), dtype = numpy.float)  
 
   for k in range(0, K, kc):
     # Pack A into tA
@@ -175,8 +180,8 @@ def numeric_gemm_var1_row(A, B, C, mc, kc, nc, mr=1, nr=1):
       for i in range(0, M): # , mc):
         # Ci = AiB + Ci
         # imc = i+mc
-        ABi = Numeric.matrixmultiply(tA[i,:], tB)
-        Numeric.add(C[i,j:jnc], ABi, C[i,j:jnc])
+        ABi = numpy.matrixmultiply(tA[i,:], tB)
+        numpy.add(C[i,j:jnc], ABi, C[i,j:jnc])
         
         # Store Caux into memory
   return
@@ -194,8 +199,8 @@ from corepy.arch.ppc.lib.iterators import syn_range, syn_iter, CTR
 
 class SynPackB:
 
-  def _init_constants(self, code, tB, N):
-    code.add_storage(tB)
+  def _init_constants(self, prgm, tB, N):
+    prgm.add_storage(tB)
     
     nc, kc = tB.shape
 
@@ -226,7 +231,7 @@ class SynPackB:
 
     self.vtB_local = True
     if vtB is None:
-      self.vtB = ppcvar.UnsignedWord(synppc.array_address(self.tB))
+      self.vtB = ppcvar.UnsignedWord(array_address(self.tB))
     else:
       self.vtB = vtB; self.vtB_local = False
 
@@ -275,18 +280,20 @@ class SynPackB:
 
     return
 
-  def synthesize(self, code, tB, N):
+  def synthesize(self, prgm, tB, N):
     """
     Extract a block from B and pack it for fast access.
 
     tB is transposed.
     """
+    code = prgm.get_stream()
+
     old_code = ppc.get_active_code()
     ppc.set_active_code(code)
 
-    code.add_storage(tB)
+    prgm.add_storage(tB)
 
-    self._init_constants(code, tB, N)
+    self._init_constants(prgm, tB, N)
     self._init_vars()
     self._load_params()
     self._pack_b(code)
@@ -565,8 +572,8 @@ class SynGEPB:
     self.p_tB.v = self.r_tB_addr
 
     for ci in range(self.block.mr):
-      self.p_C[ci].v     = self.r_C_addr + ci * self.vC_row_stride # self.C_strides.row
-      self.p_C_aux[ci].v = self.r_C_aux_addr + ci * (self.block.nc * self.C_strides.col)
+      self.p_C[ci].v     = self.r_C_addr + self.vC_row_stride # self.C_strides.row * ci
+      self.p_C_aux[ci].v = self.r_C_aux_addr + (self.block.nc * self.C_strides.col) * ci
 
     return
 
@@ -818,14 +825,14 @@ class SynGEPB:
 
     return
   
-  def synthesize(self, code, M, K, N, kc, nc, mr = 1, nr = 1, _transpose = False): 
+  def synthesize(self, prgm, M, K, N, kc, nc, mr = 1, nr = 1, _transpose = False): 
     """
     tA is M  x nc
     tB is nc x kc
     C  is M  x nc
     I  is the current block column in C
     """
-
+    code = prgm.get_stream()
 
     old_code = ppc.get_active_code()
     ppc.set_active_code(code)
@@ -847,7 +854,9 @@ class SynGEPP:
     self.gepb_mode = gepb_mode
     return
 
-  def synthesize(self, code, tB, M, K, N, kc, nc, mr = 1, nr = 1):
+  def synthesize(self, prgm, tB, M, K, N, kc, nc, mr = 1, nr = 1):
+    code = prgm.get_stream()
+
     old_code = ppc.get_active_code()
     ppc.set_active_code(code)
 
@@ -855,7 +864,7 @@ class SynGEPP:
     packb = SynPackB()
 
     gepb._init_constants(M, K, N, kc, nc, mr, nr, True)
-    packb._init_constants(code, tB, N)
+    packb._init_constants(prgm, tB, N)
 
     gepb._init_vars()
 
@@ -892,8 +901,8 @@ class SynGEPP:
 def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   """
   """
-  cgepb = synppc.InstructionStream()
-  cpackb = synppc.InstructionStream()  
+  cgepb = synppc.Program()
+  cpackb = synppc.Program()
   proc = synppc.Processor()
 
   gepb = SynGEPB(gepb_mode)  
@@ -907,30 +916,30 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   kc = min(kc, K)
   mc = min(mc, M)
 
-  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
-  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float)
+  tA = numpy.zeros((M, kc), dtype = numpy.float)
+  tB = numpy.zeros((nc, kc), dtype = numpy.float) + 14.0
+  C_aux = numpy.zeros((mr, nc), dtype=numpy.float)
 
-  cgepb.set_debug(True)
+  #cgepb.set_debug(True)
   gepb.synthesize(cgepb, M, K, N, kc, nc, mr, nr, _transpose = True)
   cgepb.cache_code()
   # cgepb.print_code()
 
-  cpackb.set_debug(True)
+  #cpackb.set_debug(True)
   packb.synthesize(cpackb, tB, N)
   cpackb.cache_code()
   # cpackb.print_code()  
 
-  B_addr = synppc.array_address(B)
-  C_addr = synppc.array_address(C)
+  B_addr = B.__array_interface__['data'][0] # array_address(B)
+  C_addr = C.__array_interface__['data'][0] # array_address(C)
 
   pack_params = synppc.ExecParams()
   pm = synppc.ExecParams()
 
-  pm.p1 = synppc.array_address(tA)
-  pm.p2 = synppc.array_address(tB)
+  pm.p1 = tA.__array_interface__['data'][0] # array_address(tA)
+  pm.p2 = tB.__array_interface__['data'][0] # array_address(tB)
   pm.p3 = C_addr
-  pm.p4 = synppc.array_address(C_aux)  
+  pm.p4 = C_aux.__array_interface__['data'][0] # array_address(C_aux)  
 
   nc8 = nc * 8
   total = 0.0
@@ -950,7 +959,7 @@ def syn_gemm(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
     for j in range(0, N, nc):
       # print k, j, M, K, N, kc, nc, mr, nr
       # Pack B into tB --
-      # tB[:,:] = Numeric.transpose(B[k:k+kc, j:j+nc])
+      # tB[:,:] = numpy.transpose(B[k:k+kc, j:j+nc])
       proc.execute(cpackb, params = pack_params)
 
       # start1 = time.time()
@@ -975,7 +984,7 @@ def syn_gemm_hand(A, B, C, mc, kc, nc, mr=1, nr=1):
 def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   """
   """
-  cgepp = synppc.InstructionStream()
+  cgepp = synppc.Program()
   proc = synppc.Processor()
 
   gepp = SynGEPP(gepb_mode)  
@@ -987,25 +996,25 @@ def syn_gemm_pp(A, B, C, mc, kc, nc, mr=1, nr=1, gepb_mode = gepb_simple):
   kc = min(kc, K)
   mc = min(mc, M)
 
-  tA = Numeric.zeros((M, kc), typecode = Numeric.Float)
-  tB = Numeric.zeros((nc, kc), typecode = Numeric.Float) + 14.0
-  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float) 
+  tA = numpy.zeros((M, kc), dtype = numpy.float)
+  tB = numpy.zeros((nc, kc), dtype = numpy.float) + 14.0
+  C_aux = numpy.zeros((mr, nc), dtype=numpy.float) 
 
-  cgepp.set_debug(True)
+  #cgepp.set_debug(True)
   gepp.synthesize(cgepp, tB, M, K, N, kc, nc, mr, nr)
   cgepp.cache_code()
   # cgepp.print_code()
 
-  B_addr = synppc.array_address(B)
-  C_addr = synppc.array_address(C)
+  B_addr = array_address(B)
+  C_addr = array_address(C)
 
   pack_params = synppc.ExecParams()
   pm = synppc.ExecParams()
 
-  pm.p1 = synppc.array_address(tA)
-  pm.p2 = synppc.array_address(tB)
+  pm.p1 = array_address(tA)
+  pm.p2 = array_address(tB)
   pm.p3 = C_addr
-  pm.p4 = synppc.array_address(C_aux)  
+  pm.p4 = array_address(C_aux)  
 
   nc8 = nc * 8
   total = 0.0
@@ -1078,12 +1087,12 @@ def _validate(name, m, n, k, C, C_valid):
   eq.shape = (eq.shape[0] * eq.shape[1],)
 
   # Reduce the results: 1 is valid, 0 is not
-  if Numeric.product(eq) == 0:
+  if numpy.product(eq) == 0:
     eq.shape = C.shape
     for i, row in enumerate(eq[:]):
       # or i == 3 or i == 4
       # (i == 0 or i == 1 or i == 2 ) and 
-      if Numeric.product(row) == 0:
+      if numpy.product(row) == 0:
         if True or (0 <= i <= 3): # (i == 99999):
           print 'row', i, 'failed'
           print C[i,:4]
@@ -1102,7 +1111,7 @@ def run_alg(alg, A, B, C, mc, kc, nc, mr, nr, niters):
   """
   times = []
   for i in range(niters):
-    Numeric.multiply(C, 0.0, C)
+    numpy.multiply(C, 0.0, C)
     start = time.time()
     t = alg(A, B, C, mc, kc, nc, mr, nr)
     end   = time.time()
@@ -1115,11 +1124,11 @@ def run_alg(alg, A, B, C, mc, kc, nc, mr, nr, niters):
   return times
 
 def create_matrices(m, k, n):
-  # A = Numeric.arange(m*k, typecode = Numeric.Float)
-  A = Numeric.zeros((m,k), typecode = Numeric.Float) + 1.0
-  # B = Numeric.arange(k*n, typecode = Numeric.Float)
-  B = Numeric.zeros((k,n), typecode = Numeric.Float) + 1.0
-  C = Numeric.zeros((m,n), typecode = Numeric.Float)
+  # A = numpy.arange(m*k, dtype = numpy.float)
+  A = numpy.zeros((m,k), dtype = numpy.float) + 1.0
+  # B = numpy.arange(k*n, dtype = numpy.float)
+  B = numpy.zeros((k,n), dtype = numpy.float) + 1.0
+  C = numpy.zeros((m,n), dtype = numpy.float)
 
   A.shape = (m, k)
   B.shape = (k, n)
@@ -1138,7 +1147,7 @@ def test_gebp_opt1():
 
   _gebp_opt1(A, B, C, nc)
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
 
   _validate('test_gebp_opt1', m,n,k, C, C_valid)
   return
@@ -1157,12 +1166,12 @@ def test_syn_gepb():
   mr = 4
   nr = 4
   
-  C_aux = Numeric.zeros((mr, nc), typecode=Numeric.Float) # + 13.0
+  C_aux = numpy.zeros((mr, nc), dtype=numpy.float) # + 13.0
   
-  A_addr = synppc.array_address(A)
-  B_addr = synppc.array_address(B)
-  C_addr = synppc.array_address(C)
-  C_aux_addr = synppc.array_address(C_aux)
+  A_addr = array_address(A)
+  B_addr = array_address(B)
+  C_addr = array_address(C)
+  C_aux_addr = array_address(C_aux)
 
   gepb.synthesize(code, m, k, n, kc, nc, mr, nr) # , A_addr, B_addr, C_addr)
 
@@ -1178,7 +1187,7 @@ def test_syn_gepb():
   proc = synppc.Processor()
   proc.execute(code, params = params)
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
 
   _validate('syn_gepb', m,n,k, C, C_valid)
   return
@@ -1192,9 +1201,9 @@ def test_gepp_blk_var1():
 
   _gepp_blk_var1(A[:,0:mc], B[0:mc,:], C, mc, nc)
 
-  C_valid = Numeric.zeros((m, n), typecode=Numeric.Float)
+  C_valid = numpy.zeros((m, n), dtype=numpy.float)
   for i in range(0, m, mc):
-    C_valid[i:i+mc,:] = Numeric.matrixmultiply(A[i:i+mc,0:mc], B[0:mc,:])
+    C_valid[i:i+mc,:] = numpy.matrixmultiply(A[i:i+mc,0:mc], B[0:mc,:])
 
   _validate('test_gepp_blk_var1', m,n,k, C, C_valid)
   return
@@ -1210,7 +1219,7 @@ def test_numeric_gemm_var1():
 
   numeric_gemm_var1(A, B, C, mc, kc, nc)
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
   
   _validate('test_gepp_blk_var1', m,n,k, C, C_valid)
   return
@@ -1226,7 +1235,7 @@ def test_numeric_gemm_var1_flat():
 
   numeric_gemm_var1_flat(A, B, C, mc, kc, nc)
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
   
   _validate('test_gepp_blk_var1', m,n,k, C, C_valid)
   return
@@ -1242,7 +1251,7 @@ def test_numeric_gemm_var1_row():
   nr = 1
   numeric_gemm_var1_row(A, B, C, nc, kc, mr, nr)
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
   
   _validate('test_gepp_blk_var1', m,n,k, C, C_valid)
   return
@@ -1267,7 +1276,7 @@ def test_syn_gemm():
   C[:,:] = C * 0
   syn_gemm(A, B, C, mc, kc, nc, mr = mr, nr = nr)  
 
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
   
   _validate('syn_gemm', m,n,k, C, C_valid)
   return
@@ -1292,7 +1301,7 @@ def test_syn_gemm_pp():
 
   print A[0, :4]
   print B[0, :4]  
-  C_valid = Numeric.matrixmultiply(A, B)
+  C_valid = numpy.matrixmultiply(A, B)
 
   _validate('syn_gemm_pp', m,n,k, C, C_valid)
   return
@@ -1301,8 +1310,8 @@ def test_syn_gemm_pp():
 def test_syn_pack_b():
 
   # Create a 10x10 B array of indices
-  B = Numeric.zeros((10, 10), typecode = Numeric.Float)
-  a = Numeric.arange(10)
+  B = numpy.zeros((10, 10), dtype = numpy.float)
+  a = numpy.arange(10)
 
   for i in range(10):
     B[i,:] = a + i * 10
@@ -1310,7 +1319,7 @@ def test_syn_pack_b():
   B.shape = (10,10)
 
   # Create the packed array
-  tB = Numeric.arange(25, typecode = Numeric.Float) * 0.0
+  tB = numpy.arange(25, dtype = numpy.float) * 0.0
   tB.shape = (5,5)
 
   B_offset = 3 * 10 + 0
@@ -1326,7 +1335,7 @@ def test_syn_pack_b():
 
   pack_b.synthesize(code, tB, N)
   
-  params.p1 = synppc.array_address(B) + B_offset * 8
+  params.p1 = array_address(B) + B_offset * 8
 
   proc.execute(code, params = params)
   
@@ -1334,7 +1343,7 @@ def test_syn_pack_b():
   # Validate
   B.shape  = (K * N,)
 
-  tB_valid = Numeric.arange(nc*kc, typecode = Numeric.Float) * 0.0
+  tB_valid = numpy.arange(nc*kc, dtype = numpy.float) * 0.0
 
   for i in range(kc):
     B_row = B_offset + i * N
@@ -1372,7 +1381,7 @@ def test(algs, niters = 5, validate = False):
     A, B, C = create_matrices(m, k, n)
 
     if validate:
-      C_valid = Numeric.matrixmultiply(A, B)
+      C_valid = numpy.matrixmultiply(A, B)
 
     for alg in algs:
       print alg.func_name, size
