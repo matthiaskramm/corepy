@@ -57,46 +57,6 @@ def vector_from_array(code, r_target, a):
 
   return
 
-def get_param_reg(code, param, dict, copy = True):
-  """ Take a parameter given to a function, which may be a value or a
-      register containing that value, and return a register containing the
-      value.
-
-      If copy is True, a new register is always returned.  Otherwise if a
-      register was passed in, that register is returned unchanged. 
-
-      dict is a dictionary used internally between get_param_reg() and
-      put_param_reg() to keep track of whether registers have been allocated for
-      parameters.  A function should use one (initially empty) dictionary for
-      all of its parameters.
-  """
-
-  reg = None
-
-  if isinstance(param, (spe.Register, spe.Variable)):
-    if copy == True:
-      # TODO - behave differently if at an even/odd spot
-      reg = code.prgm.acquire_register()
-      code.add(spu.ori(reg, param, 0))
-      dict[reg] = True
-    else:
-      reg = param
-      dict[reg] = False
-  else: # TODO - check types?
-    reg = code.prgm.acquire_register()
-    load_word(code, reg, param)
-    dict[reg] = True
-
-  return reg
-
-
-def put_param_reg(code, reg, dict):
-  """Check a register containing a parameter, release the register if the
-     provided dictionary indicates it was acquired by get_param_reg()/
-  """
-  if dict[reg] == True:
-    code.prgm.release_register(reg)
-
 
 # ------------------------------------------------------------
 # Unit Test Code

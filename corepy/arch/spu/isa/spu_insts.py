@@ -122,6 +122,12 @@ class OPCD_LBL9_LBL16(MachineInstruction):
   def _render(params, operands):
     off9 = (operands['LBL9'].position - operands['position']) >> 2
     off16 = (operands['LBL16'].position - operands['position']) >> 2
+
+    if abs(off9) > 255:
+      print RuntimeWarning("SPU hint offset to branch is too large: " + str(off9))
+    if abs(off16) > 32767:
+      print RuntimeWarning("SPU hint offset to branch target is too large: " + str(off16))
+
     return OPCD7.render(params['OPCD']) | ROA.render(off9) | I16.render(off16)
   render = staticmethod(_render)
 

@@ -630,54 +630,6 @@ unsigned int poll_out_mbox(struct ThreadInfo* ti) {
 }
 
 
-#if 0
-unsigned int benchmark_mbox(struct ThreadInfo* ti) {
-# if 0
-  volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4014);
-  volatile unsigned int status;
-  int count = 0;
-
-  //Poll the status register until a message is available
-  __asm__("eieio");
-  do {
-    status = *addr;
-  } while((status & 0xFF) == 0);
-
-  //Manual says to do this, is it necessary?
-  __asm__("eieio");
-
-  addr = (volatile unsigned int*)(ti->spups + 0x4004);
-  status = *addr;
-
-  __asm__("eieio");
-  do {
-    count++;
-    status = *addr;
-  } while((status & 0xFF) == 0);
-
-  __asm__("eieio");
-  addr = (volatile unsigned int*)(ti->spups + 0x4004);
-  status = *addr;
-  __asm__("eieio");
-  return count;
-#endif
-
-  volatile unsigned int* addr = (volatile unsigned int*)(ti->spups + 0x4004);
-  volatile unsigned int status;
-  int count = 0;
-
-  do {
-    status = *addr;
-  } while(status != 1);
-
-  do {
-    count++;
-    status = *addr;
-  } while(status != 2);
-}
-#endif
-
-
 unsigned int read_out_ibox(struct ThreadInfo* ti) {
   //Interrupt Mailbox register is Privilege level 2, meaning we cant read it
   //unsigned int* addr = (unsigned int*)(ti->spups + 0x4000);
@@ -742,7 +694,7 @@ void set_signal_mode(struct ThreadInfo* ti, int which, int mode) {
 // MFC Proxy DMA Functions
 
 #ifndef SWIG
-void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
+static void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
 {
   unsigned int data;
   unsigned int* addr = (unsigned int*)(ti->spups + 0x3000);
@@ -751,10 +703,6 @@ void write_mfc_cmd(struct ThreadInfo* ti, struct mfc_dma_command* cmd)
   //Have to read the command status register to start the DMA
   addr = (unsigned int*)(ti->spups + 0x3014);
   data = *addr;
-#if 0
-  printf("DMA cmd result %x\n", data);
-  fflush(stdout);
-#endif
 } 
 #endif
 

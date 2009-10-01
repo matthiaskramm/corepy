@@ -105,8 +105,6 @@ nowrite_insts = (spu.nop, spu.stqx, spu.stqd, spu.stqa, spu.stqr, spu.wrch,
 
 
 def heurcompare(a, b, pipe, g_maxdist, g_in, g_incnt):
-  # hint heuristics:
-  #  if pending_insts > 250 (?), do not select the hint!
   # Use a special heuristic for branch hints to prevent them from being
   # scheduled too far from their branch.
   if type(b[0]) in hint_insts:

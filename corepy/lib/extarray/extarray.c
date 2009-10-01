@@ -491,10 +491,10 @@ static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 // or free it.
 static PyObject* ExtArray_set_memory(ExtArray* self, PyObject* arg)
 {
-  long long addr;
+  unsigned long addr;
   Py_ssize_t len;
 
-  if(!PyArg_ParseTuple(arg, "Kl", &addr, &len)) {
+  if(!PyArg_ParseTuple(arg, "kl", &addr, &len)) {
     return NULL;
   }
 
