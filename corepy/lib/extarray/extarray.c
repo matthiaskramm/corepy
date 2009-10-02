@@ -289,9 +289,14 @@ static PyObject* ExtArray_append(ExtArray* self, PyObject* val)
 //Return a tuple containing the memory address and data length
 static PyObject* ExtArray_buffer_info(ExtArray* self, PyObject* val)
 {
-  return PyTuple_Pack(2,
-      PyLong_FromUnsignedLong((unsigned long)self->memory),
+  PyObject* tuple = PyTuple_New(2);
+
+  PyTuple_SET_ITEM(tuple, 0,
+      PyLong_FromUnsignedLong((unsigned long)self->memory));
+  PyTuple_SET_ITEM(tuple, 1,
       PyInt_FromLong(self->data_len));
+
+  return tuple;
 }
 
 
