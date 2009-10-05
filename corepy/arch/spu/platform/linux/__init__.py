@@ -26,32 +26,3 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-import corepy.corepy_conf as conf
-
-platform_imports = [
-  'Processor', 'Program', 'InstructionStream', 'ParallelProgram',
-  'WORD_SIZE', 'WORD_TYPE', 'spu_exec', 'cell_fb', 'SPURegister' ]
-
-
-if conf.OS == 'linux':
-  platform_string = 'linux_spufs.spre_linux_spu'
-  #platform_string = 'linux.spre_linux_spu'
-#elif conf.OS == 'linux_spufs':
-#  platform_string = 'linux_spufs.spre_linux_spu'
-#elif conf.OS == 'linux_spe1':
-#  platform_string = 'linux_spe1.spre_linux_spu'
-else:
-  platform_string = 'spre_dummy_spu'
-
-
-if conf.VERBOSE:
-  print '# Platform:', platform_string
-
-platform_module = __import__(platform_string, globals(), locals(), platform_imports)
-
-for cls in platform_imports:
-  locals()[cls] = getattr(platform_module, cls)
-  
-# class _Empty: pass
-# synbuffer = _Empty()
-

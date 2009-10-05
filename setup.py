@@ -36,13 +36,7 @@ import sys
 from os import path
 
 
-ext_modules = [#Extension('corepy.lib.extarray._alloc',
-               #          sources=['corepy/lib/extarray/alloc.i'],
-               #          depends=['corepy/lib/extarray/alloc.h']),
-               #Extension('corepy.lib.nextarray.nextarray',
-               #          sources=['corepy/lib/nextarray/nextarray.c'],
-               #          depends=['corepy/lib/nextarray/alloc.h'])]
-               Extension('corepy.lib.extarray.extarray',
+ext_modules = [Extension('corepy.lib.extarray.extarray',
                          sources=['corepy/lib/extarray/extarray.c'],
                          depends=['corepy/lib/extarray/alloc.h'])]
 
@@ -70,6 +64,11 @@ if py_platform == "linux-ppc64":
                 depends=['corepy/arch/spu/platform/linux_spufs/spu_exec.h',
                          'corepy/arch/spu/platform/linux_spufs/spufs.h'],
                 libraries = libraries, define_macros = define_macros))
+  #ext_modules.append(
+  #    Extension('corepy.arch.spu.platform.linux.spu_exec',
+  #              sources=['corepy/arch/spu/platform/linux/spu_exec.c'],
+  #              depends = ['corepy/arch/spu/platform/linux_spufs/spufs.h'],
+  #              libraries = libraries, define_macros = define_macros))
 
 elif py_platform == "linux-ppc":
   OS = 'linux'

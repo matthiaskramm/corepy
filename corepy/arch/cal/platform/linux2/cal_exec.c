@@ -191,6 +191,7 @@ static PyObject* cal_copy_async(PyObject* self, PyObject* args)
 {
   PyObject* dst_binding;
   PyObject* src_binding;
+  PyObject* tuple;
   CALcontext ctx;
   CALresource dst_res;
   CALresource src_res;
@@ -218,9 +219,12 @@ static PyObject* cal_copy_async(PyObject* self, PyObject* args)
   //API requires that this be called to actually start the copy
   calCtxIsEventDone(ctx, event);
 
-  return PyTuple_Pack(3, PyLong_FromUnsignedLong(event),
-                         PyLong_FromUnsignedLong(dst_mem),
-                         PyLong_FromUnsignedLong(src_mem));
+  tuple = PyTuple_New(3);
+  PyTuple_SET_ITEM(tuple, 0, PyLong_FromUnsignedLong(event));
+  PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(dst_mem));
+  PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(src_mem));
+
+  return tuple;
 }
 
 

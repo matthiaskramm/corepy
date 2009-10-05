@@ -26,32 +26,32 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.          
 
-import corepy.corepy_conf as conf
+import cell_fb
 
-platform_imports = [
-  'Processor', 'Program', 'InstructionStream', 'ParallelProgram',
-  'WORD_SIZE', 'WORD_TYPE', 'spu_exec', 'cell_fb', 'SPURegister' ]
+fb = cell_fb.framebuffer()
+cell_fb.fb_open(fb)
 
-
-if conf.OS == 'linux':
-  platform_string = 'linux_spufs.spre_linux_spu'
-  #platform_string = 'linux.spre_linux_spu'
-#elif conf.OS == 'linux_spufs':
-#  platform_string = 'linux_spufs.spre_linux_spu'
-#elif conf.OS == 'linux_spe1':
-#  platform_string = 'linux_spe1.spre_linux_spu'
-else:
-  platform_string = 'spre_dummy_spu'
+idx = 0
 
 
-if conf.VERBOSE:
-  print '# Platform:', platform_string
+xoff = 0
+xinc = 5
+try:
+  # if True:
+  while True:
+    cell_fb.fb_clear(fb, idx)
+    for i in range(100):
+      for j in range(100):
+        cell_fb.fb_write_pixel(fb, idx, i + xoff, j, 0xFFFFFFFF)
 
-platform_module = __import__(platform_string, globals(), locals(), platform_imports)
+    cell_fb.fb_wait_vsync(fb)
+    cell_fb.fb_flip(fb, idx)
 
-for cls in platform_imports:
-  locals()[cls] = getattr(platform_module, cls)
-  
-# class _Empty: pass
-# synbuffer = _Empty()
+    idx = 1 - idx
+    xoff += xinc
+    if xoff == 300 or xoff == 0:
+      xinc *= -1
+except: pass
 
+print fb.w, fb.h, hex(cell_fb.fb_addr(fb, 0)), hex(cell_fb.fb_addr(fb, 1))
+cell_fb.fb_close(fb)
