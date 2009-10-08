@@ -74,8 +74,9 @@ mem64_t = x86MemoryOperand("mem64", 64)
 mem80_t = x86MemoryOperand("mem80", 80)
 mem128_t = x86MemoryOperand("mem128", 128)
 mem228_t = x86MemoryOperand("mem228", 228)
-mem512_t = x86MemoryOperand("mem512", 512)
+#mem512_t = x86MemoryOperand("mem512", 512)
 mem752_t = x86MemoryOperand("mem752", 752)
+mem4096_t = x86MemoryOperand("mem4096", 4096)
 
 # Registers
 reg8_t  = x86RegisterOperand("reg8", regs.GPRegister8)
@@ -738,13 +739,22 @@ class mem32_imm8(MachineInstruction):
   render = staticmethod(_render)
 
 
-class mem512(MachineInstruction):
-  signature = (mem512_t,)
+class mem4096(MachineInstruction):
+  signature = (mem4096_t,)
   opt_kw = ()
   
   def _render(params, operands):
-    return common_memref(params['opcode'], operands['mem512'], params['modrm'])
+    return common_memref(params['opcode'], operands['mem4096'], params['modrm'])
   render = staticmethod(_render)
+
+
+#class mem512(MachineInstruction):
+#  signature = (mem512_t,)
+#  opt_kw = ()
+#  
+#  def _render(params, operands):
+#    return common_memref(params['opcode'], operands['mem512'], params['modrm'])
+#  render = staticmethod(_render)
 
 
 class mem64(MachineInstruction):

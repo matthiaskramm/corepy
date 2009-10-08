@@ -31,8 +31,8 @@ import corepy.spre.spe as spe
 
 class MemoryReference:
   def __init__(self, val, disp = None, index = None, scale = 1, data_size = 64, addr_size = None):
-    if not data_size in (8, 16, 32, 64, 80, 128, 228, 512, 752, None):
-      raise Exception('Memory reference data size must be 8, 16, 32, 64, 80, 128, 228, 512, or 752 bits')
+    if not data_size in (8, 16, 32, 64, 80, 128, 228, 752, 4096, None):
+      raise Exception('Memory reference data size must be 8, 16, 32, 64, 80, 128, 228, 752, or 4096 bits')
     self.data_size = data_size
 
     if isinstance(val, regs.IPRegister):

@@ -2372,12 +2372,12 @@ class fxch(DispatchInstruction):
     (sti,        {'opcode':[0xD9, 0xC8],       'modrm':None}))
     
 class fxrstor(Instruction):
-  machine_inst = mem512
+  machine_inst = mem4096
   params = {'opcode':[0x0F, 0xAE],       'modrm':0x08}
  #sse?
 
 class fxsave(Instruction):
-  machine_inst = mem512
+  machine_inst = mem4096
   params = {'opcode':[0x0F, 0xAE],       'modrm':0x00}
  #sse?
 
