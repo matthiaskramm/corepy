@@ -122,7 +122,7 @@ class OPCD_D_A_C_XO_3_Rc(MachineInstruction):
   """ 
   Instructions: (2)  fmulx, fmulsx
   """ 
-  signature = (D, A, C, XO_3)
+  signature = (D, A, C)
   opt_kw = (Rc,)
 
   def _render(params, operands):
