@@ -30,6 +30,7 @@ import corepy.corepy_conf as conf
 
 platform_imports = [
   'Processor', 'Program', 'InstructionStream', 'ParallelProgram',
+  'ExecParams',
   'WORD_SIZE', 'WORD_TYPE', 'spu_exec', 'cell_fb', 'SPURegister' ]
 
 
