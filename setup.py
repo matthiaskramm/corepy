@@ -102,6 +102,32 @@ elif py_platform == "linux-x86_64":
                   libraries = ['aticalrt', 'aticalcl'],
                   define_macros = define_macros))
 
+  if path.exists("/usr/lib64/libcuda.so"):
+    print "PTX is available; enabling PTX GPU support"
+    define_macros = []
+    include_dirs=['/usr/local/cuda/include/']
+
+    # Enable NumPy integration if Numpy is available
+    try:
+      import numpy
+
+      define_macros = [('HAS_NUMPY', 1)]
+      include_dirs.append(numpy.get_include())
+
+      print "NumPy is available; enabling PTX NumPy Array support"
+      
+    except ImportError:
+      print "NumPy NOT available; disabling PTX NumPy Array support"
+
+    ext_modules.append(
+        Extension('corepy.arch.ptx.platform.linux.ptx_exec',
+                  sources=['corepy/arch/ptx/platform/linux/ptx_exec.c'],
+                  include_dirs=include_dirs,
+                  depends = [],
+                  library_dirs = ['/usr/local/cuda/lib64/'],
+                  libraries = ['cuda', 'cudart'],
+                  runtime_library_dirs = ['/usr/local/cuda/lib64/'],
+                  define_macros = define_macros))
 
 elif py_platform == "linux-i686":
   OS = 'linux'
