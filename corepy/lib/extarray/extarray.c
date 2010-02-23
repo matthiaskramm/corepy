@@ -784,6 +784,7 @@ static PyMemberDef ExtArray_members[] = {
   {"typecode", T_CHAR, offsetof(ExtArray, typecode), 0, "typecode"},
   {"itemsize", T_INT, offsetof(ExtArray, itemsize), 0, "itemsize"},
   {"data_len", T_INT, offsetof(ExtArray, data_len), 0, "data_len"},
+  {"memory", T_ULONG, offsetof(ExtArray, memory), 0, "memory"},
   {NULL}
 };
 
