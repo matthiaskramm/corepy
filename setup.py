@@ -136,7 +136,7 @@ elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
   OS = 'osx'
   if py_platform[-3:] == 'ppc':
     ARCH = 'ppc'
-  elif py_platform[-3:] == '386':
+  elif py_platform[-3:] == '386' or py_platform[-9:] == 'universal':
     if sys.maxint == 2**63 - 1: # 64bit python?
       ARCH = 'x86_64'
     else: # assumed 32bit
