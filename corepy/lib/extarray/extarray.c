@@ -8,6 +8,10 @@ typedef int Py_ssize_t;
 #include <stdio.h>
 #include "alloc.h"
 
+#ifdef __APPLE__ & __MACH__
+#include <sys/mman.h>
+#endif
+
 //#ifndef _DEBUG
 //#define _DEBUG 0
 //#endif
@@ -22,8 +26,8 @@ typedef struct ExtArray {
   unsigned char huge;     //Boolean, 1 if huge pages are used, 0 otherwise
   char lock;              //Boolean, 1 if memory is 'locked' eg no realloc
 
-  int page_size;          //Memory page size
-  int itemsize;           //Size of a single element
+  int page_size;          //Memory page size in bytes
+  int itemsize;           //Size of a single element in bytes
   Py_ssize_t data_len;    //Data length counted in items
   Py_ssize_t alloc_len;   //Allocated memory length counted in bytes
   Py_ssize_t iter;        //Counter for supporting iterating over extarrays
@@ -478,6 +482,27 @@ static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* list)
 }
 
 
+//Adjust the memory access to allow execution
+static PyObject* ExtArray_make_executable(ExtArray* self, PyObject* arg)
+{
+// TODO - other architectures
+#ifdef __APPLE__ & __MACH__
+  // TODO - AWF - should query for the page size instead of just masking
+  //sys_icache_invalidate((char *)addr, size * 4);
+  if(mprotect(self->memory, self->alloc_len, 
+        PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
+  //if(mprotect((void *)(addr & 0xFFFFF000), size + (addr & 0xFFF), 
+  //      PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
+    PyErr_SetString(PyExc_OSError, "mprotect() failed");
+  }
+
+#else
+#error "make_executable() not implemented for this platform"
+#endif
+
+  Py_RETURN_NONE;
+}
+
 //Lock the array memory, preventing it from being re-allocated (moved)
 static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
 {
@@ -539,6 +564,30 @@ static PyObject* ExtArray_synchronize(ExtArray* self, PyObject* arg)
 
   Py_INCREF(Py_None);
   return Py_None;
+}
+
+
+//Write the raw data to a specified file
+static PyObject* ExtArray_tofile(ExtArray* self, PyObject* arg)
+{
+  PyObject* fobj;
+  FILE* fd;
+  size_t len;
+
+  if(!PyArg_ParseTuple(arg, "O!", &PyFile_Type, &fobj)) {
+    return NULL;
+  }
+
+  fd = PyFile_AsFile(fobj);
+
+  len = self->data_len * self->itemsize;
+  if(fwrite(self->memory, len, 1, fd) != 1) {
+    PyErr_SetString(PyExc_OSError,
+        "Fewer bytes written than expected");
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
 }
 
 
@@ -800,9 +849,11 @@ static PyMethodDef ExtArray_methods[] = {
   {"copy_direct", (PyCFunction)ExtArray_copy_direct, METH_O, "copy_direct"},
   {"fromlist", (PyCFunction)ExtArray_fromlist, METH_O, "fromlist"},
   {"fromstring", (PyCFunction)ExtArray_fromstring, METH_O, "fromstring"},
+  {"make_executable", (PyCFunction)ExtArray_make_executable, METH_NOARGS, "make_executable"},
   {"memory_lock", (PyCFunction)ExtArray_memory_lock, METH_O, "memory_lock"},
   {"set_memory", (PyCFunction)ExtArray_set_memory, METH_VARARGS, "set_memory"},
   {"synchronize", (PyCFunction)ExtArray_synchronize, METH_NOARGS, "synchronize"},
+  {"tofile", (PyCFunction)ExtArray_tofile, METH_VARARGS, "tofile"},
   {NULL}
 };
 

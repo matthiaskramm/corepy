@@ -141,6 +141,8 @@ elif py_platform[0:6] == 'macosx' or py_platform[0:6] == 'darwin':
       ARCH = 'x86_64'
     else: # assumed 32bit
       ARCH = 'x86'
+  elif py_platform[-6:] == 'x86_64':
+    ARCH = 'x86_64'
   elif py_platform[-3:] == 'fat':
     # distutils says to build universal -- guess machine type from byte
     # order; assume 32-bit?
