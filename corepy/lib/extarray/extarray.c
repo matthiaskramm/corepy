@@ -8,7 +8,7 @@ typedef int Py_ssize_t;
 #include <stdio.h>
 #include "alloc.h"
 
-#ifdef __APPLE__ & __MACH__
+#if defined(__APPLE__) & defined( __MACH__)
 #include <sys/mman.h>
 #endif
 
@@ -486,7 +486,7 @@ static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* list)
 static PyObject* ExtArray_make_executable(ExtArray* self, PyObject* arg)
 {
 // TODO - other architectures
-#ifdef __APPLE__ & __MACH__
+#if defined(__APPLE__) & defined( __MACH__)
   // TODO - AWF - should query for the page size instead of just masking
   //sys_icache_invalidate((char *)addr, size * 4);
   if(mprotect(self->memory, self->alloc_len, 
@@ -497,7 +497,7 @@ static PyObject* ExtArray_make_executable(ExtArray* self, PyObject* arg)
   }
 
 #else
-#error "make_executable() not implemented for this platform"
+//#error "make_executable() not implemented for this platform"
 #endif
 
   Py_RETURN_NONE;
