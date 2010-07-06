@@ -476,9 +476,9 @@ static PyObject* ExtArray_fromlist(ExtArray* self, PyObject* list)
 
 
 //Extend the array with characters of a string
-static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* list)
+static PyObject* ExtArray_fromstring(ExtArray* self, PyObject* str)
 {
-  return ExtArray_fromlist(self, list);
+  return ExtArray_copy_direct(self, str);
 }
 
 
@@ -513,6 +513,23 @@ static PyObject* ExtArray_memory_lock(ExtArray* self, PyObject* arg)
   }
 
   return PyBool_FromLong(self->lock);
+}
+
+
+//Set the array length in number of elements.  Memory is allocated if length
+//is longer than the current memory allocation.  Any newly allocated memory at
+//the end of the array will have undefined values.
+static PyObject* ExtArray_set_length(ExtArray* self, PyObject* arg)
+{
+  unsigned long length;
+
+  length = PyLong_AsLong(arg);
+
+  //Allocate more memory for the length, if needed.
+  alloc(self, length);
+
+  self->data_len = length;
+  Py_RETURN_NONE;
 }
 
 
@@ -754,7 +771,7 @@ static PyObject* ExtArray_getslice(PyObject *self, Py_ssize_t i1, Py_ssize_t i2)
   ExtArray* arr = (ExtArray*)self;
   ExtArray* new_arr;
 
-  if(i2 == INT_MAX) {
+  if(i2 == PY_SSIZE_T_MAX) {
     i2 = arr->data_len;
   }
 
@@ -851,6 +868,7 @@ static PyMethodDef ExtArray_methods[] = {
   {"fromstring", (PyCFunction)ExtArray_fromstring, METH_O, "fromstring"},
   {"make_executable", (PyCFunction)ExtArray_make_executable, METH_NOARGS, "make_executable"},
   {"memory_lock", (PyCFunction)ExtArray_memory_lock, METH_O, "memory_lock"},
+  {"set_length", (PyCFunction)ExtArray_set_length, METH_O, "set_length"},
   {"set_memory", (PyCFunction)ExtArray_set_memory, METH_VARARGS, "set_memory"},
   {"synchronize", (PyCFunction)ExtArray_synchronize, METH_NOARGS, "synchronize"},
   {"tofile", (PyCFunction)ExtArray_tofile, METH_VARARGS, "tofile"},
