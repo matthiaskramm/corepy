@@ -117,7 +117,7 @@ static int _hugefs_find_mnt(void)
 }
 
 
-static void* alloc_hugemem(int size)
+static void* alloc_hugemem(size_t size)
 {
     void* addr;
     char  filename[PATH_MAX + 1];
@@ -220,7 +220,7 @@ static int has_huge_pages(void)
     return 0;
 }
 
-static void* alloc_hugemem(int size)
+static void* alloc_hugemem(size_t size)
 {
     return 0;
 }
@@ -248,7 +248,7 @@ static int get_page_size(void)
 }
 
 
-static void* alloc_mem(int size)
+static void* alloc_mem(size_t size)
 {
 #ifdef __MACH__
     return (void*)valloc(size);
