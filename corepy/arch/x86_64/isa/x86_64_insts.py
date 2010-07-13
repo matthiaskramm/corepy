@@ -627,11 +627,13 @@ class mem32_cl(MachineInstruction):
 
 class mem32_imm32(MachineInstruction):
   signature = (mem32_t, imm32_t)
-  opt_kw = ()
+  opt_kw = (lock_p,)
   
   def _render(params, operands):
     ret = common_memref(params['opcode'], operands['mem32'], params['modrm'])
     if ret != None:
+      #if operands.has_key('lock') and operands['lock'] == True and ret is not None:
+      #  return [lock_p.value] + ret + w32(operands['imm32'])
       return ret + w32(operands['imm32'])
   render = staticmethod(_render)
 
@@ -709,18 +711,20 @@ class mem32_reg32_imm8(MachineInstruction):
   def _render(params, operands):
     reg32 = operands['reg32']
     ret = common_memref(params['opcode'], operands['mem32'], reg32.reg << 3, reg32.rex << 2)
-    if ret != None:
+    if ret is not None:
       return ret + w8(operands['imm8'])
   render = staticmethod(_render)
 
 
 class mem32_simm8(MachineInstruction):
   signature = (mem32_t, simm8_t)
-  opt_kw = ()
+  opt_kw = (lock_p,)
   
   def _render(params, operands):
     ret = common_memref(params['opcode'], operands['mem32'], params['modrm'])
-    if ret != None:
+    if ret is not None:
+      if operands.has_key('lock') and operands['lock'] == True:
+        return [lock_p.value] + ret + w8(operands['simm8'])
       return ret + w8(operands['simm8'])
   render = staticmethod(_render)
 

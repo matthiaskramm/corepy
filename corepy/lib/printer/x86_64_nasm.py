@@ -138,8 +138,12 @@ class x86_64_Nasm(object):
     #for k, v in inst._supplied_koperands.items():
     #  op_str += ", %s = %s" % (str(k), str(v))
 
+    lock = ""
+    if inst._supplied_koperands.get('lock', False):
+      lock = "lock "
+
     name = inst.__class__.__name__.strip("_")
-    print >>fd, "\t%s %s" % (name, op_str)
+    print >>fd, "\t%s%s %s" % (lock, name, op_str)
     return
 
   def label(self, fd, lbl):

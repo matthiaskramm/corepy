@@ -63,6 +63,7 @@ class Default(object):
     self.verbose = verbose
 
     self._line_num = 0
+    self._hex_len = 0
     return
 
   def __del__(self):
@@ -130,7 +131,7 @@ class Default(object):
 
     print >>fd, "%s%s(%s)" % (self.inst_prefix, inst.__class__.__name__, op_str)
     if self.show_hex == True:
-      print >>fd, self.hex_inst(inst)
+      print >>fd, "%x %s" % (self._hex_len, self.hex_inst(inst))
     if self.show_binary == True:
       print >>fd, self.binary_inst(inst)
     return
@@ -153,10 +154,12 @@ class Default(object):
     render = inst.render()
     if isinstance(render, (int, long)):
       hex = '%08x' % (render)
+      self._hex_len += 4
     else:
       hex = ''
       for byte in render:
         hex += '%02x' % (byte)
+        self._hex_len += 1
     return hex
 
   def binary_inst(self, inst):
