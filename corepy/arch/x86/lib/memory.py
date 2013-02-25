@@ -30,6 +30,8 @@ import corepy.arch.x86.types.registers as regs
 
 class MemoryReference:
   def __init__(self, val, disp = None, index = None, scale = 1, data_size = 32, addr_size = None):
+    if scale is None:
+      scale = 1
     if not data_size in (8, 16, 32, 64, 80, 128, 228, 752, 4096, None):
       raise Exception('Memory reference data size must be 8, 16, 32, 64, 80, 128, 228, 752, or 4096 bits')
     self.data_size = data_size
@@ -41,7 +43,11 @@ class MemoryReference:
       self.disp = disp
       self.index = index
 
-      if index != None and type(index) != type(self.base):
+      if scale != 1 and self.index == None:
+        # displacement only mode
+        self.index = self.base
+        self.base = None
+      elif index != None and type(index) != type(self.base):
         raise Exception('When specified, index register must be same type register as the base register')
 
       if addr_size == None:
@@ -66,6 +72,10 @@ class MemoryReference:
       self.scale = scale
 
     elif isinstance(val, (int, long)):
+      assert index is None
+      assert scale == 1
+      assert disp is None
+
       self.base = None
       self.addr = val
       self.disp = None
@@ -87,12 +97,14 @@ class MemoryReference:
       if self.disp != None:
         if self.index != None:
           return "MemRef(%s, %d, %s, %d, %s)" % (str(self.base), self.disp, str(self.index), self.scale, data_size)
-        return "MemRef(%s, %d, %s)" % (str(self.base), self.disp, data_size)
+        return "MemRef(%s, 0x%x, %s)" % (str(self.base), self.disp, data_size)
       elif self.index != None:
         return "MemRef(%s, index = %s, scale = %d, %s)" % (str(self.base), str(self.index), self.scale, data_size)
       return "MemRef(%s, %s)" % (str(self.base), data_size)
     elif self.addr != None:
       return "MemRef(0x%x, %s)" % (self.addr, data_size)
+    elif self.disp != None and self.index != None:
+      return "MemRef(0x%x, index = %s, scale = %d, %s)" % (self.disp, str(self.index), self.scale, data_size)
     else:
       return "INVALID MemoryReference"
 

@@ -149,25 +149,34 @@ addr_p = x86PrefixOperand("addr", 0x67)
 def common_memref_modrm(opcode, ref, modrm):
   if ref.disp != None and ref.disp != 0:  # [base + disp]
     if ref.index != None:                 # [base+index*scale+disp]
-      sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
-
-      if simm8_t.fits(ref.disp):
-        return opcode + [0x44 | modrm, sib] + w8(ref.disp)
-      elif simm32_t.fits(ref.disp):
-        return opcode + [0x84 | modrm, sib] + w32(ref.disp)
+      if ref.base != None:
+        sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
+        if simm8_t.fits(ref.disp):
+          return opcode + [0x44 | modrm, sib] + w8(ref.disp)
+        elif simm32_t.fits(ref.disp):
+          return opcode + [0x84 | modrm, sib] + w32(ref.disp)
+      else: # [base + index*scale]
+        # "displacement only" addressing mode
+        sib = ref.scale_sib | (ref.index.reg << 3) | 5
+        return opcode + [0x04 | modrm, sib] + w32(ref.disp)
     elif ref.index == None:                 # [base + disp]
       if ref.base == regs.esp:
         if simm8_t.fits(ref.disp):           # [esp + disp]
           return opcode + [0x44 | modrm, 0x24] + w8(ref.disp)
         elif simm32_t.fits(ref.disp):
           return opcode + [0x80 | modrm, 0x24] + w32(ref.disp)
+        else:
+          raise AttributeError("invalid/unsupported addressing mode")
       elif simm8_t.fits(ref.disp):
         return opcode + [0x40 | modrm | ref.base.reg] + w8(ref.disp)
       elif simm32_t.fits(ref.disp):
         return opcode + [0x80 | modrm | ref.base.reg] + w32(ref.disp)
+      else:
+        raise AttributeError("invalid/unsupported addressing mode")
+    else:
+      raise AttributeError("invalid/unsupported addressing mode")
   elif ref.index != None:
     sib = ref.scale_sib | (ref.index.reg << 3) | ref.base.reg
-
     if ref.base == regs.ebp:
       return opcode + [0x44 | modrm, sib, 0x00] # [ebp, index]
     return opcode + [0x04 | modrm, sib]
@@ -177,6 +186,8 @@ def common_memref_modrm(opcode, ref, modrm):
     elif ref.base == regs.esp:
       return opcode + [0x04 | modrm, 0x24] # [rsp], [r12]
     return opcode + [modrm | ref.base.reg] # [base]
+  else:
+    raise AttributeError("invalid/unsupported addressing mode")
 
 
 def common_memref(opcode, ref, modrm):
@@ -186,7 +197,8 @@ def common_memref(opcode, ref, modrm):
     return common_memref_modrm(opcode, ref, modrm)
   elif ref.addr_size == 16: # 16bit modRM address
     return [0x67] + common_memref_modrm(opcode, ref, modrm)
-  return None
+  else:
+    raise AttributeError("invalid/unsupported addressing mode")
 
 
 class al_dx(MachineInstruction):
